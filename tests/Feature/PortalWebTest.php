@@ -89,6 +89,20 @@ class PortalWebTest extends TestCase
         $this->post('/portal/tokens',['name'=>'Test','scopes'=>['orders:read']])->assertSessionHas('token');
         $this->assertSame(['orders:read'],$client->tokens()->first()->abilities);
     }
+    public function test_admin_enters_decimal_money_and_invoices_keep_original_billing_data(): void
+    {
+        $client=$this->client(); $admin=$this->admin();
+        $order=app(CreateOrder::class)->handle($client,['subject'=>'Caso de facturación','details'=>'Detalle suficiente','items'=>[['service_code'=>'exequatur','quantity'=>3]]]);
+        $this->actingAs($admin)->withSession(['auth.password_confirmed_at'=>time()]);
+        $this->post('/portal/orders/'.$order->public_id.'/invoice',['prices'=>[$order->items->first()->id=>'10.05'],'tax_percent'=>'18'])->assertRedirect();
+        $invoice=$order->invoice()->first();
+        $this->assertSame(3015,$invoice->subtotal); $this->assertSame(543,$invoice->tax); $this->assertSame(3558,$invoice->total);
+        $this->post('/portal/invoices/'.$invoice->public_id.'/payments',['amount'=>'35.58','method'=>'cash','reference'=>'MONEY-TEST'])->assertRedirect();
+        $this->assertSame('paid',$invoice->fresh()->status);
+        $this->actingAs($client)->put('/portal/account',['name'=>'Nuevo nombre','company'=>'Nueva empresa','billing_email'=>'factura@example.com'])->assertRedirect();
+        $this->assertSame('Nueva empresa',$client->account->fresh()->name);
+        $this->assertNotSame('Nueva empresa',$invoice->fresh()->recipient['name']);
+    }
     public function test_admin_can_invite_and_deactivate_users_but_cannot_remove_own_access(): void
     {
         $admin=$this->admin(); $this->actingAs($admin)->withSession(['auth.password_confirmed_at'=>time()]);

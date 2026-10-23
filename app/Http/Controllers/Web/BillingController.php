@@ -13,14 +13,17 @@ class BillingController extends Controller
     public function issue(Request $request, Order $order, IssueInvoice $action)
     {
         Gate::authorize('administer',$order);
-        $data=$request->validate(['prices'=>['required','array'],'prices.*'=>['required','integer','min:1','max:100000000'],'tax_basis_points'=>['required','integer','min:0','max:10000'],'due_date'=>['nullable','date','after_or_equal:today']]);
+        $data=$request->validate(['prices'=>['required','array'],'prices.*'=>['required','numeric','decimal:0,2','min:0.01','max:1000000'],'tax_percent'=>['required','numeric','decimal:0,2','min:0','max:100'],'due_date'=>['nullable','date','after_or_equal:today']]);
+        $data['prices']=array_map(fn ($price)=>\App\Support\Money::parse((string) $price),$data['prices']);
+        $data['tax_basis_points']=\App\Support\Money::parse((string) $data['tax_percent']);
         $action->handle($request->user(),$order,$data);
         return back()->with('status','Factura emitida. Los importes quedaron fijados.');
     }
     public function pay(Request $request, Invoice $invoice, RecordPayment $action)
     {
         Gate::authorize('administer',$invoice->order);
-        $data=$request->validate(['amount'=>['required','integer','min:1','max:200000000000'],'method'=>['required',Rule::in(['bank_transfer','cash','check','other'])],'reference'=>['required','string','max:100'],'received_at'=>['nullable','date','before_or_equal:now']]);
+        $data=$request->validate(['amount'=>['required','numeric','decimal:0,2','min:0.01','max:2000000000'],'method'=>['required',Rule::in(['bank_transfer','cash','check','other'])],'reference'=>['required','string','max:100'],'received_at'=>['nullable','date','before_or_equal:now']]);
+        $data['amount']=\App\Support\Money::parse((string) $data['amount']);
         $action->handle($request->user(),$invoice,$data);
         return back()->with('status','Pago registrado y saldo actualizado.');
     }

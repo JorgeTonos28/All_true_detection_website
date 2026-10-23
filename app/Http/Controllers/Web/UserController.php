@@ -38,7 +38,11 @@ class UserController extends Controller
         $data=$request->validate(['role'=>['required',Rule::enum(Role::class)],'is_active'=>['required','boolean']]);
         abort_if($user->id===$request->user()->id && ($data['role']!=='admin' || ! $data['is_active']),422,'No puede retirar su propio acceso administrativo.');
         DB::transaction(function () use ($request,$user,$data) {
+            $admins=User::where('role','admin')->where('is_active',true)->orderBy('id')->lockForUpdate()->get();
+            $actor=User::findOrFail($request->user()->id);
+            abort_unless($actor->isAdmin() && $actor->is_active,403);
             $user=User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            abort_if($user->isAdmin() && $user->is_active && ($data['role']!=='admin' || ! $data['is_active']) && $admins->count()<=1,422,'Debe conservar al menos un administrador general activo.');
             if ($data['role']==='client' && ! $user->customer_account_id) {
                 $user->customer_account_id=CustomerAccount::create(['name'=>$user->name,'billing_email'=>$user->email])->id;
             }

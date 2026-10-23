@@ -1,0 +1,6 @@
+@extends('portal.layout')
+@section('title','Datos de mi cuenta')
+@section('subtitle','Información de contacto y facturación de su cuenta de cliente.')
+@section('content')
+<section class="panel"><form method="post" action="{{ route('portal.account.update') }}" class="stack">@csrf @method('PUT')<div class="form-grid"><label>Su nombre<input name="name" value="{{ old('name',auth()->user()->name) }}" maxlength="120" required></label><label>Empresa o titular de la cuenta<input name="company" value="{{ old('company',$account->name) }}" maxlength="200" required></label><label>Correo para facturación<input type="email" name="billing_email" value="{{ old('billing_email',$account->billing_email) }}" required></label><label>Identificación fiscal (opcional)<input name="tax_id" value="{{ old('tax_id',$account->tax_id) }}" maxlength="50"></label><label>Dirección de facturación<textarea name="billing_address" maxlength="1000">{{ old('billing_address',$account->billing_address) }}</textarea></label></div><p class="muted">Estos datos se comparten con los usuarios de su cuenta. Los cambios se aplican a nuevas facturas; las emitidas conservan su información original. El correo de acceso es {{ auth()->user()->email }}.</p><div><button>Guardar datos</button></div></form></section>
+@endsection

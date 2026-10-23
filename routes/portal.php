@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/contact',[MessageController::class,'contact'])->middleware('throttle:contact')->name('contact.store');
 Route::middleware(['auth','active','verified'])->prefix('portal')->name('portal.')->group(function () {
+    Route::get('/account',[\App\Http\Controllers\Web\AccountController::class,'index'])->name('account');
+    Route::put('/account',[\App\Http\Controllers\Web\AccountController::class,'update'])->middleware('password.confirm')->name('account.update');
     Route::view('/api-guide','portal.api-guide')->name('api-guide');
     Route::get('/api-contract',fn () => response()->download(base_path('packages/contracts/openapi.json'),'atd-api-v1.json',['Content-Type'=>'application/json']))->name('api-contract');
     Route::get('/security',[SecurityController::class,'index'])->middleware('password.confirm')->name('security');
