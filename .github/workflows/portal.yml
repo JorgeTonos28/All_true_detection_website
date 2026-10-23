@@ -2,12 +2,15 @@ name: Portal validation
 on:
   pull_request:
   push:
-    branches: [main, codex/service-portal]
+    branches: [main]
+concurrency:
+  group: portal-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   portal:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -41,7 +44,9 @@ jobs:
       QUEUE_CONNECTION: sync
       MAIL_MAILER: array
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
       - uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea
         with:
           php-version: ${{ matrix.php }}

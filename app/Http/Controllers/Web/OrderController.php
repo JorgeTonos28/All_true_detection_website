@@ -58,6 +58,6 @@ class OrderController extends Controller
         $data = $request->validate(['status' => ['nullable', Rule::enum(OrderStatus::class)], 'assigned_to' => ['nullable', 'integer', 'exists:users,id']]);
         $action->handle($request->user(), $order, $data);
 
-        return back()->with('status','Solicitud actualizada.');
+        return back()->with('status', 'Solicitud actualizada.');
     }
 }

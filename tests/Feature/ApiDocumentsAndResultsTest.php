@@ -61,6 +61,6 @@ class ApiDocumentsAndResultsTest extends TestCase
         $this->expectException(ValidationException::class);
         $fake = UploadedFile::fake()->createWithContent('fake.pdf', '<?php echo "malicious";');
         $file = new UploadedFile($fake->getPathname(), 'fake.pdf', 'application/pdf', null, true);
-        Validator::make(['file' => $file],['file' => PrivateUpload::rules()])->validate();
+        Validator::make(['file' => $file], ['file' => PrivateUpload::rules()])->validate();
     }
 }

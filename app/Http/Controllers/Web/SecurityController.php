@@ -62,6 +62,6 @@ class SecurityController extends Controller
         $endpoint->update(['is_active' => false]);
         Audit::record($request->user(), 'webhook.disabled', $endpoint);
 
-        return back()->with('status','Webhook desactivado.');
+        return back()->with('status', 'Webhook desactivado.');
     }
 }

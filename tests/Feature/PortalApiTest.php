@@ -87,6 +87,6 @@ class PortalApiTest extends TestCase
         [, $token] = $this->token();
         $this->post('/api/v1/orders', $this->payload(), ['Authorization' => 'Bearer '.$token])->assertStatus(415)->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->postJson('/api/v1/orders', $this->payload(), ['Authorization' => 'Bearer '.$token])->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['Idempotency-Key']]]);
-        $this->withHeader('Authorization', 'Bearer '.$token)->call('POST', '/api/v1/orders', [], [], [], ['CONTENT_TYPE' => 'application/json'], '{invalid')->assertStatus(400)->assertJsonPath('error.code','http_400');
+        $this->withHeader('Authorization', 'Bearer '.$token)->call('POST', '/api/v1/orders', [], [], [], ['CONTENT_TYPE' => 'application/json'], '{invalid')->assertStatus(400)->assertJsonPath('error.code', 'http_400');
     }
 }

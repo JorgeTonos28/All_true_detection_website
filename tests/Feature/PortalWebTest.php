@@ -155,6 +155,6 @@ class PortalWebTest extends TestCase
         $this->patch('/portal/users/'.$staff->id, ['role' => 'collaborator', 'is_active' => 0])->assertRedirect();
         $this->assertFalse($staff->fresh()->is_active);
         $this->assertSame(0, $staff->tokens()->count());
-        $this->patch('/portal/users/'.$admin->id,['role' => 'client', 'is_active' => 0])->assertUnprocessable();
+        $this->patch('/portal/users/'.$admin->id, ['role' => 'client', 'is_active' => 0])->assertUnprocessable();
     }
 }

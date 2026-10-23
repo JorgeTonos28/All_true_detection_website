@@ -97,8 +97,8 @@ class PortalWorkflowTest extends TestCase
             app(RecordPayment::class)->handle($admin, $invoice, ['amount' => 201, 'method' => 'cash', 'reference' => 'too-much']);
             $this->fail('Overpayment');
         } catch (HttpException $e) {
-            $this->assertSame(409,$e->getStatusCode());
+            $this->assertSame(409, $e->getStatusCode());
         }
-        $this->assertDatabaseCount('payments',0);
+        $this->assertDatabaseCount('payments', 0);
     }
 }

@@ -41,6 +41,6 @@ class SettingsController extends Controller
             Audit::record($request->user(), 'business.settings_updated', (new Setting)->forceFill(['id' => 0]), ['fields' => array_keys($data)]);
         });
 
-        return back()->with('status','Información del negocio actualizada.');
+        return back()->with('status', 'Información del negocio actualizada.');
     }
 }

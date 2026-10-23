@@ -56,4 +56,4 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('porta
         });
     });
 });
-Route::middleware(['auth', 'active', 'verified', 'staff-2fa', 'can:manage-business'])->get('/admin',fn () => redirect()->route('portal.settings'))->name('admin.dashboard');
+Route::middleware(['auth', 'active', 'verified', 'staff-2fa', 'can:manage-business'])->get('/admin', fn () => redirect()->route('portal.settings'))->name('admin.dashboard');

@@ -68,6 +68,6 @@ class UserController extends Controller
         Password::sendResetLink(['email' => $user->email]);
         Audit::record($request->user(), 'user.invitation_resent', $user);
 
-        return back()->with('status','Se solicitó un nuevo enlace de acceso.');
+        return back()->with('status', 'Se solicitó un nuevo enlace de acceso.');
     }
 }
