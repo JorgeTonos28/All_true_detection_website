@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Service;
 use App\Models\Setting;
+use App\Support\ServiceCatalog;
 use Illuminate\Support\Facades\Storage;
 
 class HomeController extends Controller
@@ -66,11 +68,12 @@ class HomeController extends Controller
     private function services(): array
     {
         try {
-            $services = \App\Models\Service::where('is_active', true)->orderBy('sort_order')->get()->toArray();
+            $services = Service::where('is_active', true)->orderBy('sort_order')->get()->toArray();
         } catch (\Throwable) {
-            $services = \App\Support\ServiceCatalog::all();
+            $services = ServiceCatalog::all();
         }
-        return array_map(fn (array $service) => ['title'=>$service['name'],'text'=>$service['description'],'icon'=>'file'], $services);
+
+        return array_map(fn (array $service) => ['title' => $service['name'], 'text' => $service['description'], 'icon' => 'file'], $services);
     }
 
     private function sectors(): array

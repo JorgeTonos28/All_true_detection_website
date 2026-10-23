@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Actions\Auth;
+
 use App\Models\CustomerAccount;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -7,6 +9,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
+
 class CreateNewUser implements CreatesNewUsers
 {
     public function create(array $input): User
@@ -19,11 +22,13 @@ class CreateNewUser implements CreatesNewUsers
             'password' => ['required', 'string', 'max:128', Password::min(12)->mixedCase()->numbers(), 'confirmed'],
             'terms' => ['accepted'],
         ])->validate();
+
         return DB::transaction(function () use ($data) {
             $account = CustomerAccount::create(['name' => $data['company'] ?? $data['name'], 'billing_email' => $data['email']]);
             $user = new User(collect($data)->only(['name', 'email', 'password'])->all());
             $user->customer_account_id = $account->id;
             $user->save();
+
             return $user;
         });
     }

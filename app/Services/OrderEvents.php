@@ -1,15 +1,20 @@
 <?php
+
 namespace App\Services;
+
 use App\Models\Order;
+use App\Models\User;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookEndpoint;
+use App\Notifications\PortalActivity;
 use Illuminate\Support\Str;
+
 class OrderEvents
 {
     public static function record(Order $order, string $type): void
     {
-        foreach (\App\Models\User::where('customer_account_id', $order->customer_account_id)->where('role', 'client')->where('is_active', true)->whereNotNull('email_verified_at')->get() as $client) {
-            $client->notify(new \App\Notifications\PortalActivity('Actualización de su solicitud ATD', '/portal/orders/'.$order->public_id));
+        foreach (User::where('customer_account_id', $order->customer_account_id)->where('role', 'client')->where('is_active', true)->whereNotNull('email_verified_at')->get() as $client) {
+            $client->notify(new PortalActivity('Actualización de su solicitud ATD', '/portal/orders/'.$order->public_id));
         }
         // Outbox records participate in the caller's transaction. Payloads never contain results or PII.
         foreach (WebhookEndpoint::where('customer_account_id', $order->customer_account_id)->where('is_active', true)->get() as $endpoint) {

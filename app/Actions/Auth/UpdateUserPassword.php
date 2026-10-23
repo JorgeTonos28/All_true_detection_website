@@ -1,11 +1,14 @@
 <?php
+
 namespace App\Actions\Auth;
+
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Contracts\UpdatesUserPasswords;
+
 class UpdateUserPassword implements UpdatesUserPasswords
 {
     public function update(User $user, array $input): void

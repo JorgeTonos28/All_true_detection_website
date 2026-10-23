@@ -1,5 +1,7 @@
 <?php
+
 use Laravel\Fortify\Features;
+
 return [
     'guard' => 'web', 'passwords' => 'users', 'username' => 'email', 'email' => 'email',
     'lowercase_usernames' => true, 'home' => '/portal', 'prefix' => '', 'domain' => null,

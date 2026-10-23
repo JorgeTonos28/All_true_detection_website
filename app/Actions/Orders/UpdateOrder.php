@@ -1,5 +1,7 @@
 <?php
+
 namespace App\Actions\Orders;
+
 use App\Enums\OrderStatus;
 use App\Enums\Role;
 use App\Models\Order;
@@ -8,6 +10,7 @@ use App\Services\Audit;
 use App\Services\OrderEvents;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+
 class UpdateOrder
 {
     public function handle(User $actor, Order $order, array $data): Order
@@ -22,19 +25,23 @@ class UpdateOrder
             }
             if (isset($data['status']) && $data['status'] !== $order->status->value) {
                 $allowed = match ($order->status) {
-                    OrderStatus::Submitted => ['reviewing','cancelled'],
+                    OrderStatus::Submitted => ['reviewing', 'cancelled'],
                     OrderStatus::Reviewing => ['cancelled'],
                     OrderStatus::Quoted => ['in_progress'],
                     OrderStatus::InProgress => ['completed'],
                     default => [],
                 };
                 abort_unless(in_array($data['status'], $allowed, true), 409, 'La transición de estado no está permitida.');
-                if ($data['status'] === 'cancelled') { Gate::forUser($actor)->authorize('administer', $order); abort_if($order->invoice()->exists(), 409, 'Una orden facturada no puede cancelarse.'); }
+                if ($data['status'] === 'cancelled') {
+                    Gate::forUser($actor)->authorize('administer', $order);
+                    abort_if($order->invoice()->exists(), 409, 'Una orden facturada no puede cancelarse.');
+                }
                 $order->status = OrderStatus::from($data['status']);
             }
             $order->save();
-            Audit::record($actor, 'order.updated', $order, ['status'=>$order->status->value,'assigned_to'=>$order->assigned_to]);
+            Audit::record($actor, 'order.updated', $order, ['status' => $order->status->value, 'assigned_to' => $order->assigned_to]);
             OrderEvents::record($order, 'order.updated');
+
             return $order;
         }, 3);
     }
