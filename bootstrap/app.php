@@ -11,7 +11,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->append(App\Http\Middleware\SecurityHeaders::class);
+        $middleware->web(append: [App\Http\Middleware\EnsureActiveUser::class, App\Http\Middleware\AuthRateLimits::class]);
+        $middleware->alias([
+            'active' => App\Http\Middleware\EnsureActiveUser::class,
+            'staff-2fa' => App\Http\Middleware\RequireStaffTwoFactor::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

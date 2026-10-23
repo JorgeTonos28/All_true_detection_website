@@ -1,58 +1,30 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# All True Detection
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sitio público y portal de servicios. PHP 8.3+, Laravel 13, Blade, Fortify, Socialite (Google), Sanctum y API versionada. Referencia: [Vamo al Game](https://github.com/JorgeTonos28/Vamo_al_game). Sin Auth0 ni aplicación móvil paralela.
 
-## About Laravel
+## Preparación
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+1. `composer install`.
+2. Copiar `.env.example` a `.env` y configurar base de datos, `APP_URL`, correo y clave (`php artisan key:generate` solo en una instalación nueva).
+3. `php artisan migrate --seed`. Los seeders preservan la configuración existente y crean el catálogo de once servicios; no crean contraseñas ni administradores predecibles.
+4. `php artisan storage:link` para logos públicos. Expedientes y resultados permanecen en `storage/app/private` y se descargan mediante autorización.
+5. `php artisan portal:create-admin correo@empresa.com`. Envía recuperación al correo indicado; si existe la cuenta, cambia su rol, rota la contraseña y revoca sesiones/tokens. El administrador verifica su correo y configura 2FA antes de operar.
+6. `php artisan serve`; para correo y tareas asíncronas ejecutar `php artisan queue:work --tries=5`.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+El sitio y el portal usan assets estáticos versionados en `public/assets`. El pipeline Vite del esqueleto sigue disponible con `npm install` y `npm run build`.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Acceso y seguridad
 
-## Learning Laravel
+`/login`, `/register`, recuperación de contraseña, verificación de correo y 2FA TOTP con códigos de recuperación. Roles: administrador general, colaborador y cliente. El colaborador trabaja sobre órdenes asignadas; el cliente opera dentro de su cuenta.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Configurar `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI` con el callback `/auth/google/callback`. Para vincular Google a un correo existente, iniciar sesión primero y usar Seguridad. Google debe devolver un correo verificado; no se vinculan cuentas por simple coincidencia de correo. Una cuenta Google puede establecer contraseña mediante recuperación.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+En producción: HTTPS, `APP_DEBUG=false`, `SESSION_ENCRYPT=true`, `SESSION_SECURE_COOKIE=true`, SMTP real y `PORTAL_REQUIRE_STAFF_2FA=true`. `MAIL_MAILER=log` solo es apropiado para desarrollo: no envía correos y registra enlaces de autenticación en logs privados. Nunca publicar `.env`, ZIP de producción, base de datos, logs o archivos privados. Conservar `APP_KEY` para poder descifrar expedientes existentes.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+No se han ejecutado las migraciones nuevas sobre la base de datos existente ni desplegado cambios en producción. El administrador del panel anterior debe prepararse con el comando seguro anterior; no se promueven usuarios automáticamente.
 
-## Agentic Development
+## Validación
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+`php vendor/phpunit/phpunit/phpunit`, `php vendor/bin/pint --test`, `composer audit`. Las pruebas usan SQLite en memoria y no modifican la base configurada en `.env`.
 
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
-```
-
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Ver [arquitectura](docs/architecture.md) y [guía de ingeniería](AGENTS.md). La implementación del portal continúa en unidades validadas y commits independientes.
