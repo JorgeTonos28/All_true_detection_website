@@ -21,7 +21,7 @@ Configurar `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI` co
 
 En producción: HTTPS, `APP_DEBUG=false`, `SESSION_ENCRYPT=true`, `SESSION_SECURE_COOKIE=true`, SMTP real y `PORTAL_REQUIRE_STAFF_2FA=true`. `MAIL_MAILER=log` solo es apropiado para desarrollo: no envía correos y registra enlaces de autenticación en logs privados. Nunca publicar `.env`, ZIP de producción, base de datos, logs o archivos privados. Conservar `APP_KEY` para poder descifrar expedientes existentes.
 
-No se han ejecutado las migraciones nuevas sobre la base de datos existente ni desplegado cambios en producción. El administrador del panel anterior debe prepararse con el comando seguro anterior; no se promueven usuarios automáticamente.
+Al actualizar una instalación existente, respaldar la base, los documentos y APP_KEY antes de migrar. La migración de seguridad revoca la antigua contraseña fija si sigue presente. El administrador del panel anterior debe prepararse con el comando seguro anterior; no se promueven usuarios automáticamente. Ver [operación y despliegue](docs/operations.md).
 
 ## Validación
 
@@ -29,7 +29,7 @@ No se han ejecutado las migraciones nuevas sobre la base de datos existente ni d
 
 ## Solicitudes y cobros
 
-Las órdenes aceptan varios servicios y cantidades. Las facturas comerciales conservan los importes emitidos, el emisor y el destinatario. Los importes se expresan en centavos enteros y los impuestos en puntos básicos (1800 = 18 %); la moneda predeterminada es DOP. El administrador general registra pagos parciales y sus referencias; un pago repetido con la misma referencia no duplica el cobro.
+Las órdenes aceptan varios servicios y cantidades. Las facturas comerciales conservan los importes emitidos, el emisor y el destinatario. La interfaz recibe importes con dos decimales e impuestos en porcentaje; internamente y en la API se usan centavos enteros y puntos básicos (1800 = 18 %), sin cálculos monetarios en coma flotante. La moneda predeterminada es DOP. El administrador general registra pagos parciales y sus referencias; un pago repetido con la misma referencia no duplica el cobro. El cliente puede actualizar los datos fiscales/de contacto de su cuenta sin alterar facturas ya emitidas.
 
 Preparar resultados, completar trabajo, confirmar pago y publicar entrega son operaciones distintas. Solo el administrador publica, y únicamente con orden completada y factura totalmente pagada. La descarga vuelve a comprobar estas condiciones. Los mensajes de seguimiento no deben utilizarse para enviar resultados; estos pertenecen al módulo de entregas. Los correos notifican actividad sin incluir mensajes ni datos del expediente.
 
@@ -44,6 +44,8 @@ El sitio público comparte el catálogo, incorpora Validación de Título Univer
 Los clientes generan y revocan tokens y webhooks desde `/portal/security`; la página exige autenticación reciente. También hay una guía de API y descarga del contrato. El staff mantiene 2FA obligatoria. Para cuentas Google sin contraseña, se permite confirmar la identidad volviendo a autenticar la misma cuenta Google.
 
 Facturas comerciales imprimibles desde el navegador; no hay numeración fiscal/NCF, pasarela de pago automática, reembolsos ni conciliación bancaria. Adjuntos permitidos: PDF/JPG/PNG/WebP, hasta 10 MB y 30 documentos de entrada por orden. Logos raster hasta 2 MB y favicon PNG hasta 512 KB. SVG de usuarios no se acepta.
+
+En producción, configurar `DOCUMENT_SCAN_BINARY` con la ruta de `clamdscan` o `clamscan`, sus firmas actualizadas y permisos para leer los temporales PHP. Las cargas privadas fallan de forma cerrada si falta el escáner, está indisponible o detecta malware. Correo de verificación y recuperación se procesa en cola con payload cifrado. La recuperación excepcional de 2FA usa `portal:reset-two-factor correo --confirmed-identity`, tras verificar la identidad por un canal independiente; revoca sesiones y tokens y queda auditada.
 
 ## API y eventos
 

@@ -1,0 +1,40 @@
+# Operación y despliegue
+
+## Preparar entorno
+
+PHP 8.3+ con PDO MySQL/SQLite, mbstring, OpenSSL, cURL, fileinfo y XML; GD para validación de imágenes. El lock de Composer se resuelve contra PHP 8.3 para evitar dependencias que solo funcionen en el PHP de desarrollo. MySQL 8+ o SQLite; la suite de CI cubre ambos motores. Los assets del portal son estáticos y están en Git.
+
+Antes de actualizar, crear y verificar un respaldo de base de datos, `storage/app/private`, logos, configuración privada y APP_KEY. Conservar APP_KEY: cifra mensajes, descripción de expedientes, resultados, secretos de webhooks y trabajos de autenticación en cola. Una clave distinta impide recuperar los datos. El almacenamiento privado y sus respaldos deben tener acceso restringido y cifrado de disco/servicio de almacenamiento; no colocarlos bajo el document root.
+
+Configurar el document root en `public/`, un usuario de BD exclusivo y permisos mínimos para aplicación y migraciones. Instalar dependencias con `composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader`. Nunca subir `.env`, SQLite, logs o ZIP antiguos al repositorio ni publicar el proyecto completo como carpeta servida por HTTP. El ZIP anterior de producción queda como archivo local heredado y no debe reutilizarse para desplegar el portal.
+
+## Configuración necesaria
+
+- URL HTTPS canónica en APP_URL, APP_ENV=production, APP_DEBUG=false, SESSION_ENCRYPT=true y SESSION_SECURE_COOKIE=true. No activar debug en un sitio accesible por clientes. Si hay un proxy inverso, configurar explícitamente los proxies de confianza en Laravel según el proveedor antes de validar IP, HTTPS y límites; no confiar indiscriminadamente en encabezados reenviados.
+- Base de datos y APP_KEY propios de la instalación, sin credenciales por defecto. La migración de seguridad desactiva cuentas que conserven la antigua contraseña fija; preparar el propietario con `portal:create-admin correo@empresa.com`. El comando rota su contraseña y envía recuperación. Confirmar que ese correo pertenece al responsable autorizado.
+- SMTP real y remitente autorizado/DKIM/SPF. MAIL_MAILER=log no entrega mensajes y deja enlaces de autenticación en logs: solo usar en desarrollo. Mantener los logs privados. Verificar que el worker envía recuperación, invitación y verificación de correo en español.
+- GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET y GOOGLE_REDIRECT_URI en la consola OAuth correspondiente. Registrar exactamente `/auth/google/callback` en el dominio HTTPS de ATD. Probar una cuenta nueva, vinculación autenticada y desafío 2FA en staging. Las pruebas automatizadas usan respuestas Google simuladas y no sustituyen esta comprobación real.
+- PORTAL_REQUIRE_STAFF_2FA=true. El personal no puede operar hasta confirmar TOTP. Guardar códigos de recuperación. El reinicio excepcional solo está disponible por consola, con identidad ya verificada y auditoría; no existe un bypass público de 2FA.
+- DOCUMENT_SCAN_BINARY: ruta absoluta de clamdscan o clamscan con firmas actualizadas. Permitir lectura de temporales al usuario PHP, sin ejecutar PHP como root. La app verifica extensión, MIME, tamaño y antivirus antes de almacenar. Código de salida 0 permite; 1 rechaza; timeout/error o falta de configuración bloquean cargas en producción. Ajustar upload_max_filesize a al menos 10M, post_max_size a al menos 12M y el límite de cuerpo del servidor a un valor compatible. Verificar con un PDF real y un archivo de prueba antivirus controlado en staging.
+- PORTAL_CURRENCY=DOP por defecto; confirmar la moneda de negocio antes de emitir la primera factura. El impuesto se define explícitamente por factura. No se generan NCF ni documentos fiscales homologados.
+- WEBHOOK_ALLOWED_HOSTS: hosts exactos, públicos y HTTPS aprobados por operaciones. El escáner de URL rechaza destinos internos y redirecciones; aplicar también restricciones de salida de red. API_ALLOWED_ORIGINS permanece vacío para integraciones servidor a servidor; declarar orígenes exactos para navegadores si se necesitan, sin cookies.
+
+## Activación
+
+1. En ventana controlada, detener tráfico mutante y workers durante la actualización.
+2. `php artisan migrate --force` y `php artisan db:seed --force`. Los seeders usan firstOrCreate y no sobrescriben la marca existente.
+3. `php artisan storage:link`. Solo logos y favicon usan el disco público; el disco local privado no tiene rutas de descarga genéricas.
+4. `php artisan config:cache`, `php artisan route:cache` y `php artisan view:cache` después de configurar variables. Reiniciar workers tras cambios de código/configuración.
+5. Mantener `php artisan queue:work --tries=5 --timeout=60` supervisado. `retry_after` debe exceder el timeout. Los emails de autenticación se encolan cifrados y después de commit.
+6. Cron cada minuto: `php artisan schedule:run`. El scheduler despacha la bandeja de webhooks y elimina tokens expirados. Revisar failed_jobs, endpoints desactivados y entregas agotadas en Auditoría e integraciones; corregir causa antes de reintentar manualmente trabajos de correo. Los webhooks agotados no tienen replay manual en esta versión.
+7. Verificar flujos reales de registro, verificación, recuperación, Google, 2FA, invitaciones, solicitudes y documentos. Emitir una factura de prueba, registrar abono y saldo, comprobar que no se ve ninguna entrega antes de pago/publicación y completar la descarga con un cliente autorizado. Probar revocación y firma de eventos con una integración de staging.
+
+## Límites de esta entrega
+
+Una cuenta puede tener varios usuarios cliente con acceso compartido a sus órdenes. Los colaboradores solo ven órdenes asignadas; no existe delegación adicional por departamento dentro de una cuenta. Los documentos de entrada los aporta el cliente, y los resultados se publican desde el módulo de entregas; no deben enviarse resultados por el texto de mensajes.
+
+La factura emitida es comercial e inmutable. Para cambios de alcance posteriores se crea una nueva orden. No hay pasarela automática, reembolsos, conciliación bancaria, comprobantes fiscales ni ingestión de respuestas por email. Las conversaciones se responden desde el portal. Los pagos se registran únicamente por administrador y no se eliminan desde la UI.
+
+No hay eliminación automática de expedientes ni borrado desde el portal. Definir con ATD una política de retención y un procedimiento de supresión autorizado antes de cargar información real; preservar las obligaciones operativas/fiscales que correspondan. La app no toma decisiones automáticas sobre personas ni ejecuta las verificaciones por sí misma: gestiona el trabajo y la entrega profesional de ATD.
+
+Las pruebas locales usan SQLite. El workflow añadido verifica PHP 8.3/SQLite y PHP 8.4/MySQL; revisar sus resultados antes de integrar y desplegar. La revisión visual local cubrió escritorio; completar QA de navegador y dispositivo real para el entorno objetivo antes de la apertura pública.
