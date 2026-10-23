@@ -34,3 +34,9 @@ Las órdenes aceptan varios servicios y cantidades. Las facturas comerciales con
 Preparar resultados, completar trabajo, confirmar pago y publicar entrega son operaciones distintas. Solo el administrador publica, y únicamente con orden completada y factura totalmente pagada. La descarga vuelve a comprobar estas condiciones. Los mensajes de seguimiento no deben utilizarse para enviar resultados; estos pertenecen al módulo de entregas. Los correos notifican actividad sin incluir mensajes ni datos del expediente.
 
 Ver [arquitectura](docs/architecture.md) y [guía de ingeniería](AGENTS.md). La implementación del portal continúa en unidades validadas y commits independientes.
+
+## API y eventos
+
+Endpoints `/api/v1`, tokens por permisos, expiración, revocación, aislamiento por cuenta, idempotencia de creación y errores JSON con request ID. Ver [integración API](docs/api.md) y [OpenAPI](packages/contracts/openapi.json).
+
+Webhooks con HMAC-SHA256 y bandeja transaccional. Configurar `WEBHOOK_ALLOWED_HOSTS`, worker y cron de `php artisan schedule:run` cada minuto. Los intentos fallidos se reintentan con espera creciente y dejan registro operativo. No hay entrega automática de documentos por correo ni archivos públicos.
