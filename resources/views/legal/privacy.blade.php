@@ -3,17 +3,14 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Aviso de privacidad | All True Detection</title>
-    <link rel="icon" href="{{ asset('favicon.ico') }}?v={{ filemtime(public_path('favicon.ico')) }}" sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/images/favicon-32.png') }}?v={{ filemtime(public_path('assets/images/favicon-32.png')) }}">
-    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('assets/images/favicon-192.png') }}?v={{ filemtime(public_path('assets/images/favicon-192.png')) }}">
-    <link rel="apple-touch-icon" href="{{ asset('assets/images/favicon-180.png') }}?v={{ filemtime(public_path('assets/images/favicon-180.png')) }}">
+    <title>Aviso de privacidad | {{ $business['company_name'] ?? 'All True Detection' }}</title>
+    @include('shared.favicon',['settings'=>$business])
     <link rel="stylesheet" href="{{ asset('assets/css/site.css') }}?v={{ filemtime(public_path('assets/css/site.css')) }}">
 </head>
 <body class="legal-body">
     <header class="legal-header">
         <a href="{{ route('home') }}" aria-label="Volver al inicio">
-            <img src="{{ asset('assets/images/brand-lockup-light.png') }}" alt="All True Detection">
+            <img src="{{ filled($business['logo_path'] ?? null) ? \Illuminate\Support\Facades\Storage::disk('public')->url($business['logo_path']) : asset('assets/images/brand-lockup-light.png') }}" alt="{{ $business['company_name'] ?? 'All True Detection' }}">
         </a>
         <nav>
             <a href="{{ route('home') }}">Inicio</a>

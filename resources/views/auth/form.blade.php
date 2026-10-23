@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Acceso | All True Detection</title><link rel="icon" href="{{ asset('favicon.ico') }}"><link rel="stylesheet" href="{{ asset('assets/css/portal.css') }}"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Acceso | {{ $business['company_name'] ?? 'All True Detection' }}</title>@include('shared.favicon',['settings'=>$business])<link rel="stylesheet" href="{{ asset('assets/css/portal.css') }}"></head>
 <body class="auth-body"><main class="auth-shell">
-<aside class="auth-brand"><a href="{{ route('home') }}"><img src="{{ asset('assets/images/brand-lockup-light.png') }}" alt="All True Detection" width="240"></a><div><p class="eyebrow">PORTAL DE CLIENTES</p><h1>Su confianza.<br>Con seguimiento.</h1><p>Solicite servicios, converse con nuestro equipo y reciba sus entregas en un espacio privado.</p></div><p>Evaluamos. Detectamos. Prevenimos.</p></aside>
+<aside class="auth-brand"><a href="{{ route('home') }}"><img src="{{ filled($business['logo_path'] ?? null) ? \Illuminate\Support\Facades\Storage::disk('public')->url($business['logo_path']) : asset('assets/images/brand-lockup-light.png') }}" alt="{{ $business['company_name'] ?? 'All True Detection' }}" width="240"></a><div><p class="eyebrow">PORTAL DE CLIENTES</p><h1>Su confianza.<br>Con seguimiento.</h1><p>Solicite servicios, converse con nuestro equipo y reciba sus entregas en un espacio privado.</p></div><p>{{ $business['slogan'] ?? 'Evaluamos. Detectamos. Prevenimos.' }}</p></aside>
 <section class="auth-panel">
 @php
     $titles = ['login'=>'Bienvenido de nuevo','register'=>'Cree su cuenta','forgot-password'=>'Recupere el acceso','reset-password'=>'Establezca su contraseña','verify-email'=>'Verifique su correo','confirm-password'=>'Confirme su identidad','two-factor-challenge'=>'Un paso más de seguridad'];

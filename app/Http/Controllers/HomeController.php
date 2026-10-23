@@ -14,7 +14,7 @@ class HomeController extends Controller
         $settings = array_merge($this->defaults(), Setting::values());
 
         $logoUrl = filled($settings['logo_path'] ?? null)
-            ? Storage::url($settings['logo_path'])
+            ? Storage::disk('public')->url($settings['logo_path'])
             : asset('assets/images/brand-lockup-light.png');
 
         return view('home', [
@@ -22,7 +22,7 @@ class HomeController extends Controller
             'brand' => [
                 'logo_url' => $logoUrl,
                 'mark_url' => asset('assets/images/brand-mark.png'),
-                'dark_logo_url' => asset('assets/images/brand-lockup-dark.png'),
+                'dark_logo_url' => filled($settings['logo_path'] ?? null) ? $logoUrl : asset('assets/images/brand-lockup-dark.png'),
                 'whatsapp_url' => $this->whatsappUrl($settings['whatsapp'] ?? ''),
             ],
             'services' => $this->services(),

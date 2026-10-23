@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Conversation;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\Audit;
 use Illuminate\Auth\Events\Login;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Fortify\Events\RecoveryCodesGenerated;
 use Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed;
@@ -34,6 +36,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        View::composer(['auth.form', 'legal.*'], function ($view): void {
+            $view->with('business', Setting::values());
+        });
         Gate::define('manage-business', fn (User $user) => $user->is_active && $user->isAdmin());
         Event::listen(Login::class, fn ($event) => Audit::record($event->user, 'auth.login', $event->user));
         Event::listen(Logout::class, function ($event) {
