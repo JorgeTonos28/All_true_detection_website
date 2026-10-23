@@ -27,4 +27,10 @@ No se han ejecutado las migraciones nuevas sobre la base de datos existente ni d
 
 `php vendor/phpunit/phpunit/phpunit`, `php vendor/bin/pint --test`, `composer audit`. Las pruebas usan SQLite en memoria y no modifican la base configurada en `.env`.
 
+## Solicitudes y cobros
+
+Las órdenes aceptan varios servicios y cantidades. Las facturas comerciales conservan los importes emitidos, el emisor y el destinatario. Los importes se expresan en centavos enteros y los impuestos en puntos básicos (1800 = 18 %); la moneda predeterminada es DOP. El administrador general registra pagos parciales y sus referencias; un pago repetido con la misma referencia no duplica el cobro.
+
+Preparar resultados, completar trabajo, confirmar pago y publicar entrega son operaciones distintas. Solo el administrador publica, y únicamente con orden completada y factura totalmente pagada. La descarga vuelve a comprobar estas condiciones. Los mensajes de seguimiento no deben utilizarse para enviar resultados; estos pertenecen al módulo de entregas. Los correos notifican actividad sin incluir mensajes ni datos del expediente.
+
 Ver [arquitectura](docs/architecture.md) y [guía de ingeniería](AGENTS.md). La implementación del portal continúa en unidades validadas y commits independientes.
