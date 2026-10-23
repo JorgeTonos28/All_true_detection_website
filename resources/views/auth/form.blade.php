@@ -9,7 +9,7 @@
     $actions = ['login'=>'login.store','register'=>'register.store','forgot-password'=>'password.email','reset-password'=>'password.update','confirm-password'=>'password.confirm.store','two-factor-challenge'=>'two-factor.login.store'];
 @endphp
 <a href="{{ route('home') }}" class="muted">← Volver al sitio</a><h2>{{ $titles[$mode] }}</h2>
-@if (session('status'))<div class="notice" role="status">{{ session('status') }}</div>@endif
+@if (session('status'))<div class="notice" role="status">{{ \App\Support\FlashMessage::label(session('status')) }}</div>@endif
 @if ($errors->any())<div class="alert" role="alert">{{ $errors->first() }}</div>@endif
 @if ($mode === 'verify-email')
     <p>Le enviamos un enlace para confirmar su correo. Revise también la carpeta de spam.</p>

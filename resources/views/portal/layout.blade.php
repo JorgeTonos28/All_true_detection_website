@@ -29,7 +29,7 @@
     <header class="portal-topbar"><span class="muted">Portal de servicios</span><div class="identity"><span><strong>{{ auth()->user()->name }}</strong><small>{{ auth()->user()->role->label() }}</small></span><form method="post" action="{{ route('logout') }}">@csrf<button class="secondary" type="submit">Salir</button></form></div></header>
     <main class="portal-content" id="content">
         <header class="page-heading"><div><p class="eyebrow">ALL TRUE DETECTION</p><h1>@yield('title','Portal')</h1><p class="muted">@yield('subtitle')</p></div><div class="actions">@yield('actions')</div></header>
-        @if(session('status'))<div class="notice" role="status">{{ session('status') }}</div>@endif
+        @if(session('status'))<div class="notice" role="status">{{ \App\Support\FlashMessage::label(session('status')) }}</div>@endif
         @if($errors->any())<div class="alert" role="alert"><strong>Revise la información</strong><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
         @yield('content')
     </main>
