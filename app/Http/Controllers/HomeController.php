@@ -65,17 +65,12 @@ class HomeController extends Controller
 
     private function services(): array
     {
-        return [
-            ['title' => 'Evaluaciones con Polígrafo', 'text' => 'Preempleo, rutina, permanencia e investigación específica con protocolos documentados.', 'icon' => 'pulse'],
-            ['title' => 'Detección de Engaño', 'text' => 'Paquete integral que combina entrevista estructurada, evaluación con polígrafo, análisis asistido por IA y revisión técnica para escenarios donde se requiere mayor claridad.', 'icon' => 'scan'],
-            ['title' => 'Verificación de Perfiles', 'text' => 'Revisión profesional de información relevante para comprender mejor el perfil, su trayectoria y posibles áreas de atención.', 'icon' => 'file'],
-            ['title' => 'Análisis con IA Aplicada', 'text' => 'Paquete complementario para cruzar información, detectar patrones, organizar hallazgos y fortalecer reportes con inteligencia analítica.', 'icon' => 'ai'],
-            ['title' => 'Visitas Domiciliarias', 'text' => 'Confirmación de entorno, residencia y coherencia de datos declarados.', 'icon' => 'home'],
-            ['title' => 'Investigaciones', 'text' => 'Apoyo a procesos internos, fraude, conducta irregular y debida diligencia.', 'icon' => 'search'],
-            ['title' => 'Pruebas Antidoping', 'text' => 'Detección preventiva con manejo confidencial y enfoque de cumplimiento.', 'icon' => 'lab'],
-            ['title' => 'Pruebas Psicométricas', 'text' => 'Perfil laboral, competencias, personalidad y variables de riesgo humano.', 'icon' => 'mind'],
-            ['title' => 'Capacitación y Equipos', 'text' => 'Entrenamientos especializados, sensores, materiales y asesoría técnica.', 'icon' => 'training'],
-        ];
+        try {
+            $services = \App\Models\Service::where('is_active', true)->orderBy('sort_order')->get()->toArray();
+        } catch (\Throwable) {
+            $services = \App\Support\ServiceCatalog::all();
+        }
+        return array_map(fn (array $service) => ['title'=>$service['name'],'text'=>$service['description'],'icon'=>'file'], $services);
     }
 
     private function sectors(): array

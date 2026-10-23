@@ -33,7 +33,17 @@ Las órdenes aceptan varios servicios y cantidades. Las facturas comerciales con
 
 Preparar resultados, completar trabajo, confirmar pago y publicar entrega son operaciones distintas. Solo el administrador publica, y únicamente con orden completada y factura totalmente pagada. La descarga vuelve a comprobar estas condiciones. Los mensajes de seguimiento no deben utilizarse para enviar resultados; estos pertenecen al módulo de entregas. Los correos notifican actividad sin incluir mensajes ni datos del expediente.
 
-Ver [arquitectura](docs/architecture.md) y [guía de ingeniería](AGENTS.md). La implementación del portal continúa en unidades validadas y commits independientes.
+Ver [arquitectura](docs/architecture.md) y [guía de ingeniería](AGENTS.md).
+
+## Portal web
+
+Entrada en `/portal`. Clientes: resumen, solicitudes con varios servicios, documentos privados, facturas, conversaciones, resultados publicados y credenciales de API. Administradores: directorio e invitaciones de usuarios, asignación de responsables, estados operativos, emisión de facturas, confirmación de pagos, publicación, identidad del negocio y auditoría. Colaboradores: órdenes asignadas, documentos, seguimiento y preparación de entregas. `/admin` redirige a configuración solo para administradores.
+
+El sitio público comparte el catálogo, incorpora Validación de Título Universitario y Validación de Exequatur y dispone de formulario de consulta. Las consultas públicas se asocian al cliente únicamente después de demostrar acceso al mismo correo. Los avisos de mensajes llegan por email; las respuestas se escriben en el portal. No se importa automáticamente el correo entrante.
+
+Los clientes generan y revocan tokens y webhooks desde `/portal/security`; la página exige autenticación reciente. También hay una guía de API y descarga del contrato. El staff mantiene 2FA obligatoria. Para cuentas Google sin contraseña, se permite confirmar la identidad volviendo a autenticar la misma cuenta Google.
+
+Facturas comerciales imprimibles desde el navegador; no hay numeración fiscal/NCF, pasarela de pago automática, reembolsos ni conciliación bancaria. Adjuntos permitidos: PDF/JPG/PNG/WebP, hasta 10 MB y 30 documentos de entrada por orden. Logos raster hasta 2 MB y favicon PNG hasta 512 KB. SVG de usuarios no se acepta.
 
 ## API y eventos
 

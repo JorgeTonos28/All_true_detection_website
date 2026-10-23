@@ -39,4 +39,5 @@
     <p>¿Ya tiene cuenta? <a href="{{ route('login') }}">Iniciar sesión</a></p>
 @elseif ($mode === 'forgot-password')<a href="{{ route('login') }}">Volver a iniciar sesión</a>
 @endif
+@if($mode === 'confirm-password' && auth()->user()?->google_id)<a class="button secondary" href="{{ route('google.reauthenticate') }}">Confirmar identidad con Google</a>@endif
 </section></main></body></html>

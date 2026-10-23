@@ -5,10 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="{{ $settings['meta_description'] ?? '' }}">
     <title>{{ $settings['company_name'] ?? config('app.name') }} | Evaluación de confianza</title>
+    @if(filled($settings['favicon_path'] ?? null))
+    <link rel="icon" type="image/png" href="{{ \Illuminate\Support\Facades\Storage::url($settings['favicon_path']) }}" sizes="any">
+    @else
     <link rel="icon" href="{{ asset('favicon.ico') }}?v={{ filemtime(public_path('favicon.ico')) }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/images/favicon-32.png') }}?v={{ filemtime(public_path('assets/images/favicon-32.png')) }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('assets/images/favicon-192.png') }}?v={{ filemtime(public_path('assets/images/favicon-192.png')) }}">
     <link rel="apple-touch-icon" href="{{ asset('assets/images/favicon-180.png') }}?v={{ filemtime(public_path('assets/images/favicon-180.png')) }}">
+    @endif
     <link rel="stylesheet" href="{{ asset('assets/css/site.css') }}?v={{ filemtime(public_path('assets/css/site.css')) }}">
     <script src="{{ asset('assets/js/site.js') }}?v={{ filemtime(public_path('assets/js/site.js')) }}" defer></script>
 </head>
@@ -30,9 +34,10 @@
             <a href="#confidencialidad">Confidencialidad</a>
             <a href="#faq">FAQ</a>
             <a href="#contacto">Contacto</a>
+            <a href="{{ route('portal.dashboard') }}">Portal de clientes</a>
         </nav>
 
-        <a class="header-cta" href="#contacto">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
+        <a class="header-cta" href="{{ route('portal.orders.create') }}">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
     </header>
 
     <main id="inicio">
@@ -45,7 +50,7 @@
                     <p class="hero__lead">{{ $settings['hero_subtitle'] ?? '' }}</p>
 
                     <div class="hero__actions">
-                        <a class="btn btn-primary" href="#contacto">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
+                        <a class="btn btn-primary" href="{{ route('portal.orders.create') }}">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
                         <a class="btn btn-ghost" href="#servicios">Conocer servicios</a>
                     </div>
 
@@ -335,6 +340,18 @@
                     <p class="eyebrow">Contacto confidencial</p>
                     <h2>Conversemos sobre su caso</h2>
                     <p>Reciba orientación inicial para identificar el servicio más adecuado y determinar si el análisis con IA puede aportar valor a su caso.</p>
+                    @if(session('contact_status'))<p class="contact-feedback" role="status">{{ session('contact_status') }}</p>@endif
+                    @if($errors->any())<p class="contact-feedback" role="alert">{{ $errors->first() }}</p>@endif
+                    <form method="post" action="{{ route('contact.store') }}" class="public-contact-form">
+                        @csrf
+                        <label>Nombre<input name="name" value="{{ old('name') }}" maxlength="120" autocomplete="name" required></label>
+                        <label>Correo<input type="email" name="email" value="{{ old('email') }}" maxlength="255" autocomplete="email" required></label>
+                        <label>Asunto<input name="subject" value="{{ old('subject') }}" maxlength="200" required></label>
+                        <label>Mensaje<textarea name="body" minlength="10" maxlength="10000" rows="4" required>{{ old('body') }}</textarea></label>
+                        <input type="text" name="website" tabindex="-1" autocomplete="off" class="contact-honeypot" aria-hidden="true">
+                        <label class="contact-consent"><input type="checkbox" name="consent" value="1" required> Acepto el <a href="{{ route('privacy') }}">aviso de privacidad</a>.</label>
+                        <button class="btn btn-primary" type="submit">Enviar consulta</button>
+                    </form>
                     <a class="btn btn-primary" href="{{ $brand['whatsapp_url'] }}" target="_blank" rel="noreferrer">Hablar por WhatsApp</a>
                     <ul>
                         <li>{{ $settings['phone'] ?? '' }}</li>
@@ -402,7 +419,7 @@
                 <h2>Empresa</h2>
                 <a href="#proceso">Proceso</a>
                 <a href="#confidencialidad">Confidencialidad</a>
-                <a href="{{ route('admin.login') }}">Panel administrativo</a>
+                <a href="{{ route('portal.dashboard') }}">Portal de clientes</a>
             </div>
             <div>
                 <h2>Contacto</h2>

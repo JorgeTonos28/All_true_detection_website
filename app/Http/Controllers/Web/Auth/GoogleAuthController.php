@@ -11,6 +11,11 @@ use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 class GoogleAuthController extends Controller
 {
+    public function reauthenticate(Request $request)
+    {
+        abort_unless($request->user()?->google_id, 403);
+        return $this->redirect($request);
+    }
     public function redirect(Request $request)
     {
         abort_unless(config('services.google.client_id') && config('services.google.client_secret'), 503, 'Google todavía no está configurado.');
@@ -28,7 +33,7 @@ class GoogleAuthController extends Controller
         $linkId = $request->session()->pull('google.link_user');
         $known = User::where('google_id', $google->getId())->first();
         if ($linkId) {
-            abort_unless($request->user()?->id === $linkId && $request->user()->is_active && $request->user()->email === $email && (! $known || $known->id === $linkId), 403);
+            abort_unless($request->user()?->id === $linkId && $request->user()->is_active && $request->user()->email === $email && (! $known || $known->id === $linkId) && (! $request->user()->google_id || $request->user()->google_id === $google->getId()), 403);
             $user = $request->user();
             $user->forceFill(['google_id' => $google->getId(), 'email_verified_at' => $user->email_verified_at ?? now()])->save();
             $request->session()->put('auth.password_confirmed_at', time());
