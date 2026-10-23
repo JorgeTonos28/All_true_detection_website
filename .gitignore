@@ -3,6 +3,9 @@
 .env
 .env.backup
 .env.production
+.env.*
+!.env.example
+/*.zip
 .phpactor.json
 .phpunit.result.cache
 /.codex
@@ -18,6 +21,7 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+/public/portal-build
 /storage/*.key
 /storage/pail
 /vendor
