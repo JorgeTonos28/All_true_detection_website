@@ -69,6 +69,8 @@ Documentación pública en `/desarrolladores/api`, enlazada desde el footer, con
 
 Facturas, saldos pendientes y documentos comerciales usan `invoices:read`. Las entregas ofrecen manifiesto, metadatos y descarga autenticada con SHA-256; siguen bloqueadas hasta pago y publicación. Las llamadas registran únicamente ruta normalizada, estado, duración e identificadores operativos durante 30 días, nunca cuerpos ni credenciales. En producción la API exige HTTPS.
 
+Para automatizaciones backend, el cliente puede elegir explícitamente un token persistente sin caducidad por fecha, limitado por scopes y revocable. Los temporales de hasta 90 días siguen siendo el valor predeterminado. No se cambian tokens ya emitidos; la recuperación/cambio de contraseña y los controles de acceso mantienen su revocación. Proteger y rotar las credenciales según [la guía API](docs/api.md).
+
 Webhooks con HMAC-SHA256 y bandeja transaccional. Configurar `WEBHOOK_ALLOWED_HOSTS`, worker y cron de `php artisan schedule:run` cada minuto. Los intentos fallidos se reintentan con espera creciente y dejan registro operativo. No hay entrega automática de documentos por correo ni archivos públicos.
 
 En desarrollo, `composer run dev` inicia servidor, cola, Vite y scheduler en una única terminal. Las pruebas de webhook esperan el siguiente despacho de minuto; no necesitan otra terminal. En producción se mantienen worker supervisado y cron por separado.

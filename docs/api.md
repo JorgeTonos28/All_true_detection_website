@@ -10,7 +10,9 @@ La versión de protocolo está en `/v1`; el contrato OpenAPI 3.0.3 describe ruta
 
 ## Autenticación y permisos
 
-Cree un usuario cliente, confirme su email e ingrese al portal. En Integraciones API puede emitir tokens de 1 a 90 días con los permisos mínimos necesarios. Se exige confirmación reciente de identidad para emitir, revocar y rotar credenciales. Cada usuario admite hasta 10 tokens; el token completo se muestra una sola vez y el servidor conserva su hash.
+Cree un usuario cliente, confirme su email e ingrese al portal. En Integraciones API puede emitir tokens temporales de 1 a 90 días (opción predeterminada), o elegir explícitamente un token persistente para una automatización servidor a servidor. Este último tiene `expires_at=null`, no caduca por fecha y no necesita renovación automática. No se amplía la vigencia de tokens existentes. Todos mantienen scopes mínimos y revocación inmediata; se exige confirmación reciente de identidad al emitir o revocar. Cada usuario admite hasta 10 tokens; el token completo se muestra una sola vez y el servidor conserva su hash.
+
+Un token persistente robado también conserva su validez hasta revocarlo. Guárdelo exclusivamente en un gestor de secretos del backend, nunca en una app distribuida, navegador, URL o repositorio. Revise su último uso, rote la credencial según su política operativa y revóquela ante cualquier sospecha. Para rotar sin interrumpir trabajo: emita otro token con los mismos scopes, actualice su aplicación, compruebe una llamada y revoque el anterior. Cambiar/restablecer contraseña, desactivar la cuenta o cambiar sus permisos sigue invalidando el acceso; la integración debe manejar 401/403 y alertar al responsable, no reintentar indefinidamente.
 
 Envíe `Authorization: Bearer TOKEN` en cada llamada. No se aceptan tokens en la URL ni sesiones web como sustituto. No existe un token administrativo de API. Un usuario desactivado, un token revocado/vencido o un cambio de acceso revocado deja de autorizar solicitudes. Cambiar/restablecer contraseña o modificar roles revoca tokens. Cada recurso comprueba pertenencia a cuenta, además del scope.
 

@@ -25,13 +25,14 @@ class SecurityController extends Controller
     {
         $user = $request->user();
         abort_if($user->isStaff() || ! $user->customer_account_id, 403);
-        $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'scopes' => ['required', 'array', 'min:1', 'max:6'], 'scopes.*' => ['required', 'distinct', Rule::in(self::SCOPES)], 'expires_days' => ['nullable', 'integer', 'min:1', 'max:90']]);
+        $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'scopes' => ['required', 'array', 'min:1', 'max:6'], 'scopes.*' => ['required', 'distinct', Rule::in(self::SCOPES)], 'lifetime' => ['nullable', 'in:expiring,persistent'], 'expires_days' => ['nullable', 'integer', 'min:1', 'max:90']]);
         $token = DB::transaction(function () use ($user, $data) {
             $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             abort_unless($user->is_active && $user->hasVerifiedEmail() && ! $user->isStaff() && $user->customer_account_id, 403);
             abort_if($user->tokens()->count() >= 10, 422, 'Revoque un token antes de crear otro.');
-            $token = $user->createToken($data['name'], $data['scopes'], now()->addDays($data['expires_days'] ?? config('portal.token_days')));
-            Audit::record($user, 'token.created', $token->accessToken, ['scopes' => $data['scopes']]);
+            $persistent = ($data['lifetime'] ?? 'expiring') === 'persistent';
+            $token = $user->createToken($data['name'], $data['scopes'], $persistent ? null : now()->addDays($data['expires_days'] ?? config('portal.token_days')));
+            Audit::record($user, 'token.created', $token->accessToken, ['scopes' => $data['scopes'], 'lifetime' => $persistent ? 'persistent' : 'expiring']);
 
             return $token;
         });
