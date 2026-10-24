@@ -12,6 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class DeliverWebhook implements ShouldBeUnique, ShouldQueue
 {
@@ -32,36 +33,60 @@ class DeliverWebhook implements ShouldBeUnique, ShouldQueue
 
     public function handle(WebhookUrl $urls): void
     {
-        DB::transaction(function () use ($urls) {
+        $lease = (string) Str::uuid();
+        $delivery = DB::transaction(function () use ($lease) {
             $delivery = WebhookDelivery::whereKey($this->deliveryId)->lockForUpdate()->firstOrFail();
-            if ($delivery->delivered_at || $delivery->failed_at || $delivery->next_attempt_at?->isFuture()) {
-                return;
+            if ($delivery->delivered_at || $delivery->failed_at || $delivery->next_attempt_at?->isFuture() || $delivery->processing_until?->isFuture()) {
+                return null;
             }
-            $endpoint = $delivery->endpoint;
-            if (! $endpoint->is_active || $endpoint->customer_account_id !== $delivery->order->customer_account_id) {
-                $delivery->update(['failed_at' => now()]);
+            if ($delivery->attempts >= 8 || ! $delivery->endpoint->is_active || ($delivery->order_id && $delivery->endpoint->customer_account_id !== $delivery->order?->customer_account_id)) {
+                $delivery->update(['failed_at' => now(), 'next_attempt_at' => null, 'processing_token' => null, 'processing_until' => null]);
 
+                return null;
+            }
+            $delivery->update(['attempts' => $delivery->attempts + 1, 'processing_token' => $lease, 'processing_until' => now()->addSeconds(60)]);
+
+            return $delivery;
+        });
+        if (! $delivery) {
+            return;
+        }
+
+        // Do not keep database locks open during DNS resolution or remote HTTP.
+        $started = hrtime(true);
+        $status = null;
+        $error = null;
+        try {
+            $endpoint = $delivery->endpoint;
+            [$host, $address] = $urls->publicAddress($endpoint->url);
+            $body = json_encode($delivery->payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            $timestamp = (string) time();
+            $signature = 'v1='.hash_hmac('sha256', $timestamp.'.'.$body, $endpoint->secret);
+            if ($endpoint->previous_secret && $endpoint->previous_secret_expires_at?->isFuture()) {
+                $signature .= ',v1='.hash_hmac('sha256', $timestamp.'.'.$body, $endpoint->previous_secret);
+            }
+            $response = Http::withOptions(['proxy' => '', 'allow_redirects' => false, 'curl' => [CURLOPT_RESOLVE => [$host.':443:'.$address]], 'progress' => function ($total, $downloaded) {
+                if ($downloaded > 65536 || $total > 65536) {
+                    throw new \RuntimeException('Webhook response exceeds limit');
+                }
+            }])->connectTimeout(5)->timeout(15)->withHeaders(['X-ATD-Event-ID' => $delivery->event_id, 'X-ATD-Timestamp' => $timestamp, 'X-ATD-Signature' => $signature])
+                ->withBody($body, 'application/json')->post($endpoint->url);
+            $status = $response->status();
+            $error = $status >= 200 && $status < 300 ? null : 'http_error';
+        } catch (\Throwable) {
+            $error = 'transport_or_policy';
+            // No remote bodies, URLs, signed payloads or exception messages in logs.
+        }
+        $duration = (int) ((hrtime(true) - $started) / 1000000);
+        DB::transaction(function () use ($lease, $status, $error, $duration) {
+            $delivery = WebhookDelivery::whereKey($this->deliveryId)->lockForUpdate()->firstOrFail();
+            if ($delivery->processing_token !== $lease) {
                 return;
             }
-            $delivery->attempts++;
-            $status = null;
-            try {
-                [$host,$address] = $urls->publicAddress($endpoint->url);
-                $body = json_encode($delivery->payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-                $timestamp = (string) time();
-                $signature = hash_hmac('sha256', $timestamp.'.'.$body, $endpoint->secret);
-                $response = Http::withOptions(['proxy' => '', 'allow_redirects' => false, 'curl' => [CURLOPT_RESOLVE => [$host.':443:'.$address]], 'progress' => function ($total, $downloaded) {
-                    if ($downloaded > 65536 || $total > 65536) {
-                        throw new \RuntimeException('Webhook response exceeds limit');
-                    }
-                }])
-                    ->connectTimeout(5)->timeout(15)->withHeaders(['X-ATD-Event-ID' => $delivery->event_id, 'X-ATD-Timestamp' => $timestamp, 'X-ATD-Signature' => 'v1='.$signature])
-                    ->withBody($body, 'application/json')->post($endpoint->url);
-                $status = $response->status();
-            } catch (\Throwable) {
-                // Never log signed payloads, URLs with query secrets, or network response bodies.
-            }
+            $delivery->history()->create(['response_status' => $status, 'error_code' => $error, 'duration_ms' => $duration, 'created_at' => now()]);
             $delivery->response_status = $status;
+            $delivery->processing_token = null;
+            $delivery->processing_until = null;
             if ($status >= 200 && $status < 300) {
                 $delivery->delivered_at = now();
                 $delivery->next_attempt_at = null;
@@ -69,8 +94,7 @@ class DeliverWebhook implements ShouldBeUnique, ShouldQueue
                 $delivery->failed_at = now();
                 $delivery->next_attempt_at = null;
             } else {
-                $delay = [1, 5, 15, 60, 360, 1440, 1440][$delivery->attempts - 1];
-                $delivery->next_attempt_at = now()->addMinutes($delay);
+                $delivery->next_attempt_at = now()->addMinutes([1, 5, 15, 60, 360, 1440, 1440][min(6, $delivery->attempts - 1)]);
             }
             $delivery->save();
         });
