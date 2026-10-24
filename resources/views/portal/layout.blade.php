@@ -26,7 +26,7 @@
     <div class="sidebar-footer"><a href="{{ route('home') }}">Visitar sitio web ↗</a><p>Información privada.<br>Acceso autorizado.</p></div>
 </aside>
 <div class="workspace">
-    <header class="portal-topbar"><span class="muted">Portal de servicios</span><div class="identity"><span><strong>{{ auth()->user()->name }}</strong><small>{{ auth()->user()->role->label() }}</small></span><form method="post" action="{{ route('logout') }}">@csrf<button class="secondary" type="submit">Salir</button></form></div></header>
+    <header class="portal-topbar"><span class="muted">Portal de servicios</span><div class="identity"><div data-notification-menu data-url="{{ route('portal.notifications.summary') }}">@include('portal.notification-menu')</div><span><strong>{{ auth()->user()->name }}</strong><small>{{ auth()->user()->role->label() }}</small></span><form method="post" action="{{ route('logout') }}">@csrf<button class="secondary" type="submit">Salir</button></form></div></header>
     <main class="portal-content" id="content">
         <a class="portal-back" href="{{ \App\Support\PortalNavigation::back(request()) }}">← Volver</a>
         <header class="page-heading"><div><p class="eyebrow">{{ mb_strtoupper($business['company_name'] ?? 'All True Detection') }}</p><h1>@yield('title','Portal')</h1><p class="muted">@yield('subtitle')</p></div><div class="actions">@yield('actions')</div></header>
@@ -36,4 +36,4 @@
     </main>
     <footer class="portal-footer">© {{ date('Y') }} {{ $business['company_name'] ?? 'All True Detection' }} · <a href="{{ route('privacy') }}">Privacidad</a></footer>
 </div>
-</div>@stack('scripts')</body></html>
+</div><script src="{{ asset('assets/js/portal-shell.js') }}" defer></script>@stack('scripts')</body></html>

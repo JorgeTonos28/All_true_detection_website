@@ -21,7 +21,7 @@ class ReplyToConversation
             $message = $conversation->messages()->create(['sender_id' => $actor->id, 'body' => $body]);
             $conversation->touch();
             Audit::record($actor, 'message.sent', $message);
-            $notification = new PortalActivity('Nuevo mensaje en ATD', '/portal/messages/'.$conversation->public_id);
+            $notification = new PortalActivity($actor->isStaff() ? 'ATD respondió su conversación' : 'Nuevo mensaje de un cliente', '/portal/messages/'.$conversation->public_id, $actor->isStaff() ? 'Nuestro equipo le escribió. Entre a su conversación para leer la respuesta y continuar el seguimiento.' : 'Un cliente envió un nuevo mensaje a esta conversación. Revise el contexto y responda desde su bandeja de trabajo.', $actor->isStaff() ? 'Leer respuesta de ATD' : 'Atender mensaje', $conversation->public_id);
             if ($actor->isStaff()) {
                 if ($conversation->customer_account_id) {
                     foreach (User::where('customer_account_id', $conversation->customer_account_id)->where('role', 'client')->where('is_active', true)->whereNotNull('email_verified_at')->get() as $client) {

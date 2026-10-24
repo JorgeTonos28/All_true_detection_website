@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\MailAuditCopy;
+use App\Services\NotificationInbox;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Events\Verified;
@@ -38,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        View::composer('portal.layout', fn ($view) => $view->with(NotificationInbox::summary(auth()->user())));
         View::composer(['auth.form', 'legal.*'], function ($view): void {
             $view->with('business', Setting::values());
         });

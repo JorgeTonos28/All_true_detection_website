@@ -5,6 +5,7 @@ use App\Http\Controllers\Web\BillingController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DocumentController;
 use App\Http\Controllers\Web\MessageController;
+use App\Http\Controllers\Web\NotificationController;
 use App\Http\Controllers\Web\OperationsController;
 use App\Http\Controllers\Web\OrderController;
 use App\Http\Controllers\Web\SecurityController;
@@ -14,6 +15,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/contact', [MessageController::class, 'contact'])->middleware('throttle:contact')->name('contact.store');
 Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('portal.')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/summary', [NotificationController::class, 'summary'])->middleware('throttle:30,1')->name('notifications.summary');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('/notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
     Route::get('/account', [AccountController::class, 'index'])->name('account');
     Route::put('/account', [AccountController::class, 'update'])->middleware('password.confirm')->name('account.update');
     Route::view('/api-guide', 'portal.api-guide')->name('api-guide');

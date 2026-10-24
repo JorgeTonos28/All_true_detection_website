@@ -22,7 +22,7 @@ class CreateConversation
             $conversation->messages()->create(['sender_id' => $actor?->id, 'body' => $data['body']]);
             Audit::record($actor, 'conversation.created', $conversation);
             foreach (User::where('role', 'admin')->where('is_active', true)->whereNotNull('email_verified_at')->get() as $admin) {
-                $admin->notify(new PortalActivity('Nueva consulta en ATD', '/portal/messages/'.$conversation->public_id));
+                $admin->notify(new PortalActivity('Nueva consulta para el equipo ATD', '/portal/messages/'.$conversation->public_id, 'Se recibió una consulta que requiere atención. Abra la conversación para leer el mensaje y responder desde el portal.', 'Atender consulta', $conversation->public_id));
             }
 
             return $conversation;

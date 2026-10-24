@@ -33,6 +33,8 @@ Las solicitudes admiten documentos privados desde su creación. PDF, DOCX sin ma
 
 El formulario de solicitud agrupa los servicios en un selector múltiple con búsqueda, resumen de selección y carga inicial de archivos. La bandeja permite filtrar estado, facturación y asignación; la ficha muestra el progreso hasta la entrega.
 
+El header del portal incluye notificaciones por usuario, pendientes y enlaces a cada caso, factura o conversación. Los correos usan plantilla HTML/texto ATD y contenido específico del evento; no incluyen documentos ni resultados. Un worker procesa los canales de correo y bandeja; el contador se actualiza cada minuto con la página visible.
+
 Al actualizar una instalación existente, respaldar la base, los documentos y APP_KEY antes de migrar. La migración de seguridad revoca la antigua contraseña fija si sigue presente. El administrador del panel anterior debe prepararse con el comando seguro anterior; no se promueven usuarios automáticamente. Ver [operación y despliegue](docs/operations.md).
 
 ## Validación
