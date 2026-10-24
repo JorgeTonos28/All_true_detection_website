@@ -115,7 +115,7 @@ El portal permite adjuntar evidencia al crear la orden, de forma atómica, con e
 
 Un profesional de ATD registra una conclusión por servicio: `verified`, `not_verified` o `inconclusive`, con notas. No es una decisión automática de contratación ni una validación de identidad por acceso a registros oficiales. Después de pago total, finalización y publicación, `/deliveries` devuelve `verification_findings` con `method=manual`, `reviewed_at` y `checks[]` (`service_code`, `outcome`, `notes`). No se filtra esa conclusión por estado, notificaciones, listados ni webhooks antes de la entrega.
 
-Las fichas y conclusiones se cifran en la base de datos. No use nombres/cédulas en asunto, referencia externa, nombres de archivos, claves de idempotencia, URLs o logs. Use referencias opacas. No envíe fotos en base64 dentro del JSON ni por correo. Aplique en su sistema acceso mínimo, cifrado y retención definida para estos datos sensibles. Las órdenes anteriores sin ficha siguen operando; no se inventan ni migran datos de personas.
+Las fichas y conclusiones se cifran en la base de datos. La huella de idempotencia de solicitudes con persona usa HMAC con una clave del servidor, no un hash simple de los datos personales. No use nombres/cédulas en asunto, referencia externa, nombres de archivos, claves de idempotencia, URLs o logs. Use referencias opacas. No envíe fotos en base64 dentro del JSON ni por correo. Aplique en su sistema acceso mínimo, cifrado y retención definida para estos datos sensibles. Las órdenes anteriores sin ficha siguen operando; no se inventan ni migran datos de personas.
 
 
 ## Documentos de entrada
