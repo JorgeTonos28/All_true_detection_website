@@ -18,6 +18,7 @@ class ServiceCatalog
             ['code' => 'training-equipment', 'name' => 'Capacitación y Equipos', 'description' => 'Entrenamientos especializados, sensores, materiales y asesoría técnica.'],
             ['code' => 'university-degree', 'name' => 'Validación de Título Universitario', 'description' => 'Verificación documental del título y contraste con la institución correspondiente.'],
             ['code' => 'exequatur', 'name' => 'Validación de Exequatur', 'description' => 'Verificación de la habilitación profesional y de la información declarada.'],
+            ['code' => 'identity-verification', 'name' => 'Verificación de Identidad', 'description' => 'Revisión humana de identidad con selfies, datos autorizados y documentos de apoyo. No incluye prueba de vida automatizada.'],
         ];
     }
 }

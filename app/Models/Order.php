@@ -40,6 +40,11 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function person()
+    {
+        return $this->hasOne(OrderPerson::class);
+    }
+
     public function invoice()
     {
         return $this->hasOne(Invoice::class);

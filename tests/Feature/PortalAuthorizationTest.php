@@ -37,7 +37,7 @@ class PortalAuthorizationTest extends TestCase
     public function test_seeders_do_not_create_predictable_admin_credentials_or_overwrite_settings(): void
     {
         $this->seed();
-        $this->assertDatabaseCount('services', 11);
+        $this->assertDatabaseCount('services', 12);
         $this->assertDatabaseCount('users', 0);
         Setting::put('company_name', 'Marca del cliente');
         $this->seed();
