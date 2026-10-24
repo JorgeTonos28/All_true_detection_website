@@ -29,6 +29,8 @@ Usuarios y acceso incluye una tabla de 25 registros por página, búsqueda mient
 
 Los CTAs de la web pasan por `/solicitar`: conservan el servicio elegido durante login/registro y lo preseleccionan en el formulario. Las cuentas internas se dirigen a gestión de solicitudes. El portal ofrece navegación de regreso a la sección padre; las conversaciones muestran el nombre vigente de sus participantes.
 
+Las solicitudes admiten documentos privados desde su creación. PDF, DOCX sin macros y JPG/PNG/WebP: 10 MB por archivo, 5 archivos / 20 MB por carga inicial, 100 MB por solicitud y 1 GB por cuenta. Web/API comparten validación MIME, escaneo y cuotas; audio/vídeo no se admiten. Tras actualizar, preparar archivos anteriores con `php artisan portal:document-metadata`.
+
 Al actualizar una instalación existente, respaldar la base, los documentos y APP_KEY antes de migrar. La migración de seguridad revoca la antigua contraseña fija si sigue presente. El administrador del panel anterior debe prepararse con el comando seguro anterior; no se promueven usuarios automáticamente. Ver [operación y despliegue](docs/operations.md).
 
 ## Validación

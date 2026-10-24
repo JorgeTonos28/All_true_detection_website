@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\PrivateUpload;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreOrderRequest extends FormRequest
@@ -27,6 +28,8 @@ class StoreOrderRequest extends FormRequest
             'items.*.service_code' => ['required', 'string', 'distinct', 'exists:services,code'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100'],
             'idempotency_key' => ['nullable', 'string', 'max:128'],
+            'documents' => ['sometimes', 'array', 'max:5'],
+            'documents.*' => PrivateUpload::rules(),
         ];
     }
 }

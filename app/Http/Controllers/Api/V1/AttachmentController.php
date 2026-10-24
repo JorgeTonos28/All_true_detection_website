@@ -11,6 +11,7 @@ use App\Support\PrivateUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class AttachmentController extends Controller
 {
@@ -25,8 +26,12 @@ class AttachmentController extends Controller
     {
         Gate::authorize('view', $order);
         $request->validate(['file' => PrivateUpload::rules()]);
+        $key = $request->header('Idempotency-Key');
+        if ($key !== null && ! preg_match('/^[A-Za-z0-9._:-]{8,128}$/D', $key)) {
+            throw ValidationException::withMessages(['Idempotency-Key' => 'Use entre 8 y 128 caracteres válidos.']);
+        }
 
-        return (new AttachmentResource($action->handle($request->user(), $order, $request->file('file'))->load('order')))->response()->setStatusCode(201);
+        return (new AttachmentResource($action->handle($request->user(), $order, $request->file('file'), $key)->load('order')))->response()->setStatusCode(201);
     }
 
     public function download(Order $order, string $attachment)

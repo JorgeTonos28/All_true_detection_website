@@ -45,7 +45,8 @@ class OrderController extends Controller
 
     public function store(StoreOrderRequest $request, CreateOrder $action)
     {
-        $order = $action->handle($request->user(), $request->validated(), $request->validated('idempotency_key'));
+        $order = $action->handle($request->user(), $request->validated(), $request->validated('idempotency_key'), $request->file('documents', []));
+        $request->session()->forget('requested_service');
 
         return redirect()->route('portal.orders.show', $order)->with('status', 'Solicitud recibida. Nuestro equipo revisará el alcance y preparará su cotización.');
     }

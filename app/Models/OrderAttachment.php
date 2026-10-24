@@ -13,6 +13,11 @@ class OrderAttachment extends Model
 
     protected $hidden = ['file_path'];
 
+    protected function casts(): array
+    {
+        return ['file_size' => 'integer'];
+    }
+
     public function order()
     {
         return $this->belongsTo(Order::class);

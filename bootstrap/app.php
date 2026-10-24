@@ -4,6 +4,7 @@ use App\Http\Middleware\ApiContext;
 use App\Http\Middleware\AuthRateLimits;
 use App\Http\Middleware\EnsureActiveUser;
 use App\Http\Middleware\IntegrationAccess;
+use App\Http\Middleware\LimitDocumentRequest;
 use App\Http\Middleware\RequireApiJson;
 use App\Http\Middleware\RequireStaffTwoFactor;
 use App\Http\Middleware\SecurityHeaders;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prepend(ApiContext::class);
+        $middleware->append(LimitDocumentRequest::class);
         $middleware->append(SecurityHeaders::class);
         $middleware->web(append: [EnsureActiveUser::class, AuthRateLimits::class]);
         $middleware->alias([

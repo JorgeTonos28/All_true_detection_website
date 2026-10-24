@@ -15,7 +15,7 @@ class OrderResult extends Model
 
     protected function casts(): array
     {
-        return ['summary' => 'encrypted', 'published_at' => 'datetime'];
+        return ['summary' => 'encrypted', 'published_at' => 'datetime', 'file_size' => 'integer'];
     }
 
     public function order()
