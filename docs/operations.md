@@ -12,7 +12,9 @@ Configurar el document root en `public/`, un usuario de BD exclusivo y permisos 
 
 - URL HTTPS canónica en APP_URL, APP_ENV=production, APP_DEBUG=false, SESSION_ENCRYPT=true y SESSION_SECURE_COOKIE=true. No activar debug en un sitio accesible por clientes. Si hay un proxy inverso, configurar explícitamente los proxies de confianza en Laravel según el proveedor antes de validar IP, HTTPS y límites; no confiar indiscriminadamente en encabezados reenviados.
 - Base de datos y APP_KEY propios de la instalación, sin credenciales por defecto. La migración de seguridad desactiva cuentas que conserven la antigua contraseña fija; preparar el propietario con `portal:create-admin correo@empresa.com`. El comando rota su contraseña y envía recuperación. Confirmar que ese correo pertenece al responsable autorizado.
-- SMTP real y remitente autorizado/DKIM/SPF. MAIL_MAILER=log no entrega mensajes y deja enlaces de autenticación en logs: solo usar en desarrollo. Mantener los logs privados. Verificar que el worker envía recuperación, invitación y verificación de correo en español.
+- SMTP real y remitente autorizado/DKIM/SPF. Para la cuenta de ATD, el transporte SMTP seguro usa `mail.alltruedetection.com` en el puerto `465`, con `MAIL_SCHEME=smtps` y usuario `info@alltruedetection.com`. `MAIL_PASSWORD` es un secreto: se configura en el gestor de secretos o `.env` del servidor y nunca se copia a Git ni al chat. `MAIL_MAILER=log` no entrega mensajes y deja enlaces de autenticación en logs: solo usar en desarrollo. Mantener los logs privados. Verificar que el worker envía recuperación, invitación y verificación de correo en español.
+- `MAIL_AUDIT_BCC=info@alltruedetection.com` añade una copia oculta de cada correo que sale de la aplicación, incluidos correos de autenticación y notificaciones encoladas. La cuenta receptora debe tener acceso restringido y una política de retención adecuada porque puede recibir enlaces sensibles. La copia se incorpora justo antes de la entrega SMTP, por lo que también cubre trabajos que se procesan después del commit.
+- El servidor IMAP/POP3 de la cuenta no se configura en esta versión: el portal no importa respuestas entrantes. Los clientes y el personal responden las conversaciones desde la UI.
 - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET y GOOGLE_REDIRECT_URI en la consola OAuth correspondiente. Registrar exactamente `/auth/google/callback` en el dominio HTTPS de ATD. Probar una cuenta nueva, vinculación autenticada y desafío 2FA en staging. Las pruebas automatizadas usan respuestas Google simuladas y no sustituyen esta comprobación real.
 - PORTAL_REQUIRE_STAFF_2FA=true. El personal no puede operar hasta confirmar TOTP. Guardar códigos de recuperación. El reinicio excepcional solo está disponible por consola, con identidad ya verificada y auditoría; no existe un bypass público de 2FA.
 - DOCUMENT_SCAN_BINARY: ruta absoluta de clamdscan o clamscan con firmas actualizadas. Permitir lectura de temporales al usuario PHP, sin ejecutar PHP como root. La app verifica extensión, MIME, tamaño y antivirus antes de almacenar. Código de salida 0 permite; 1 rechaza; timeout/error o falta de configuración bloquean cargas en producción. Ajustar upload_max_filesize a al menos 10M, post_max_size a al menos 12M y el límite de cuerpo del servidor a un valor compatible. Verificar con un PDF real y un archivo de prueba antivirus controlado en staging.
@@ -28,6 +30,32 @@ Configurar el document root en `public/`, un usuario de BD exclusivo y permisos 
 5. Mantener `php artisan queue:work --tries=5 --timeout=60` supervisado. `retry_after` debe exceder el timeout. Los emails de autenticación se encolan cifrados y después de commit.
 6. Cron cada minuto: `php artisan schedule:run`. El scheduler despacha la bandeja de webhooks y elimina tokens expirados. Revisar failed_jobs, endpoints desactivados y entregas agotadas en Auditoría e integraciones; corregir causa antes de reintentar manualmente trabajos de correo. Los webhooks agotados no tienen replay manual en esta versión.
 7. Verificar flujos reales de registro, verificación, recuperación, Google, 2FA, invitaciones, solicitudes y documentos. Emitir una factura de prueba, registrar abono y saldo, comprobar que no se ve ninguna entrega antes de pago/publicación y completar la descarga con un cliente autorizado. Probar revocación y firma de eventos con una integración de staging.
+
+### Prueba de correo local o de staging
+
+Para una prueba real con el buzón de ATD, configurar el secreto sin pegarlo en el repositorio:
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtps
+MAIL_HOST=mail.alltruedetection.com
+MAIL_PORT=465
+MAIL_USERNAME=info@alltruedetection.com
+MAIL_PASSWORD=<secreto-del-buzón>
+MAIL_FROM_ADDRESS=info@alltruedetection.com
+MAIL_FROM_NAME="All True Detection"
+MAIL_EHLO_DOMAIN=alltruedetection.com
+MAIL_AUDIT_BCC=info@alltruedetection.com
+```
+
+Después de cambiar `.env`, limpiar la configuración y enviar la prueba síncrona:
+
+```powershell
+php artisan config:clear
+php artisan portal:test-mail destinatario-de-prueba@example.com
+```
+
+El comando usa el transporte configurado y la copia BCC se añade automáticamente. Para validar además los avisos encolados, dejar un worker activo y ejecutar una acción de prueba del portal; revisar `failed_jobs` si el correo no sale. Mientras no se configure una contraseña válida, conservar `MAIL_MAILER=log` en local: ese transporte solo registra el mensaje y no contacta al servidor.
 
 ## Límites de esta entrega
 
