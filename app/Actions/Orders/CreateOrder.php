@@ -45,14 +45,21 @@ class CreateOrder
                 if ($staged) {
                     $canonical['documents'] = array_map(fn ($file) => ['sha256' => $file['sha256'], 'name' => $file['file_name'], 'size' => $file['file_size']] + ($file['purpose'] !== 'supporting' ? ['purpose' => $file['purpose']] : []), $staged);
                 }
-                $hash = hash('sha256', json_encode($canonical, JSON_THROW_ON_ERROR));
+                $encoded = json_encode($canonical, JSON_THROW_ON_ERROR);
+                // A plain digest of personal fields could enable offline guessing after a DB leak.
+                $fingerprints = $profile
+                    ? array_map(fn ($secret) => hash_hmac('sha256', "atd:person-order:v1\0".$encoded, $secret), array_values(array_filter(array_merge([config('app.key')], config('app.previous_keys', [])))))
+                    : [hash('sha256', $encoded)];
+                abort_unless($fingerprints, 503);
+                $hash = $fingerprints[0];
                 if ($key && ($existing = DB::table('idempotency_keys')->where('user_id', $actor->id)->where('key', $key)->first())) {
                     // Preserve retries of keys issued before canonical document fingerprints existed.
                     $legacy = $data;
                     unset($legacy['idempotency_key'], $legacy['service_codes'], $legacy['documents'], $legacy['evidence']);
                     usort($legacy['items'], fn ($a, $b) => strcmp($a['service_code'], $b['service_code']));
                     $legacyMatch = ! $profile && ! $staged && hash_equals($existing->request_hash, hash('sha256', json_encode($legacy, JSON_THROW_ON_ERROR)));
-                    abort_unless(hash_equals($existing->request_hash, $hash) || $legacyMatch, 409, 'Esta clave ya fue utilizada con otros datos.');
+                    $matches = collect($fingerprints)->contains(fn ($candidate) => hash_equals($existing->request_hash, $candidate));
+                    abort_unless($matches || $legacyMatch, 409, 'Esta clave ya fue utilizada con otros datos.');
 
                     return [Order::visibleTo($actor)->findOrFail($existing->order_id), false];
                 }

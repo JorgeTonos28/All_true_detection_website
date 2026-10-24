@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Support\PersonVerification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -133,5 +134,21 @@ class PersonVerificationWorkflowTest extends TestCase
         app(UpdateOrder::class)->handle($admin, $order, ['status' => 'in_progress']);
         $this->expectException(HttpException::class);
         app(UpdateOrder::class)->handle($admin, $order, ['status' => 'completed']);
+    }
+
+    public function test_personal_idempotency_uses_a_keyed_fingerprint_and_recognizes_previous_keys(): void
+    {
+        $client = $this->client();
+        $data = self::data(['identity-verification']);
+        $order = app(CreateOrder::class)->handle($client, $data, 'keyed-fingerprint-1');
+        $fingerprint = DB::table('idempotency_keys')->value('request_hash');
+        $canonical = ['subject' => $data['subject'], 'details' => $data['details'], 'external_reference' => null, 'consent' => true, 'items' => $data['items'], 'person' => Arr::sortRecursive(PersonVerification::profile($data))];
+        $encoded = json_encode($canonical, JSON_THROW_ON_ERROR);
+        $this->assertNotSame(hash('sha256', $encoded), $fingerprint);
+        $this->assertSame(hash_hmac('sha256', "atd:person-order:v1\0".$encoded, config('app.key')), $fingerprint);
+        $previous = config('app.key');
+        config(['app.key' => 'base64:'.base64_encode(random_bytes(32)), 'app.previous_keys' => [$previous]]);
+        $this->assertSame($order->id, app(CreateOrder::class)->handle($client, $data, 'keyed-fingerprint-1')->id);
+        $this->assertDatabaseCount('orders', 1);
     }
 }
