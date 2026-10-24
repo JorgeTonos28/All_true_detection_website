@@ -6,11 +6,13 @@ use App\Models\Conversation;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Audit;
+use App\Services\MailAuditCopy;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -46,6 +48,7 @@ class AppServiceProvider extends ServiceProvider
                 Audit::record($event->user, 'auth.logout', $event->user);
             }
         });
+        Event::listen(MessageSending::class, MailAuditCopy::class);
         foreach ([TwoFactorAuthenticationEnabled::class, TwoFactorAuthenticationConfirmed::class, TwoFactorAuthenticationDisabled::class, RecoveryCodesGenerated::class] as $eventClass) {
             Event::listen($eventClass, function ($event) {
                 Audit::record($event->user, 'auth.'.class_basename($event), $event->user);
