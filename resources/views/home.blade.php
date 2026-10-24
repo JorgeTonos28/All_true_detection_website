@@ -30,7 +30,7 @@
             <a href="{{ route('portal.dashboard') }}">Portal de clientes</a>
         </nav>
 
-        <a class="header-cta" href="{{ route('portal.orders.create') }}">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
+        <a class="header-cta" href="{{ route('services.request') }}">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
     </header>
 
     <main id="inicio">
@@ -43,7 +43,7 @@
                     <p class="hero__lead">{{ $settings['hero_subtitle'] ?? '' }}</p>
 
                     <div class="hero__actions">
-                        <a class="btn btn-primary" href="{{ route('portal.orders.create') }}">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
+                        <a class="btn btn-primary" href="{{ route('services.request') }}">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
                         <a class="btn btn-ghost" href="#servicios">Conocer servicios</a>
                     </div>
 
@@ -157,6 +157,7 @@
                                 <span class="service-card__icon" aria-hidden="true">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
                                 <h3>{{ $service['title'] }}</h3>
                                 <p>{{ $service['text'] }}</p>
+                                <a class="btn btn-primary" href="{{ route('services.request',['service'=>$service['code']]) }}" aria-label="Solicitar {{ $service['title'] }}">Solicitar servicio →</a>
                             </article>
                         @endforeach
                     </div>

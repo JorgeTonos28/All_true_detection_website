@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Web\Auth\GoogleAuthController;
+use App\Http\Controllers\Web\ServiceEntryController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
+Route::get('/solicitar', ServiceEntryController::class)->name('services.request');
 Route::view('/aviso-de-privacidad', 'legal.privacy')->name('privacy');
 Route::view('/terminos-y-condiciones', 'legal.terms')->name('terms');
 Route::redirect('/admin/login', '/login')->name('admin.login');

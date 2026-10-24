@@ -72,6 +72,6 @@ class GoogleAuthController extends Controller
         $request->session()->regenerate();
         $request->session()->put('auth.password_confirmed_at', time());
 
-        return redirect()->route('portal.dashboard');
+        return redirect()->intended(route('portal.dashboard'));
     }
 }

@@ -29,6 +29,16 @@ class Conversation extends Model
         return $this->hasMany(Message::class);
     }
 
+    public function contactUser()
+    {
+        return $this->hasOne(User::class, 'email', 'contact_email');
+    }
+
+    public function getDisplayContactNameAttribute(): string
+    {
+        return $this->contactUser?->name ?? $this->contact_name;
+    }
+
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
         if ($user->isAdmin()) {

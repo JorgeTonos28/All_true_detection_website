@@ -32,9 +32,15 @@ class OrderController extends Controller
 
     public function create(Request $request)
     {
-        abort_if($request->user()->isStaff() || ! $request->user()->customer_account_id, 403);
+        if ($request->user()->isStaff()) {
+            return redirect()->route('portal.orders.index')->with('status', 'Para solicitar un servicio debe utilizar una cuenta de cliente.');
+        }
+        abort_unless($request->user()->customer_account_id, 403);
 
-        return view('portal.orders.create', ['services' => Service::where('is_active', true)->orderBy('sort_order')->get()]);
+        $selected = $request->query('service', $request->session()->get('requested_service'));
+        $selected = is_string($selected) && Service::where('code', $selected)->where('is_active', true)->exists() ? $selected : null;
+
+        return view('portal.orders.create', ['services' => Service::where('is_active', true)->orderBy('sort_order')->get(), 'selectedService' => $selected]);
     }
 
     public function store(StoreOrderRequest $request, CreateOrder $action)

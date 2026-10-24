@@ -18,14 +18,14 @@ class MessageController extends Controller
             Conversation::whereNull('customer_account_id')->whereNull('order_id')->where('contact_email', $request->user()->email)->update(['customer_account_id' => $request->user()->customer_account_id]);
         }
 
-        return view('portal.messages.index', ['conversations' => Conversation::visibleTo($request->user())->with('order')->withCount('messages')->latest('updated_at')->paginate(20)]);
+        return view('portal.messages.index', ['conversations' => Conversation::visibleTo($request->user())->with(['order', 'contactUser'])->withCount('messages')->latest('updated_at')->paginate(20)]);
     }
 
     public function show(Conversation $conversation)
     {
         Gate::authorize('view', $conversation);
 
-        return view('portal.messages.show', ['conversation' => $conversation->load('order'), 'messages' => $conversation->messages()->with('sender')->latest('id')->paginate(50)]);
+        return view('portal.messages.show', ['conversation' => $conversation->load(['order', 'contactUser']), 'messages' => $conversation->messages()->with('sender')->latest('id')->paginate(50)]);
     }
 
     public function create(Request $request, CreateConversation $action)

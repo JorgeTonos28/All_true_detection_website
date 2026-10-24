@@ -28,6 +28,7 @@
 <div class="workspace">
     <header class="portal-topbar"><span class="muted">Portal de servicios</span><div class="identity"><span><strong>{{ auth()->user()->name }}</strong><small>{{ auth()->user()->role->label() }}</small></span><form method="post" action="{{ route('logout') }}">@csrf<button class="secondary" type="submit">Salir</button></form></div></header>
     <main class="portal-content" id="content">
+        <a class="portal-back" href="{{ \App\Support\PortalNavigation::back(request()) }}">← Volver</a>
         <header class="page-heading"><div><p class="eyebrow">{{ mb_strtoupper($business['company_name'] ?? 'All True Detection') }}</p><h1>@yield('title','Portal')</h1><p class="muted">@yield('subtitle')</p></div><div class="actions">@yield('actions')</div></header>
         @if(session('status'))<div class="notice" role="status">{{ \App\Support\FlashMessage::label(session('status')) }}</div>@endif
         @if($errors->any())<div class="alert" role="alert"><strong>Revise la información</strong><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif

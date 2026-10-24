@@ -73,7 +73,7 @@ class HomeController extends Controller
             $services = ServiceCatalog::all();
         }
 
-        return array_map(fn (array $service) => ['title' => $service['name'], 'text' => $service['description'], 'icon' => 'file'], $services);
+        return array_map(fn (array $service) => ['code' => $service['code'], 'title' => $service['name'], 'text' => $service['description'], 'icon' => 'file'], $services);
     }
 
     private function sectors(): array
