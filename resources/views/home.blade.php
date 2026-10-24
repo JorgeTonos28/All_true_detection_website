@@ -414,6 +414,7 @@
                 <a href="#proceso">Proceso</a>
                 <a href="#confidencialidad">Confidencialidad</a>
                 <a href="{{ route('portal.dashboard') }}">Portal de clientes</a>
+                <a href="{{ route('api.docs') }}">Documentación API</a>
             </div>
             <div>
                 <h2>Contacto</h2>

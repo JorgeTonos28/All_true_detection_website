@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApiDocumentationController;
 use App\Http\Controllers\Web\AccountController;
 use App\Http\Controllers\Web\BillingController;
 use App\Http\Controllers\Web\DashboardController;
@@ -22,7 +23,7 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('porta
     Route::post('/notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
     Route::get('/account', [AccountController::class, 'index'])->name('account');
     Route::put('/account', [AccountController::class, 'update'])->middleware('password.confirm')->name('account.update');
-    Route::view('/api-guide', 'portal.api-guide')->name('api-guide');
+    Route::get('/api-guide', [ApiDocumentationController::class, 'index'])->name('api-guide');
     Route::get('/api-contract', fn () => response()->download(base_path('packages/contracts/openapi.json'), 'atd-api-v1.json', ['Content-Type' => 'application/json']))->name('api-contract');
     Route::get('/security', [SecurityController::class, 'index'])->middleware('password.confirm')->name('security');
     Route::middleware(['password.confirm', 'throttle:10,1'])->group(function () {
