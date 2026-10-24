@@ -6,6 +6,7 @@ use App\Actions\Auth\CreateNewUser;
 use App\Jobs\DeliverWebhook;
 use App\Models\CustomerAccount;
 use App\Models\WebhookEndpoint;
+use App\Notifications\PortalActivity;
 use App\Services\WebhookManagement;
 use App\Services\WebhookUrl;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -67,5 +68,24 @@ class WebhookOperationsTest extends TestCase
         $endpoint = WebhookEndpoint::create(['customer_account_id' => CustomerAccount::create(['name' => 'Ajena', 'billing_email' => 'ajena@example.com'])->id, 'url' => 'https://hooks.example.com/atd', 'secret' => 'hidden']);
         $this->expectException(HttpException::class);
         app(WebhookManagement::class)->rotate($user, $endpoint);
+    }
+
+    public function test_exhausted_delivery_notifies_its_client_without_exposing_payload(): void
+    {
+        Notification::fake();
+        $this->seed();
+        config(['portal.webhook_allowed_hosts' => ['hooks.example.com']]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Avisos API', 'email' => 'hooknotice@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user->forceFill(['email_verified_at' => now()])->save();
+        $management = app(WebhookManagement::class);
+        [$endpoint] = $management->create($user, ['url' => 'https://hooks.example.com/atd']);
+        $delivery = $management->test($user, $endpoint);
+        $delivery->update(['attempts' => 7]);
+        $urls = $this->mock(WebhookUrl::class);
+        $urls->shouldReceive('publicAddress')->once()->andReturn(['hooks.example.com', '203.0.113.1']);
+        Http::fake(['*' => Http::response('', 503)]);
+        (new DeliverWebhook($delivery->id))->handle($urls);
+        $this->assertNotNull($delivery->fresh()->failed_at);
+        Notification::assertSentTo($user, PortalActivity::class, fn ($notice) => $notice->path === '/portal/integrations/deliveries/'.$delivery->id && ! str_contains($notice->copy, 'hooks.example.com'));
     }
 }

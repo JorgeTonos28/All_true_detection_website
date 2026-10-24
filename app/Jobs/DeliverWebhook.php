@@ -2,7 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Models\User;
 use App\Models\WebhookDelivery;
+use App\Notifications\PortalActivity;
 use App\Services\WebhookUrl;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -41,6 +43,9 @@ class DeliverWebhook implements ShouldBeUnique, ShouldQueue
             }
             if ($delivery->attempts >= 8 || ! $delivery->endpoint->is_active || ($delivery->order_id && $delivery->endpoint->customer_account_id !== $delivery->order?->customer_account_id)) {
                 $delivery->update(['failed_at' => now(), 'next_attempt_at' => null, 'processing_token' => null, 'processing_until' => null]);
+                if ($delivery->attempts >= 8 && $delivery->endpoint->is_active) {
+                    $this->notifyFailure($delivery);
+                }
 
                 return null;
             }
@@ -97,6 +102,16 @@ class DeliverWebhook implements ShouldBeUnique, ShouldQueue
                 $delivery->next_attempt_at = now()->addMinutes([1, 5, 15, 60, 360, 1440, 1440][min(6, $delivery->attempts - 1)]);
             }
             $delivery->save();
+            if ($delivery->failed_at) {
+                $this->notifyFailure($delivery);
+            }
         });
+    }
+
+    private function notifyFailure(WebhookDelivery $delivery): void
+    {
+        foreach (User::where('is_active', true)->whereNotNull('email_verified_at')->where(fn ($q) => $q->where('role', 'admin')->orWhere(fn ($q) => $q->where('role', 'client')->where('customer_account_id', $delivery->endpoint->customer_account_id)))->get() as $user) {
+            $user->notify(new PortalActivity('Un evento API agotó sus reintentos', '/portal/integrations/deliveries/'.$delivery->id, 'El receptor no confirmó la recepción de un evento. Revise los intentos y corrija la conexión antes de solicitar un reenvío.', 'Revisar entrega de evento', $delivery->event_id));
+        }
     }
 }
