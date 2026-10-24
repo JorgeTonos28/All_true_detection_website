@@ -6,23 +6,27 @@
     <meta name="description" content="{{ $settings['meta_description'] ?? '' }}">
     <title>{{ $settings['company_name'] ?? config('app.name') }} | Evaluación de confianza</title>
     @include('shared.favicon')
-    <link rel="stylesheet" href="{{ asset('assets/css/site.css') }}?v={{ filemtime(public_path('assets/css/site.css')) }}">
+    <script src="{{ asset('assets/js/home-theme.js') }}?v={{ filemtime(public_path('assets/js/home-theme.js')) }}"></script>
+    <link rel="preload" as="image" href="{{ asset('assets/images/art/hero-lattice-v1.webp') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/home.css') }}?v={{ filemtime(public_path('assets/css/home.css')) }}">
     <link rel="stylesheet" href="{{ asset('assets/css/contact-dialog.css') }}?v={{ filemtime(public_path('assets/css/contact-dialog.css')) }}">
-    <script src="{{ asset('assets/js/contact.js') }}" defer></script>
+    <script src="{{ asset('assets/js/contact.js') }}?v={{ filemtime(public_path('assets/js/contact.js')) }}" defer></script>
     <script src="{{ asset('assets/js/site.js') }}?v={{ filemtime(public_path('assets/js/site.js')) }}" defer></script>
 </head>
-<body>
+<body class="home-v2">
+    <a class="skip-link" href="#inicio">Saltar al contenido</a>
+    <div class="header-sentinel" data-header-sentinel aria-hidden="true"></div>
     <header class="site-header" data-site-header>
         <a href="#inicio" class="brand" aria-label="{{ $settings['company_name'] ?? 'All True Detection' }}">
             <img src="{{ $brand['logo_url'] }}" alt="{{ $settings['company_name'] ?? 'All True Detection' }}">
         </a>
 
-        <button class="nav-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" data-nav-toggle>
+        <button class="nav-toggle" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>
             <span></span>
             <span></span>
         </button>
 
-        <nav class="site-nav" data-site-nav aria-label="Navegación principal">
+        <nav class="site-nav" id="primary-navigation" data-site-nav aria-label="Navegación principal">
             <a href="#servicios">Servicios</a>
             <a href="#proceso">Proceso</a>
             <a href="#sectores">Sectores</a>
@@ -36,68 +40,16 @@
     </header>
 
     <main id="inicio">
-        <section class="hero section-dark">
-            <div class="tech-grid" aria-hidden="true"></div>
+        <section class="hero section-dark" data-art-section>
+            <div class="hero-art" aria-hidden="true"><img src="{{ asset('assets/images/art/hero-lattice-v1.webp') }}" width="1536" height="1024" alt="" fetchpriority="high"></div>
             <div class="container hero__inner">
                 <div class="hero__copy reveal">
-                    <p class="eyebrow">Evaluación de confianza, investigación técnica e IA aplicada</p>
+                    <p class="eyebrow">Evaluación e investigación técnica</p>
                     <h1>{{ $settings['hero_title'] ?? 'Confianza verificable para decisiones' }} <span>{{ $settings['hero_accent'] ?? 'más seguras' }}</span></h1>
                     <p class="hero__lead">{{ $settings['hero_subtitle'] ?? '' }}</p>
-
                     <div class="hero__actions">
                         <a class="btn btn-primary" href="#contacto" data-contact-open>{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
-                        <a class="btn btn-ghost" href="#servicios">Conocer servicios</a>
-                    </div>
-
-                    <div class="assurance-strip" aria-label="Garantías de trabajo">
-                        <span>Confidencialidad</span>
-                        <span>Protocolos validados</span>
-                        <span>Análisis asistido por IA</span>
-                    </div>
-                </div>
-
-                <div class="trust-console reveal" aria-label="Panel visual de evaluación">
-                    <div class="console-topline">
-                        <span>Trust Intelligence Console + IA</span>
-                        <strong>ATD-01</strong>
-                    </div>
-
-                    <div class="console-main">
-                        <div class="fingerprint-panel">
-                            <img src="{{ $brand['mark_url'] }}" alt="" aria-hidden="true">
-                            <span class="radar-ring"></span>
-                            <span class="radar-ring radar-ring--delay"></span>
-                        </div>
-
-                        <div class="signal-panel">
-                            <p>Señal de integridad analizada</p>
-                            <svg viewBox="0 0 320 120" role="img" aria-label="Gráfico de señal">
-                                <path class="grid-line" d="M0 30H320M0 60H320M0 90H320M64 0V120M128 0V120M192 0V120M256 0V120"/>
-                                <path class="signal-line" d="M4 78 C25 72 28 45 49 53 S75 88 98 70 128 24 154 43 183 92 207 69 229 46 252 57 274 77 316 40"/>
-                                <path class="signal-glow" d="M4 78 C25 72 28 45 49 53 S75 88 98 70 128 24 154 43 183 92 207 69 229 46 252 57 274 77 316 40"/>
-                            </svg>
-                        </div>
-                    </div>
-
-                    <div class="console-metrics">
-                        <article>
-                            <span>Integridad</span>
-                            <strong>92%</strong>
-                        </article>
-                        <article>
-                            <span>Riesgo</span>
-                            <strong>Bajo</strong>
-                        </article>
-                        <article>
-                            <span>Confiabilidad</span>
-                            <strong>94%</strong>
-                        </article>
-                    </div>
-
-                    <div class="console-orbit" aria-hidden="true">
-                        <span></span>
-                        <span></span>
-                        <span></span>
+                        <a class="text-link text-link--light" href="#servicios">Conocer servicios <span aria-hidden="true">↗</span></a>
                     </div>
                 </div>
             </div>
@@ -107,25 +59,25 @@
             <div class="container proof-grid">
                 <article class="proof-item reveal">
                     <span class="proof-item__number">01</span>
-                    <span class="proof-item__trace" aria-hidden="true"></span>
+
                     <h2>Precisión</h2>
                     <p>Metodología clara, tecnología aplicada e IA como apoyo analítico.</p>
                 </article>
                 <article class="proof-item reveal">
                     <span class="proof-item__number">02</span>
-                    <span class="proof-item__trace" aria-hidden="true"></span>
+
                     <h2>Confidencialidad</h2>
                     <p>Información sensible con acceso limitado y manejo reservado.</p>
                 </article>
                 <article class="proof-item reveal">
                     <span class="proof-item__number">03</span>
-                    <span class="proof-item__trace" aria-hidden="true"></span>
+
                     <h2>Objetividad</h2>
                     <p>Evaluaciones prudentes, documentadas y basadas en evidencia.</p>
                 </article>
                 <article class="proof-item reveal">
                     <span class="proof-item__number">04</span>
-                    <span class="proof-item__trace" aria-hidden="true"></span>
+
                     <h2>Legalidad</h2>
                     <p>Procesos alineados a autorizaciones, límites y buenas prácticas.</p>
                 </article>
@@ -133,83 +85,56 @@
         </section>
 
         <section class="services section-light" id="servicios">
-            <div class="container">
-                <div class="section-heading section-heading--dark reveal">
-                    <p class="eyebrow eyebrow--green">Nuestros servicios</p>
-                    <h2>Soluciones integrales para evaluar, verificar, analizar y prevenir</h2>
-                    <p>Integramos métodos técnicos, criterio profesional y análisis asistido por IA para procesos de selección, controles internos, investigaciones y programas preventivos.</p>
+            <div class="container services-editorial">
+                <div class="services-intro reveal">
+                    <h2>La información correcta.<br>El servicio preciso.</h2>
+                    <p>Explore nuestras áreas de trabajo. Seleccione un servicio para solicitarlo y darle seguimiento desde su cuenta.</p>
+                    <a class="text-link" href="#contacto" data-service-orientation>¿No sabe por dónde empezar? Conversemos ↗</a>
+                    <div class="services-art" aria-hidden="true"><img src="{{ asset('assets/images/art/services-evidence-v1.webp') }}" width="733" height="1100" alt="" loading="lazy" decoding="async"></div>
                 </div>
-
-                <div class="service-layout">
-                    <article class="service-spotlight reveal">
-                        <p class="eyebrow eyebrow--green">Evaluación integral</p>
-                        <h3>Un diagnóstico claro antes de elegir la prueba o el análisis.</h3>
-                        <p>Cada caso inicia con contexto, objetivo y nivel de riesgo. Así definimos si conviene una prueba, una verificación, una investigación o un paquete de análisis con IA.</p>
-                        <div class="mini-matrix">
-                            <span>Perfil</span>
-                            <span>Riesgo</span>
-                            <span>IA</span>
-                            <span>Informe</span>
-                        </div>
-                    </article>
-
-                    <div class="service-cards">
-                        @foreach ($services as $service)
-                            <article class="service-card reveal">
-                                <span class="service-card__icon" aria-hidden="true">{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</span>
-                                <h3>{{ $service['title'] }}</h3>
-                                <p>{{ $service['text'] }}</p>
-                                <a class="btn btn-primary" href="{{ route('services.request',['service'=>$service['code']]) }}" aria-label="Solicitar {{ $service['title'] }}">Solicitar servicio →</a>
-                            </article>
-                        @endforeach
-                    </div>
+                <div class="service-catalog reveal" aria-label="Catálogo de servicios">
+                    <p class="catalog-heading">Nuestros servicios</p>
+                    @php($families = [
+                        ['name'=>'Evaluación de personas','codes'=>['polygraph','deception-detection','drug-screening','psychometric']],
+                        ['name'=>'Verificación de información','codes'=>['profile-verification','home-visits','university-degree','exequatur']],
+                        ['name'=>'Investigación y análisis','codes'=>['investigations','applied-ai']],
+                        ['name'=>'Formación y equipamiento','codes'=>['training-equipment']],
+                    ])
+                    @php($hasExpandedFamily = false)
+                    @foreach($families as $family)
+                        @php($familyServices = collect($services)->whereIn('code',$family['codes']))
+                        @if($familyServices->isNotEmpty())
+                            @include('shared.service-family',['familyName'=>$family['name'],'familyServices'=>$familyServices,'expanded'=>!$hasExpandedFamily])
+                            @php($hasExpandedFamily = true)
+                        @endif
+                    @endforeach
+                    @php($otherServices = collect($services)->whereNotIn('code',array_merge(...array_column($families,'codes'))))
+                    @if($otherServices->isNotEmpty())
+                        @include('shared.service-family',['familyName'=>'Otros servicios','familyServices'=>$otherServices,'expanded'=>!$hasExpandedFamily])
+                    @endif
+                    @if(empty($services))<p>Por ahora no hay servicios habilitados para solicitudes. Utilice el formulario de contacto para consultar disponibilidad.</p>@endif
+                    <p class="catalog-note">Su solicitud se revisa antes de cotizar. Los servicios se definen según el alcance y las autorizaciones de cada caso.</p>
                 </div>
             </div>
         </section>
 
-        <section class="risk-lab section-dark" id="riesgos">
-            <div class="container risk-grid">
-                <div class="section-copy reveal">
-                    <p class="eyebrow">El riesgo es real</p>
-                    <h2>Reduzca riesgos antes de que se conviertan en pérdidas</h2>
-                    <p>Una contratación incorrecta, una verificación incompleta o una sospecha mal gestionada puede afectar seguridad, productividad y reputación. El análisis asistido por IA ayuda a ordenar señales, detectar patrones y priorizar hallazgos.</p>
-                    <ul class="check-list">
-                        <li>Pérdidas económicas y operativas</li>
-                        <li>Ambientes laborales vulnerables</li>
-                        <li>Riesgos legales y de cumplimiento</li>
-                        <li>Señales dispersas que pasan desapercibidas sin análisis especializado</li>
-                    </ul>
-                </div>
-
-                <div class="risk-board reveal">
-                    <article class="risk-card risk-card--large">
-                        <span class="risk-sound" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                        <span class="risk-card__metric metric-number" data-count-from="30" data-count-to="60" data-prefix="30-" data-suffix="%">30-60%</span>
-                        <p>de rotación relacionada con malas contrataciones</p>
-                    </article>
-                    <article class="risk-card">
-                        <span class="risk-sound" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                        <span class="risk-card__metric metric-number" data-count-from="0" data-count-to="5" data-suffix="x">5x</span>
-                        <p>menos riesgo cuando existe verificación previa</p>
-                    </article>
-                    <article class="risk-card risk-card--accent">
-                        <span class="risk-sound" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                        <span class="risk-card__metric metric-number" data-count-from="0" data-count-to="70" data-suffix="%">70%</span>
-                        <p>de incidentes internos pueden tener señales preventivas</p>
-                    </article>
-                    <article class="risk-card">
-                        <span class="risk-sound" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                        <span class="risk-card__metric metric-number" data-count-from="24" data-count-to="48" data-prefix="24/" data-suffix="h">24/48h</span>
-                    <p>rutas de trabajo definidas según urgencia, alcance y nivel de análisis</p>
-                    </article>
+        <section class="risk-lab section-dark" id="riesgos" data-art-section>
+            <img class="risk-art" src="{{ asset('assets/images/art/risk-topography-v1.webp') }}" width="1536" height="1024" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <div class="container risk-editorial">
+                <div class="section-copy reveal"><p class="eyebrow">El riesgo es real</p><h2>Reduzca riesgos antes de que se conviertan en pérdidas</h2><p>Una contratación incorrecta, una verificación incompleta o una sospecha mal gestionada puede afectar seguridad, productividad y reputación.</p></div>
+                <div class="risk-principles">
+                    <article class="reveal"><h3>Detectar señales</h3><p>Identificar inconsistencias y organizar la información que merece una revisión.</p></article>
+                    <article class="reveal"><h3>Entender el contexto</h3><p>Contrastar los hallazgos con fuentes, autorizaciones y antecedentes del caso.</p></article>
+                    <article class="reveal"><h3>Decidir con criterio</h3><p>Convertir la evaluación técnica en información clara, prudente y documentada.</p></article>
                 </div>
             </div>
         </section>
 
         <section class="human-section section-light" id="evaluacion-integral">
+            <img class="human-art" src="{{ asset('assets/images/art/hero-lattice-v1.webp') }}" width="1536" height="1024" alt="" aria-hidden="true" loading="lazy" decoding="async">
             <div class="container human-grid">
                 <div class="section-copy reveal">
-                    <p class="eyebrow eyebrow--green">Más que pruebas</p>
+                    <p class="section-kicker">Más que pruebas</p>
                     <h2>Entendemos personas, contextos, datos y riesgos humanos</h2>
                     <p>Combinamos ciencia, experiencia, tecnología y análisis asistido por IA para entregar información confiable sin convertir la evaluación en una experiencia intimidante.</p>
                     <ul class="check-list">
@@ -220,7 +145,7 @@
                 </div>
 
                 <figure class="media-panel reveal">
-                    <img src="{{ asset('assets/images/assessment-lab.jpg') }}" alt="Evaluación técnica en oficina con monitor de análisis">
+                    <img loading="lazy" decoding="async" width="1536" height="1024" src="{{ asset('assets/images/assessment-lab.jpg') }}" alt="Evaluación técnica en oficina con monitor de análisis">
                     <figcaption>Decisiones informadas con criterio técnico, datos e IA aplicada.</figcaption>
                 </figure>
             </div>
@@ -246,16 +171,17 @@
         </section>
 
         <section class="sectors section-light" id="sectores">
+            <img class="sector-art" src="{{ asset('assets/images/art/sector-network-v1.webp') }}" width="1536" height="1024" alt="" aria-hidden="true" loading="lazy" decoding="async">
             <div class="container">
                 <div class="section-heading section-heading--dark reveal">
-                    <p class="eyebrow eyebrow--green">Soluciones por sector</p>
+                    <p class="section-kicker">Soluciones por sector</p>
                     <h2>Cobertura para organizaciones que manejan personas, datos o activos sensibles</h2>
                 </div>
 
                 <div class="sector-grid">
                     @foreach ($sectors as $sector)
                         <article class="sector-item reveal">
-                            <span class="sector-item__icon" aria-hidden="true"></span>
+
                             <small>{{ str_pad((string) $loop->iteration, 2, '0', STR_PAD_LEFT) }}</small>
                             <h3>{{ $sector }}</h3>
                         </article>
@@ -265,23 +191,24 @@
         </section>
 
         <section class="ethics section-dark" id="confidencialidad">
+            <img class="ethics-art" src="{{ asset('assets/images/art/sector-network-v1.webp') }}" width="1536" height="1024" alt="" aria-hidden="true" loading="lazy" decoding="async">
             <div class="container ethics-grid">
                 <div class="section-copy reveal">
-                    <p class="eyebrow">Confidencialidad, legalidad y ética</p>
+                    <p class="section-kicker">Confidencialidad, legalidad y ética</p>
                     <h2>Su información está protegida antes, durante y después del proceso</h2>
                 </div>
                 <article class="ethics-card reveal">
-                    <span class="ethics-card__icon" aria-hidden="true"></span>
+
                     <h3>Confidencialidad</h3>
                     <p>Protocolos para proteger datos del cliente y de la persona evaluada.</p>
                 </article>
                 <article class="ethics-card reveal">
-                    <span class="ethics-card__icon" aria-hidden="true"></span>
+
                     <h3>Legalidad</h3>
                     <p>Autorizaciones, límites claros y criterios responsables de uso.</p>
                 </article>
                 <article class="ethics-card reveal">
-                    <span class="ethics-card__icon" aria-hidden="true"></span>
+
                     <h3>Ética profesional</h3>
                     <p>Neutralidad, respeto, integridad y uso responsable de herramientas analíticas.</p>
                 </article>
@@ -291,7 +218,7 @@
         <section class="training section-light" id="capacitacion">
             <div class="container training-grid">
                 <div class="section-copy reveal">
-                    <p class="eyebrow eyebrow--green">Entrenamiento, tecnología e IA</p>
+                    <p class="section-kicker">Entrenamiento, tecnología e IA</p>
                     <h2>Capacite a su equipo. Equipe su operación.</h2>
                     <p>Programas de formación, equipos especializados y apoyo analítico con IA para elevar la capacidad de evaluación, prevención e investigación.</p>
                     <div class="hero__actions">
@@ -301,13 +228,13 @@
                 </div>
 
                 <article class="training-card reveal">
-                    <img src="{{ asset('assets/images/training-room.jpg') }}" alt="Capacitación especializada en sala corporativa">
+                    <img loading="lazy" decoding="async" width="1536" height="1024" src="{{ asset('assets/images/training-room.jpg') }}" alt="Capacitación especializada en sala corporativa">
                     <h3>Capacitación especializada</h3>
                     <p>Cursos y talleres en poligrafía, entrevistas, investigación, seguridad corporativa y lectura de hallazgos analíticos.</p>
                 </article>
 
                 <article class="training-card reveal">
-                    <img src="{{ asset('assets/images/equipment-kit.jpg') }}" alt="Equipo profesional para evaluaciones técnicas">
+                    <img loading="lazy" decoding="async" width="1536" height="1024" src="{{ asset('assets/images/equipment-kit.jpg') }}" alt="Equipo profesional para evaluaciones técnicas">
                     <h3>Equipamiento profesional</h3>
                     <p>Sensores, materiales, tecnología de apoyo y análisis asistido para evaluaciones confiables.</p>
                 </article>
@@ -318,7 +245,7 @@
             <div class="container faq-grid">
                 <div>
                     <div class="section-heading reveal">
-                        <p class="eyebrow">Preguntas frecuentes</p>
+                        <p class="section-kicker">Preguntas frecuentes</p>
                         <h2>Resolvemos sus dudas</h2>
                     </div>
 
@@ -375,9 +302,10 @@
             </div>
         </section>
 
-        <section class="final-cta section-dark">
+        <section class="final-cta section-dark" data-art-section>
+            <img class="closing-art" src="{{ asset('assets/images/art/risk-topography-v1.webp') }}" width="1536" height="1024" alt="" aria-hidden="true" loading="lazy" decoding="async">
             <div class="container reveal">
-                <p class="eyebrow">Tome decisiones con información verificable e IA aplicada</p>
+                <p class="section-kicker">Tome decisiones con información verificable e IA aplicada</p>
                 <h2>Proteja su empresa, su equipo y su futuro</h2>
                 <p>Solicite hoy una evaluación sin compromiso.</p>
                 <div class="hero__actions hero__actions--center">
@@ -418,7 +346,7 @@
         </div>
         <div class="footer-bottom container">
             <span>&copy; {{ date('Y') }} {{ $settings['company_name'] ?? 'All True Detection' }}. Todos los derechos reservados.</span>
-            <span><a href="{{ route('privacy') }}">Aviso de privacidad</a> | <a href="{{ route('terms') }}">Términos y condiciones</a></span>
+            <span><a href="{{ route('privacy') }}">Aviso de privacidad</a> | <a href="{{ route('terms') }}">Términos y condiciones</a></span><label class="theme-preference">Tema <select data-theme-preference aria-label="Tema del sitio"><option value="system">Sistema</option><option value="light">Claro</option><option value="dark">Oscuro</option></select></label>
         </div>
     </footer>
     @include('shared.contact-dialog')

@@ -1,121 +1,69 @@
-document.documentElement.classList.add("js");
-
-const header = document.querySelector("[data-site-header]");
-const toggle = document.querySelector("[data-nav-toggle]");
-const nav = document.querySelector("[data-site-nav]");
-
-if (header) {
-    const updateHeader = () => {
-        header.classList.toggle("is-scrolled", window.scrollY > 12);
-    };
-
-    updateHeader();
-    window.addEventListener("scroll", updateHeader, { passive: true });
-}
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const header = document.querySelector('[data-site-header]');
+const sentinel = document.querySelector('[data-header-sentinel]');
+const toggle = document.querySelector('[data-nav-toggle]');
+const nav = document.querySelector('[data-site-nav]');
+const revealItems = document.querySelectorAll('.reveal');
+const processLane = document.querySelector('[data-process-steps]');
 
 if (toggle && nav) {
-    toggle.addEventListener("click", () => {
-        const isOpen = nav.classList.toggle("is-open");
-        document.body.classList.toggle("nav-open", isOpen);
-        toggle.setAttribute("aria-expanded", String(isOpen));
+    const close = () => {
+        nav.classList.remove('is-open');
+        document.body.classList.remove('nav-open');
+        toggle.setAttribute('aria-expanded','false');
+        toggle.setAttribute('aria-label','Abrir menú');
+    };
+    toggle.addEventListener('click', () => {
+        const open = !nav.classList.contains('is-open');
+        nav.classList.toggle('is-open',open);
+        document.body.classList.toggle('nav-open',open);
+        toggle.setAttribute('aria-expanded',String(open));
+        toggle.setAttribute('aria-label',open ? 'Cerrar menú' : 'Abrir menú');
     });
-
-    nav.querySelectorAll("a").forEach((link) => {
-        link.addEventListener("click", () => {
-            nav.classList.remove("is-open");
-            document.body.classList.remove("nav-open");
-            toggle.setAttribute("aria-expanded", "false");
-        });
+    nav.querySelectorAll('a').forEach(link => link.addEventListener('click',close));
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && nav.classList.contains('is-open')) { close(); toggle.focus(); }
     });
+    matchMedia('(min-width: 1101px)').addEventListener('change', event => { if(event.matches) close(); });
 }
 
-const revealItems = document.querySelectorAll(".reveal");
-const metricNumbers = document.querySelectorAll(".metric-number");
-const processLane = document.querySelector("[data-process-steps]");
-
-const animateMetric = (metric) => {
-    if (metric.dataset.counted === "true") {
-        return;
+if ('IntersectionObserver' in window) {
+    if (header && sentinel) {
+        new IntersectionObserver(entries => header.classList.toggle('is-scrolled',!entries[0].isIntersecting)).observe(sentinel);
     }
-
-    metric.dataset.counted = "true";
-
-    const from = Number(metric.dataset.countFrom || 0);
-    const to = Number(metric.dataset.countTo || 0);
-    const prefix = metric.dataset.prefix || "";
-    const suffix = metric.dataset.suffix || "";
-    const duration = 1150;
-    const start = performance.now();
-
-    const tick = (now) => {
-        const progress = Math.min((now - start) / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const value = Math.round(from + (to - from) * eased);
-
-        metric.textContent = `${prefix}${value}${suffix}`;
-
-        if (progress < 1) {
-            requestAnimationFrame(tick);
-        }
-    };
-
-    requestAnimationFrame(tick);
-};
-
-if ("IntersectionObserver" in window) {
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add("is-visible");
-                observer.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.15 });
-
-    revealItems.forEach((item) => observer.observe(item));
-
-    const metricObserver = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-                animateMetric(entry.target);
-                metricObserver.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.45 });
-
-    metricNumbers.forEach((metric) => metricObserver.observe(metric));
-
-    if (processLane) {
-        const processObserver = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-                if (entry.isIntersecting) {
-                    processLane.classList.add("is-sequenced");
-                    processObserver.unobserve(entry.target);
-                }
+    if (!reducedMotion.matches) {
+        const reveal = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add('is-visible');
+                reveal.unobserve(entry.target);
             });
-        }, { threshold: 0.35 });
-
-        processObserver.observe(processLane);
+        },{threshold:0.06});
+        revealItems.forEach(item => reveal.observe(item));
+        document.documentElement.classList.add('motion-ready');
+        new IntersectionObserver(entries => {
+            entries.forEach(entry => entry.target.classList.toggle('is-in-view',entry.isIntersecting));
+        },{threshold:0.05}).observe(document.querySelector('.hero'));
+    }
+    if (processLane) {
+        const process = new IntersectionObserver(entries => {
+            if (entries.some(entry => entry.isIntersecting)) {
+                processLane.classList.add('is-sequenced');
+                process.disconnect();
+            }
+        },{threshold:0.1});
+        process.observe(processLane);
     }
 } else {
-    revealItems.forEach((item) => item.classList.add("is-visible"));
-    metricNumbers.forEach(animateMetric);
-    processLane?.classList.add("is-sequenced");
+    processLane?.classList.add('is-sequenced');
 }
-
-document.querySelectorAll(".risk-card").forEach((card) => {
-    card.addEventListener("click", () => {
-        card.classList.add("is-pulsing");
-        window.setTimeout(() => card.classList.remove("is-pulsing"), 1200);
-    });
+reducedMotion.addEventListener('change', event => {
+    if (event.matches) {
+        document.documentElement.classList.remove('motion-ready');
+        processLane?.classList.add('is-sequenced');
+    }
 });
-
-const requestedScroll = new URLSearchParams(window.location.search).get("scroll");
-
+const requestedScroll = new URLSearchParams(location.search).get('scroll');
 if (requestedScroll) {
-    window.addEventListener("load", () => {
-        window.setTimeout(() => {
-            document.getElementById(requestedScroll)?.scrollIntoView({ block: "start" });
-        }, 120);
-    });
+    addEventListener('load', () => document.getElementById(requestedScroll)?.scrollIntoView({block:'start'}), {once:true});
 }

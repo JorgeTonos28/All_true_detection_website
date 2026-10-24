@@ -13,6 +13,8 @@ Sitio público y portal de servicios. PHP 8.3+, Laravel 13, Blade, Fortify, Soci
 
 El sitio y el portal usan assets estáticos versionados en `public/assets`. El pipeline Vite del esqueleto sigue disponible con `npm install` y `npm run build`.
 
+La portada conserva la identidad ATD con composiciones generadas de fondo en WebP transparente, catálogo de servicios por familias y enlaces de solicitud de texto. El CTA de evaluación abre contacto en modal. El movimiento usa IntersectionObserver y CSS, sin scroll bloqueado y respetando movimiento reducido; el tema puede seguir al sistema o seleccionarse en el footer. Se mantienen anclajes, catálogo activo y fotografías. Recursos y prompts: [dirección artística](docs/design/home-art.md).
+
 ## Acceso y seguridad
 
 `/login`, `/register`, recuperación de contraseña, verificación de correo y 2FA TOTP con códigos de recuperación. Roles: administrador general, colaborador y cliente. El colaborador trabaja sobre órdenes asignadas; el cliente opera dentro de su cuenta.

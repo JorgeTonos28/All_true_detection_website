@@ -7,6 +7,7 @@ if (contactDialog && typeof contactDialog.showModal === 'function') {
             contactTrigger = trigger;
             contactDialog.showModal();
             document.body.classList.add('contact-open');
+            contactDialog.querySelector('input[name="name"]').focus();
         });
     });
     contactDialog.querySelector('[data-contact-close]').addEventListener('click', () => contactDialog.close());
@@ -44,7 +45,7 @@ document.querySelectorAll('[data-public-contact]').forEach(form => {
             form.reset();
         } catch (error) {
             feedback.dataset.error = 'true';
-            feedback.textContent = error.name === 'AbortError' ? 'No pudimos confirmar la recepción. Revise si recibió el aviso antes de volver a enviar.' : error.message;
+            feedback.textContent = error.name === 'AbortError' ? 'No pudimos confirmar la recepción. Revise si recibió el aviso antes de volver a enviar.' : error instanceof TypeError ? 'No se pudo conectar. Compruebe su conexión y revise si recibió el aviso antes de volver a enviar.' : error.message;
         } finally {
             clearTimeout(timer);
             feedback.hidden = false;
