@@ -21,7 +21,7 @@ class CreateOrder
     public function handle(User $actor, array $data, ?string $key = null, array $files = [], array $evidence = [], bool $requireEvidence = false): Order
     {
         abort_unless($actor->is_active && $actor->hasVerifiedEmail() && $actor->role === Role::Client && $actor->customer_account_id, 403);
-        $profile = PersonVerification::profile($data);
+        $profile = isset($data['person']) ? PersonVerification::profile($data) : null;
         foreach ($evidence as $purpose => $file) {
             PersonVerification::validateEvidence(PersonVerification::selected($data['items']), $purpose, $file);
         }
@@ -56,6 +56,8 @@ class CreateOrder
 
                     return [Order::visibleTo($actor)->findOrFail($existing->order_id), false];
                 }
+                // A matching historical retry may return its old order; new cases MUST have a valid person.
+                $profile ??= PersonVerification::profile($data);
                 $services = Service::whereIn('code', array_column($data['items'], 'service_code'))->where('is_active', true)->get()->keyBy('code');
                 if ($services->count() !== count($data['items'])) {
                     throw ValidationException::withMessages(['items' => 'Algún servicio no está disponible o está duplicado.']);

@@ -10,9 +10,11 @@ use App\Actions\Orders\StoreResult;
 use App\Actions\Orders\UpdateOrder;
 use App\Enums\Role;
 use App\Models\Order;
+use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -84,5 +86,23 @@ class PersonVerificationApiTest extends TestCase
         $data['items'][0]['quantity'] = 2;
         $this->postJson('/api/v1/orders', $data, $headers)->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['items.0.quantity']]]);
         $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_pre_profile_idempotency_retry_returns_only_the_matching_historical_order(): void
+    {
+        Notification::fake();
+        $this->seed();
+        $headers = $this->token('legacy-person@example.test') + ['Idempotency-Key' => 'pre-profile-001'];
+        $client = User::where('email', 'legacy-person@example.test')->firstOrFail();
+        $payload = ['subject' => 'Caso anterior', 'details' => 'Solicitud anterior a la ficha de persona', 'consent' => true, 'items' => [['service_code' => 'exequatur', 'quantity' => 1]]];
+        $order = Order::create(['customer_account_id' => $client->customer_account_id, 'requested_by' => $client->id, 'subject' => $payload['subject'], 'details' => $payload['details'], 'consented_at' => now()]);
+        $service = Service::where('code', 'exequatur')->firstOrFail();
+        $order->items()->create(['service_id' => $service->id, 'service_name' => $service->name, 'quantity' => 1]);
+        DB::table('idempotency_keys')->insert(['user_id' => $client->id, 'key' => 'pre-profile-001', 'request_hash' => hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR)), 'order_id' => $order->id, 'created_at' => now(), 'updated_at' => now()]);
+        $this->postJson('/api/v1/orders', $payload, $headers)->assertCreated()->assertJsonPath('data.id', $order->public_id)->assertJsonPath('data.person', null);
+        $payload['subject'] = 'Cambio no permitido';
+        $this->postJson('/api/v1/orders', $payload, $headers)->assertConflict();
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('order_people', 0);
     }
 }

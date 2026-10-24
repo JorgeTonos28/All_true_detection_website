@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Support\PersonVerification;
 use App\Support\PrivateUpload;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
 
 class StoreOrderRequest extends FormRequest
 {
@@ -25,6 +26,14 @@ class StoreOrderRequest extends FormRequest
         $items = is_array($this->input('items')) ? $this->input('items') : [];
         $codes = PersonVerification::selected($items);
         $api = $this->is('api/*');
+        $personRules = PersonVerification::rules($items);
+        $key = $api ? $this->header('Idempotency-Key') : $this->input('idempotency_key');
+        if ($codes && ! $this->filled('person') && is_string($key) && DB::table('idempotency_keys')
+            ->where('user_id', $this->user()->id)->where('key', $key)
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('order_people')->whereColumn('order_people.order_id', 'idempotency_keys.order_id'))->exists()) {
+            // Only a matching hash in CreateOrder can return this existing, pre-profile case.
+            $personRules = ['person' => ['prohibited']];
+        }
 
         return [
             'subject' => ['required', 'string', 'max:200'], 'details' => ['required', 'string', 'min:10', 'max:10000'],
@@ -40,6 +49,25 @@ class StoreOrderRequest extends FormRequest
             'evidence.identity_back' => PrivateUpload::rules(false),
             'evidence.selfie' => array_merge([! $api && in_array('identity-verification', $codes, true) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1)),
             'evidence.selfie_extra' => PrivateUpload::rules(false),
-        ] + PersonVerification::rules($items);
+        ] + $personRules;
+    }
+
+    public function messages(): array
+    {
+        return [
+            'person.required' => 'Complete la ficha de la persona que será verificada.',
+            'person.*.required' => 'Complete el campo :attribute de la persona.',
+            'person.identity_number.regex' => 'La cédula debe contener 11 dígitos, con o sin guiones.',
+            'person.authorization_confirmed.accepted' => 'Confirme la autorización de la persona para tratar sus datos e imágenes.',
+            'person.degree.required' => 'Complete los datos del título universitario.',
+            'person.exequatur.required' => 'Complete los datos del exequátur.',
+            'evidence.identity_front.required' => 'Adjunte el frente de la cédula para la validación de título o exequátur.',
+            'evidence.selfie.required' => 'Adjunte una selfie frontal para la verificación de identidad.',
+        ];
+    }
+
+    public function attributes(): array
+    {
+        return ['person.first_name' => 'nombre', 'person.last_name' => 'apellido', 'person.identity_number' => 'cédula', 'person.address' => 'dirección', 'person.purpose' => 'finalidad', 'person.authorization_confirmed' => 'autorización'];
     }
 }
