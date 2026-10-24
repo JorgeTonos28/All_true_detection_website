@@ -10,6 +10,7 @@ use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
 use App\Models\Service;
 use App\Models\User;
+use App\Services\UserDirectory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -18,16 +19,27 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $data = $request->validate(['status' => ['nullable', Rule::enum(OrderStatus::class)], 'q' => ['nullable', 'string', 'max:100']]);
-        $query = Order::visibleTo($request->user())->with(['account', 'invoice', 'assignee']);
+        $data = $request->validate(['status' => ['nullable', Rule::enum(OrderStatus::class)], 'q' => ['nullable', 'string', 'max:100'], 'billing' => ['nullable', 'in:pending,paid,unquoted'], 'mine' => ['nullable', 'in:1']]);
+        $base = Order::visibleTo($request->user());
+        $summary = ['total' => (clone $base)->count(), 'working' => (clone $base)->whereIn('status', ['reviewing', 'quoted', 'in_progress'])->count(), 'pending' => (clone $base)->whereHas('invoice', fn ($q) => $q->where('status', 'unpaid'))->count(), 'completed' => (clone $base)->where('status', 'completed')->count()];
+        $query = $base->with(['account', 'invoice' => fn ($q) => $q->withSum('payments', 'amount'), 'assignee', 'items'])->withCount('attachments');
         if (! empty($data['status'])) {
             $query->where('status', $data['status']);
         }
         if (! empty($data['q'])) {
-            $query->where(fn ($q) => $q->where('subject', 'like', '%'.$data['q'].'%')->orWhere('public_id', $data['q'])->orWhere('external_reference', $data['q']));
+            $pattern = UserDirectory::pattern($data['q']);
+            $query->where(fn ($q) => $q->whereRaw("LOWER(subject) LIKE ? ESCAPE '!'", [$pattern])->orWhere('public_id', $data['q'])->orWhereRaw("LOWER(external_reference) LIKE ? ESCAPE '!'", [$pattern])->orWhereHas('account', fn ($account) => $account->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])));
+        }
+        if (($data['billing'] ?? null) === 'unquoted') {
+            $query->whereDoesntHave('invoice');
+        } elseif (! empty($data['billing'])) {
+            $query->whereHas('invoice', fn ($q) => $q->where('status', $data['billing'] === 'paid' ? 'paid' : 'unpaid'));
+        }
+        if (! empty($data['mine']) && $request->user()->isStaff()) {
+            $query->where('assigned_to', $request->user()->id);
         }
 
-        return view('portal.orders.index', ['orders' => $query->latest('id')->paginate(20)->withQueryString(), 'statuses' => OrderStatus::cases()]);
+        return view('portal.orders.index', ['orders' => $query->latest('id')->paginate(20)->withQueryString(), 'statuses' => OrderStatus::cases(), 'summary' => $summary]);
     }
 
     public function create(Request $request)
