@@ -37,13 +37,13 @@ class OrderController extends Controller
         }
         $order = $action->handle($request->user(), $request->validated(), $key);
 
-        return (new OrderResource($order->load(['items.service', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')])))->additional(['meta' => ['request_id' => $request->attributes->get('request_id')]])->response()->setStatusCode(201)->header('Location', url('/api/v1/orders/'.$order->public_id));
+        return (new OrderResource($order->load(['items.service', 'person', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')])))->additional(['meta' => ['request_id' => $request->attributes->get('request_id')]])->response()->setStatusCode(201)->header('Location', url('/api/v1/orders/'.$order->public_id));
     }
 
     public function show(Request $request, Order $order)
     {
         Gate::authorize('view', $order);
 
-        return (new OrderResource($order->load(['items.service', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')])))->additional(['meta' => ['request_id' => $request->attributes->get('request_id')]]);
+        return (new OrderResource($order->load(['items.service', 'person', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')])))->additional(['meta' => ['request_id' => $request->attributes->get('request_id')]]);
     }
 }

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "All True Detection API",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API."
   },
   "servers": [
@@ -304,7 +304,7 @@
       },
       "post": {
         "operationId": "createOrder",
-        "description": "Requiere orders:write. Misma clave y payload reproduce la orden; cambios producen 409.",
+        "description": "Requiere orders:write. Misma clave y payload reproduce la orden; cambios producen 409. Para university-degree, exequatur e identity-verification se exige person y cantidad 1 por servicio. Cree con JSON y cargue la evidencia por attachments; el detalle informa verification.missing.",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -1384,6 +1384,18 @@
                   "file": {
                     "type": "string",
                     "format": "binary"
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "supporting",
+                      "identity_front",
+                      "identity_back",
+                      "selfie",
+                      "selfie_extra"
+                    ],
+                    "default": "supporting",
+                    "description": "identity_front obligatorio para título/exequátur; selfie obligatoria para identidad. Selfie/extra solo JPG/PNG/WebP. Frente/reverso PDF o imágenes, no DOCX."
                   }
                 }
               }
@@ -2622,7 +2634,7 @@
           "items": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 11,
+            "maxItems": 12,
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -2637,10 +2649,14 @@
                 "quantity": {
                   "type": "integer",
                   "minimum": 1,
-                  "maximum": 100
+                  "maximum": 100,
+                  "description": "Para los tres servicios por persona solo se acepta 1; cree otra orden para otra persona."
                 }
               }
             }
+          },
+          "person": {
+            "$ref": "#/components/schemas/VerificationPerson"
           }
         }
       },
@@ -2822,6 +2838,18 @@
           },
           "links": {
             "type": "object"
+          },
+          "person": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VerificationPerson"
+              }
+            ],
+            "nullable": true,
+            "description": "Solo creación y detalle; ausente del listado; null para órdenes sin perfil/anteriores."
+          },
+          "verification": {
+            "$ref": "#/components/schemas/VerificationEvidence"
           }
         }
       },
@@ -2863,6 +2891,9 @@
           "mime_type": {
             "type": "string",
             "nullable": true
+          },
+          "verification_findings": {
+            "$ref": "#/components/schemas/VerificationFindings"
           }
         }
       },
@@ -2961,6 +2992,17 @@
             "nullable": true,
             "pattern": "^[a-f0-9]{64}$",
             "description": "SHA-256 del archivo para verificar su integridad."
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "supporting",
+              "identity_front",
+              "identity_back",
+              "selfie",
+              "selfie_extra"
+            ],
+            "default": "supporting"
           }
         }
       },
@@ -3016,6 +3058,223 @@
               },
               "links": {
                 "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "VerificationPerson": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Una persona por orden para university-degree, exequatur o identity-verification. Obligatorio al crear nuevas solicitudes de estos servicios, cantidad=1. Datos sensibles: solo en creación/detalle autorizado, no en listados ni webhooks.",
+        "required": [
+          "first_name",
+          "last_name",
+          "identity_number",
+          "address",
+          "purpose",
+          "authorization_confirmed"
+        ],
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "last_name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "identity_number": {
+            "type": "string",
+            "pattern": "^[0-9]{3}-?[0-9]{7}-?[0-9]$",
+            "description": "Cédula dominicana de 11 dígitos. Se normaliza sin guiones; validar formato no demuestra autenticidad."
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Opcional, no futura."
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 40,
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254,
+            "nullable": true
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 5
+          },
+          "authorization_confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "degree": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Obligatorio solo con university-degree.",
+            "required": [
+              "institution",
+              "degree_name"
+            ],
+            "properties": {
+              "institution": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "degree_name": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "graduation_year": {
+                "type": "integer",
+                "minimum": 1900,
+                "nullable": true,
+                "description": "No posterior al año actual."
+              },
+              "registration_number": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              }
+            }
+          },
+          "exequatur": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Obligatorio solo con exequatur.",
+            "required": [
+              "profession"
+            ],
+            "properties": {
+              "profession": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "number": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "issuing_authority": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              },
+              "issued_on": {
+                "type": "string",
+                "format": "date",
+                "nullable": true,
+                "description": "No futura."
+              }
+            }
+          }
+        }
+      },
+      "VerificationEvidence": {
+        "type": "object",
+        "nullable": true,
+        "required": [
+          "method",
+          "ready_for_review",
+          "required",
+          "missing"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "manual"
+            ]
+          },
+          "ready_for_review": {
+            "type": "boolean",
+            "description": "Solo completitud de evidencias, NO decisión sobre identidad."
+          },
+          "required": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "identity_front",
+                "selfie"
+              ]
+            }
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "identity_front",
+                "selfie"
+              ]
+            }
+          }
+        }
+      },
+      "VerificationFindings": {
+        "type": "object",
+        "nullable": true,
+        "description": "Solo entregas publicadas tras pago total y finalización. Conclusión humana, sin prueba de vida ni motor biométrico.",
+        "required": [
+          "method",
+          "reviewed_at",
+          "checks"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "manual"
+            ]
+          },
+          "reviewed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "service_code",
+                "outcome",
+                "notes"
+              ],
+              "properties": {
+                "service_code": {
+                  "type": "string",
+                  "enum": [
+                    "university-degree",
+                    "exequatur",
+                    "identity-verification"
+                  ]
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "verified",
+                    "not_verified",
+                    "inconclusive"
+                  ]
+                },
+                "notes": {
+                  "type": "string",
+                  "maxLength": 5000
+                }
               }
             }
           }

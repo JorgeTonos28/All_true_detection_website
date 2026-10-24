@@ -25,13 +25,13 @@ class AttachmentController extends Controller
     public function store(Request $request, Order $order, StoreAttachment $action)
     {
         Gate::authorize('view', $order);
-        $request->validate(['file' => PrivateUpload::rules()]);
+        $request->validate(['file' => PrivateUpload::rules(), 'purpose' => ['sometimes', 'string', 'max:32']]);
         $key = $request->header('Idempotency-Key');
         if ($key !== null && ! preg_match('/^[A-Za-z0-9._:-]{8,128}$/D', $key)) {
             throw ValidationException::withMessages(['Idempotency-Key' => 'Use entre 8 y 128 caracteres válidos.']);
         }
 
-        return (new AttachmentResource($action->handle($request->user(), $order, $request->file('file'), $key)->load('order')))->response()->setStatusCode(201);
+        return (new AttachmentResource($action->handle($request->user(), $order, $request->file('file'), $key, $request->input('purpose', 'supporting'))->load('order')))->response()->setStatusCode(201);
     }
 
     public function download(Order $order, string $attachment)

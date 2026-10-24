@@ -57,7 +57,7 @@ class OrderController extends Controller
 
     public function store(StoreOrderRequest $request, CreateOrder $action)
     {
-        $order = $action->handle($request->user(), $request->validated(), $request->validated('idempotency_key'), $request->file('documents', []));
+        $order = $action->handle($request->user(), $request->validated(), $request->validated('idempotency_key'), $request->file('documents', []), $request->file('evidence', []), true);
         $request->session()->forget('requested_service');
 
         return redirect()->route('portal.orders.show', $order)->with('status', 'Solicitud recibida. Nuestro equipo revisará el alcance y preparará su cotización.');
@@ -66,7 +66,7 @@ class OrderController extends Controller
     public function show(Request $request, Order $order)
     {
         Gate::authorize('view', $order);
-        $order->load(['items.service', 'invoice.payments.recorder', 'account', 'requester', 'assignee', 'attachments', 'conversation']);
+        $order->load(['items.service', 'person', 'invoice.payments.recorder', 'account', 'requester', 'assignee', 'attachments', 'conversation']);
         $results = ($request->user()->isStaff() || $order->canReleaseResults()) ? $order->results()->when(! $request->user()->isStaff(), fn ($q) => $q->whereNotNull('published_at'))->latest('id')->get() : collect();
 
         return view('portal.orders.show', ['order' => $order, 'results' => $results, 'staff' => $request->user()->isAdmin() ? User::where('is_active', true)->whereIn('role', ['admin', 'collaborator'])->orderBy('name')->get() : collect()]);

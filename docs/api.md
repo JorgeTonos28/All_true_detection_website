@@ -32,22 +32,95 @@ Guardar el token en un gestor de secretos del backend. No colocarlo en JavaScrip
 Primero consulte `GET /services` para obtener los códigos activos. Luego envíe `POST /orders` con JSON, consentimiento e `Idempotency-Key`.
 
 ```json
-{"subject":"Validación de credenciales","details":"Solicitamos verificar las credenciales con la información autorizada.","external_reference":"RRHH-2026-001","consent":true,"items":[{"service_code":"university-degree","quantity":1}]}
+{"subject":"Validación de credenciales","details":"Solicitamos verificar las credenciales con la información autorizada.","external_reference":"RRHH-2026-001","consent":true,"items":[{"service_code":"profile-verification","quantity":1}]}
 ```
 
 La clave debe contener entre 8 y 128 caracteres ASCII alfanuméricos o `._:-`. Se aísla por usuario y se conserva durante la vida de la solicitud. Reutilice la misma clave y el mismo contenido tras timeout o error de red: recibirá la misma orden (201), sin crear una segunda. Reutilizar la clave con otros datos produce 409. Cree una clave nueva para otra solicitud de negocio. No genere claves nuevas indiscriminadamente al reintentar.
 
-Cuenta, rol, precio, asignación y estado se determinan en el servidor. La referencia externa facilita conciliar su sistema; no es una clave de idempotencia ni se impone como única. Se aceptan hasta 11 servicios distintos y cantidades enteras entre 1 y 100. El consentimiento debe representar autorización real para tratar la información aportada.
+Cuenta, rol, precio, asignación y estado se determinan en el servidor. La referencia externa facilita conciliar su sistema; no es una clave de idempotencia ni se impone como única. Se aceptan hasta 12 servicios distintos y cantidades enteras entre 1 y 100. El consentimiento debe representar autorización real para tratar la información aportada.
 
 Ejemplo para CMD de Windows, en una sola línea. Sustituya `SU_TOKEN` antes de ejecutarlo:
 
 ```bat
-curl.exe --request POST "http://127.0.0.1:8000/api/v1/orders" --header "Authorization: Bearer SU_TOKEN" --header "Content-Type: application/json" --header "Idempotency-Key: solicitud-rrhh-2026-001" --data "{\"subject\":\"Validacion de credenciales\",\"details\":\"Verificacion de credenciales autorizada por el titular.\",\"external_reference\":\"RRHH-2026-001\",\"consent\":true,\"items\":[{\"service_code\":\"university-degree\",\"quantity\":1}]}"
+curl.exe --request POST "http://127.0.0.1:8000/api/v1/orders" --header "Authorization: Bearer SU_TOKEN" --header "Content-Type: application/json" --header "Idempotency-Key: solicitud-rrhh-2026-001" --data "{\"subject\":\"Validacion de credenciales\",\"details\":\"Verificacion de credenciales autorizada por el titular.\",\"external_reference\":\"RRHH-2026-001\",\"consent\":true,\"items\":[{\"service_code\":\"profile-verification\",\"quantity\":1}]}"
 ```
+
+## Verificaciones por persona
+
+Los códigos `university-degree`, `exequatur` e `identity-verification` requieren una ficha `person`. Cada orden corresponde a una sola persona y cada uno de estos servicios tiene cantidad 1. Puede solicitar uno, dos o los tres para esa persona sin duplicar sus datos; cree otra orden para otra persona. No existe un registro global de personas ni búsqueda de cédulas entre cuentas.
+
+| Campo de `person` | Requisito |
+| --- | --- |
+| `first_name`, `last_name` | Obligatorios, hasta 100 caracteres cada uno. |
+| `identity_number` | Cédula dominicana, 11 dígitos con o sin guiones; se guarda normalizada. El formato no acredita autenticidad. |
+| `address` | Obligatorio, hasta 1.000 caracteres. |
+| `purpose` | Finalidad autorizada de la verificación, 5-1.000 caracteres. |
+| `authorization_confirmed` | Debe ser `true` y representar autorización real de la persona. |
+| `birth_date`, `phone`, `email` | Opcionales; fecha `YYYY-MM-DD` no futura. |
+| `degree.institution`, `degree.degree_name` | Obligatorios solo para título universitario. |
+| `degree.graduation_year`, `degree.registration_number` | Opcionales; año no futuro. |
+| `exequatur.profession` | Obligatorio solo para exequátur. |
+| `exequatur.number`, `exequatur.issuing_authority`, `exequatur.issued_on` | Opcionales; fecha no futura. |
+
+Ejemplo completamente ficticio (la cédula es solo un marcador de pruebas):
+
+```json
+{
+  "subject": "Verificación de credenciales",
+  "details": "Solicitud ficticia con autorización documentada.",
+  "consent": true,
+  "items": [
+    {
+      "service_code": "university-degree",
+      "quantity": 1
+    },
+    {
+      "service_code": "exequatur",
+      "quantity": 1
+    }
+  ],
+  "person": {
+    "first_name": "Persona",
+    "last_name": "Ficticia",
+    "identity_number": "00000000000",
+    "address": "Dirección ficticia",
+    "purpose": "Verificación autorizada de credenciales",
+    "authorization_confirmed": true,
+    "degree": {
+      "institution": "Institución ficticia",
+      "degree_name": "Título de prueba"
+    },
+    "exequatur": {
+      "profession": "Profesión de prueba"
+    }
+  }
+}
+```
+
+Después de crear la orden, suba cada evidencia a `/orders/{order}/attachments` mediante `file` y el campo `purpose`:
+
+- `identity_front`: frente de la cédula, obligatorio para título/exequátur; una copia sirve para ambos. PDF, JPG, PNG o WebP, escaneada o fotografiada.
+- `identity_back`: reverso opcional, en los mismos formatos.
+- `selfie`: selfie frontal obligatoria para identidad. Solo JPG, PNG o WebP; no se aceptan PDF/Word como selfie.
+- `selfie_extra`: segunda selfie opcional, solo para identidad.
+- `supporting`: título, exequátur, autorización u otros documentos pertinentes; valor predeterminado compatible con integraciones anteriores.
+
+```bat
+curl.exe --request POST "http://127.0.0.1:8000/api/v1/orders/ID_ORDEN/attachments" --header "Authorization: Bearer SU_TOKEN" --header "Idempotency-Key: cedula-frente-001" --form "purpose=identity_front" --form "file=@C:/ruta/cedula-frente.jpg"
+```
+
+`GET /orders/{order}` devuelve `person` y `verification` con `method=manual`, `ready_for_review`, `required` y `missing`. El listado general omite ambos para no exportar fichas personales en bloque. `ready_for_review` solo indica documentación completa: NO significa identidad verificada. No se cotiza ni se inicia la revisión/trabajo con evidencia obligatoria pendiente. La clave idempotente también protege datos de persona y clasificación de adjuntos; cambiar contenido o categoría exige una clave nueva.
+
+El portal permite adjuntar evidencia al crear la orden, de forma atómica, con el límite conjunto de 5 archivos/20 MB, incluidos documentos de apoyo. La API conserva el flujo JSON + cargas individuales. Los límites, antivirus, almacenamiento privado, scopes y aislamiento existentes se aplican a cédulas y selfies.
+
+Un profesional de ATD registra una conclusión por servicio: `verified`, `not_verified` o `inconclusive`, con notas. No es una decisión automática de contratación ni una validación de identidad por acceso a registros oficiales. Después de pago total, finalización y publicación, `/deliveries` devuelve `verification_findings` con `method=manual`, `reviewed_at` y `checks[]` (`service_code`, `outcome`, `notes`). No se filtra esa conclusión por estado, notificaciones, listados ni webhooks antes de la entrega.
+
+Las fichas y conclusiones se cifran en la base de datos. No use nombres/cédulas en asunto, referencia externa, nombres de archivos, claves de idempotencia, URLs o logs. Use referencias opacas. No envíe fotos en base64 dentro del JSON ni por correo. Aplique en su sistema acceso mínimo, cifrado y retención definida para estos datos sensibles. Las órdenes anteriores sin ficha siguen operando; no se inventan ni migran datos de personas.
+
 
 ## Documentos de entrada
 
-En API se crea la orden con JSON y luego se cargan los documentos por `POST /orders/{order}/attachments`, con `multipart/form-data` y un único campo `file`. Este diseño evita reintentar una solicitud entera al fallar la transferencia de un documento. Use una `Idempotency-Key` distinta por documento: el servidor devuelve el mismo adjunto si contenido/nombre coinciden; 409 si cambian. El header es opcional por compatibilidad, pero se recomienda en toda integración automática.
+En API se crea la orden con JSON y luego se cargan los documentos por `POST /orders/{order}/attachments`, con `multipart/form-data` y un campo `file` y la categoría opcional `purpose`. Este diseño evita reintentar una solicitud entera al fallar la transferencia de un documento. Use una `Idempotency-Key` distinta por documento: el servidor devuelve el mismo adjunto si contenido/nombre/categoría coinciden; 409 si cambian. El header es opcional por compatibilidad, pero se recomienda en toda integración automática.
 
 PDF, Word DOCX sin macros/objetos incrustados/cifrado y JPG, PNG o WebP. Máximo 10 MB por archivo, 30 documentos de entrada y 100 MB totales por solicitud, 1 GB por cuenta. Imágenes limitadas a 40 megapíxeles y 10.000 píxeles por lado. Audio, video, SVG y ZIP independientes no se admiten. Convertir `.doc` antiguo a DOCX o PDF. La extensión y el MIME deben coincidir; DOCX se inspecciona como contenedor y el antivirus es obligatorio en producción. No se acepta un archivo por cambiar su nombre/extensión. Error o timeout del escáner bloquea la carga. No se adjunta a casos completados/cancelados.
 

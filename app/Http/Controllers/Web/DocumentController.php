@@ -25,8 +25,8 @@ class DocumentController extends Controller
     public function attach(Request $request, Order $order, StoreAttachment $action)
     {
         Gate::authorize('view', $order);
-        $request->validate(['file' => $this->fileRules()]);
-        $action->handle($request->user(), $order, $request->file('file'));
+        $request->validate(['file' => $this->fileRules(), 'purpose' => ['sometimes', 'string', 'max:32']]);
+        $action->handle($request->user(), $order, $request->file('file'), null, $request->input('purpose', 'supporting'));
 
         return back()->with('status', 'Documento privado agregado.');
     }
@@ -43,8 +43,8 @@ class DocumentController extends Controller
     public function result(Request $request, Order $order, StoreResult $action)
     {
         Gate::authorize('update', $order);
-        $data = $request->validate(['summary' => ['required', 'string', 'min:5', 'max:20000'], 'file' => array_merge(['nullable'], array_slice($this->fileRules(), 1))]);
-        $action->handle($request->user(), $order, $data['summary'], $request->file('file'));
+        $data = $request->validate(['summary' => ['required', 'string', 'min:5', 'max:20000'], 'file' => array_merge(['nullable'], array_slice($this->fileRules(), 1)), 'findings' => ['sometimes', 'array']]);
+        $action->handle($request->user(), $order, $data['summary'], $request->file('file'), $data['findings'] ?? []);
 
         return back()->with('status', 'Resultado preparado. Falta la publicación por un administrador general.');
     }
