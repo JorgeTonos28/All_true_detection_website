@@ -25,6 +25,8 @@ Para pruebas locales sin depender del correo, el comando `php artisan portal:cre
 
 Para probar invitaciones, configurar `APP_URL=http://127.0.0.1:8000` y reiniciar `composer run dev` después de cambiar `.env`. Abrir el último enlace en una ventana privada para evitar la sesión del administrador. Al establecer la contraseña se envía la verificación de correo pendiente; el cliente entra al portal tras confirmarla.
 
+Usuarios y acceso incluye una tabla de 25 registros por página, búsqueda mientras escribe (coincidencia con cualquiera de las palabras), filtros por rol/estado y fichas de gestión en modal. Busca datos administrativos del usuario y de su cuenta; nunca credenciales. La selección de empresas se consulta bajo demanda, sin cargar todas las cuentas en el navegador.
+
 Al actualizar una instalación existente, respaldar la base, los documentos y APP_KEY antes de migrar. La migración de seguridad revoca la antigua contraseña fija si sigue presente. El administrador del panel anterior debe prepararse con el comando seguro anterior; no se promueven usuarios automáticamente. Ver [operación y despliegue](docs/operations.md).
 
 ## Validación

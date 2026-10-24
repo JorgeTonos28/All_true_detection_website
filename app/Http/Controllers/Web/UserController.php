@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CustomerAccount;
 use App\Models\User;
 use App\Services\Audit;
+use App\Services\UserDirectory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
@@ -15,9 +16,52 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(Request $request, UserDirectory $directory)
     {
-        return view('portal.users', ['users' => User::with('account')->orderBy('name')->paginate(25), 'accounts' => CustomerAccount::orderBy('name')->get(), 'roles' => Role::cases()]);
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:200', function ($attribute, $value, $fail) {
+                if (count(preg_split('/\s+/u', trim($value), -1, PREG_SPLIT_NO_EMPTY)) > 12) {
+                    $fail('Utilice hasta 12 palabras en la búsqueda.');
+                }
+            }],
+            'role' => ['nullable', Rule::enum(Role::class)],
+            'status' => ['nullable', Rule::in(['active', 'inactive'])],
+        ]);
+        $users = $directory->query(trim($filters['q'] ?? ''), $filters['role'] ?? null, $filters['status'] ?? null)->paginate(25)->withQueryString();
+        if ($request->wantsJson()) {
+            return response()->json(['html' => view('portal.users.table', compact('users'))->render()]);
+        }
+
+        $selectedAccountId = filter_var($request->old('customer_account_id'), FILTER_VALIDATE_INT);
+        $selectedAccount = $selectedAccountId ? CustomerAccount::find($selectedAccountId) : null;
+
+        return view('portal.users', ['users' => $users, 'selectedAccount' => $selectedAccount, 'roles' => Role::cases()]);
+    }
+
+    public function show(Request $request, User $user)
+    {
+        $user->load('account');
+        $data = ['member' => $user, 'roles' => Role::cases()];
+        if ($request->wantsJson()) {
+            return response()->json(['html' => view('portal.users.manage', $data)->render()]);
+        }
+
+        return view('portal.users.show', $data);
+    }
+
+    public function accounts(Request $request)
+    {
+        $data = $request->validate(['q' => ['nullable', 'string', 'max:120']]);
+        $search = trim($data['q'] ?? '');
+        if (mb_strlen($search) < 2) {
+            return response()->json(['accounts' => []]);
+        }
+        $pattern = UserDirectory::pattern($search);
+        $accounts = CustomerAccount::query()->select('id', 'name', 'billing_email')
+            ->where(fn ($query) => $query->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])->orWhereRaw("LOWER(billing_email) LIKE ? ESCAPE '!'", [$pattern])->orWhere('id', $search))
+            ->orderBy('name')->orderBy('id')->limit(20)->get();
+
+        return response()->json(['accounts' => $accounts]);
     }
 
     public function store(Request $request)

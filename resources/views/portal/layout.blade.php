@@ -35,4 +35,4 @@
     </main>
     <footer class="portal-footer">© {{ date('Y') }} {{ $business['company_name'] ?? 'All True Detection' }} · <a href="{{ route('privacy') }}">Privacidad</a></footer>
 </div>
-</div></body></html>
+</div>@stack('scripts')</body></html>

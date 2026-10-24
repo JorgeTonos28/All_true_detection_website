@@ -47,6 +47,8 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('porta
             Route::post('/invoices/{invoice}/payments', [BillingController::class, 'pay'])->name('payments.store');
             Route::patch('/messages/{conversation}', [MessageController::class, 'close'])->name('messages.status');
             Route::get('/users', [UserController::class, 'index'])->name('users.index');
+            Route::get('/users/accounts', [UserController::class, 'accounts'])->middleware('throttle:120,1')->name('users.accounts');
+            Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
             Route::post('/users', [UserController::class, 'store'])->middleware('throttle:10,1')->name('users.store');
             Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
             Route::post('/users/{user}/resend', [UserController::class, 'resend'])->middleware('throttle:5,1')->name('users.resend');

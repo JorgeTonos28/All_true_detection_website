@@ -16,6 +16,12 @@ En local, usar `APP_URL=http://127.0.0.1:8000`, incluyendo el puerto. En producc
 
 Probar la invitación en una ventana privada, sin la sesión del administrador que la envió. El usuario establece su contraseña, recibe la verificación de correo, inicia sesión y confirma ese enlace. El personal debe además configurar 2FA. Un reenvío dentro del minuto de espera muestra un aviso; no asegura un envío inexistente. Usar el último enlace recibido, pues una nueva solicitud invalida el token anterior.
 
+### Directorio de usuarios
+
+Solo administradores con 2FA y confirmación reciente de identidad acceden al directorio, sus fichas y la búsqueda de cuentas. La tabla pagina en servidor (25 usuarios), aplica filtros por rol/acceso y busca tras 300 ms de pausa. Coincide con cualquiera de hasta 12 palabras (200 caracteres en total), sin distinguir mayúsculas, en identificadores, nombre, email, rol, fechas administrativas y datos de cuenta (empresa, correo de facturación, identificador fiscal y dirección). También reconoce etiquetas de rol, acceso y verificación. No consulta hashes, tokens, Google ID ni secretos/códigos 2FA. Los comodines `%`, `_` y `!` se buscan literalmente. La búsqueda de cuentas devuelve como máximo 20 resultados. Para volúmenes que requieran búsqueda indexada de subcadenas, evaluar un índice específico manteniendo esta semántica y autorización; `LIKE %texto%` recorre campos del directorio.
+
+Al pulsar una fila o Gestionar se abre el modal; Escape o Cerrar lo cierran. Rol, desactivación y reenvío conservan las mismas autorizaciones, revocación de sesiones/tokens y auditoría del servidor. Sin JavaScript, los enlaces de ficha abren una página equivalente y la búsqueda funciona al enviar el formulario.
+
 Configurar el document root en `public/`, un usuario de BD exclusivo y permisos mínimos para aplicación y migraciones. Instalar dependencias con `composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader`. Nunca subir `.env`, SQLite, logs o ZIP antiguos al repositorio ni publicar el proyecto completo como carpeta servida por HTTP. El ZIP anterior de producción queda como archivo local heredado y no debe reutilizarse para desplegar el portal.
 
 ## Configuración necesaria
