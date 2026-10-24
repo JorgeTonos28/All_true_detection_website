@@ -14,7 +14,14 @@ $files = [
     'exec-82bd8e5e-de93-494f-92f1-de813cb72141.png' => ['services-evidence-v1.webp', 1100],
     'exec-6a6893f0-36f8-406a-a1f4-2c4b1f2e6cba.png' => ['risk-topography-v1.webp', 1536],
     'exec-69cf8be3-6134-4c22-bec9-7f3c56f33dc2.png' => ['sector-network-v1.webp', 1536],
+    'exec-2ae9b15d-4b16-4973-a177-1cb9cc768130.png' => ['hero-static-filaments-v1.webp', 1536],
 ];
+if (isset($argv[2])) {
+    $files = array_filter($files, fn ($entry) => $entry[0] === $argv[2]);
+    if (! $files) {
+        throw new InvalidArgumentException('Recurso de salida no reconocido.');
+    }
+}
 foreach ($files as $file => [$name, $max]) {
     $destination = $target.'/'.$name;
     if (file_exists($destination)) {

@@ -17,7 +17,7 @@ class HomeDesignTest extends TestCase
         foreach (Service::where('is_active', true)->pluck('code') as $code) {
             $response->assertSee(route('services.request', ['service' => $code]));
         }
-        foreach (['hero-lattice-v1.webp', 'services-evidence-v1.webp', 'risk-topography-v1.webp', 'sector-network-v1.webp'] as $file) {
+        foreach (['hero-lattice-v1.webp', 'hero-static-filaments-v1.webp', 'services-evidence-v1.webp', 'risk-topography-v1.webp', 'sector-network-v1.webp'] as $file) {
             $response->assertSee('art/'.$file);
             $this->assertFileExists(public_path('assets/images/art/'.$file));
             $this->assertSame('image/webp', getimagesize(public_path('assets/images/art/'.$file))['mime']);

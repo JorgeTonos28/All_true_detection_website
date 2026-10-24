@@ -42,6 +42,7 @@
     <main id="inicio">
         <section class="hero section-dark" data-art-section>
             <div class="hero-art" aria-hidden="true"><img src="{{ asset('assets/images/art/hero-lattice-v1.webp') }}" width="1536" height="1024" alt="" fetchpriority="high"></div>
+            <img class="hero-static-art" src="{{ asset('assets/images/art/hero-static-filaments-v1.webp') }}" width="1536" height="1024" alt="" aria-hidden="true" decoding="async">
             <div class="container hero__inner">
                 <div class="hero__copy reveal">
                     <p class="eyebrow">Evaluación e investigación técnica</p>
@@ -96,7 +97,7 @@
                     <p class="catalog-heading">Nuestros servicios</p>
                     @php($families = [
                         ['name'=>'Evaluación de personas','codes'=>['polygraph','deception-detection','drug-screening','psychometric']],
-                        ['name'=>'Verificación de información','codes'=>['profile-verification','home-visits','university-degree','exequatur']],
+                        ['name'=>'Verificación de información','codes'=>['profile-verification','home-visits','university-degree','exequatur','identity-verification']],
                         ['name'=>'Investigación y análisis','codes'=>['investigations','applied-ai']],
                         ['name'=>'Formación y equipamiento','codes'=>['training-equipment']],
                     ])

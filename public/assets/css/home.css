@@ -1,4 +1,4 @@
-/* ATD editorial evolution. Existing Blade/native CSS stack. Layers: art 0, content 1, header 10, dialog top-layer. */
+/* ATD editorial evolution. Layers: moving art/scrim 0, static hero art 1, hero copy 2, header 10, dialog top-layer. */
 :root {
     --navy:#0f2a43;
     --deep:#071d2d;
@@ -309,7 +309,7 @@ section[id] {
 
 .hero__inner {
     position:relative;
-    z-index:1;
+    z-index:2;
     display:flex;
     align-items:center;
     min-height:420px
@@ -362,6 +362,22 @@ section[id] {
 
 .hero-art img {
     width:100%
+}
+
+/* This complementary generated layer intentionally has NO animation or scroll timeline. */
+.hero-static-art {
+    position:absolute;
+    top:-55px;
+    left:-130px;
+    width:min(1150px,90vw);
+    max-width:none;
+    height:auto;
+    z-index:1;
+    opacity:.34;
+    pointer-events:none;
+    mask-image:linear-gradient(90deg,#000 0%,#000b 48%,transparent 90%);
+    animation:none;
+    transform:none
 }
 
 .proof-bar {
@@ -1685,6 +1701,16 @@ section[id] {
     }
     .training-grid .section-copy {
         grid-column:auto
+    }
+}
+
+@media(max-width:760px) {
+    .hero-static-art {
+        width:160%;
+        left:-25%;
+        top:20px;
+        opacity:.22;
+        mask-image:linear-gradient(180deg,#000 0%,#0007 60%,transparent 100%)
     }
 }
 
