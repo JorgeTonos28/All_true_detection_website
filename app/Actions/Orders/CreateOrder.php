@@ -33,9 +33,14 @@ class CreateOrder
                 }
                 $hash = hash('sha256', json_encode($canonical, JSON_THROW_ON_ERROR));
                 if ($key && ($existing = DB::table('idempotency_keys')->where('user_id', $actor->id)->where('key', $key)->first())) {
-                    abort_unless(hash_equals($existing->request_hash, $hash), 409, 'Esta clave ya fue utilizada con otros datos.');
+                    // Preserve retries of keys issued before canonical document fingerprints existed.
+                    $legacy = $data;
+                    unset($legacy['idempotency_key'], $legacy['service_codes'], $legacy['documents']);
+                    usort($legacy['items'], fn ($a, $b) => strcmp($a['service_code'], $b['service_code']));
+                    $legacyMatch = ! $staged && hash_equals($existing->request_hash, hash('sha256', json_encode($legacy, JSON_THROW_ON_ERROR)));
+                    abort_unless(hash_equals($existing->request_hash, $hash) || $legacyMatch, 409, 'Esta clave ya fue utilizada con otros datos.');
 
-                    return [Order::findOrFail($existing->order_id), false];
+                    return [Order::visibleTo($actor)->findOrFail($existing->order_id), false];
                 }
                 $services = Service::whereIn('code', array_column($data['items'], 'service_code'))->where('is_active', true)->get()->keyBy('code');
                 if ($services->count() !== count($data['items'])) {

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Auth\CreateNewUser;
 use App\Models\Order;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
@@ -88,5 +89,28 @@ class PortalApiTest extends TestCase
         $this->post('/api/v1/orders', $this->payload(), ['Authorization' => 'Bearer '.$token])->assertStatus(415)->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->postJson('/api/v1/orders', $this->payload(), ['Authorization' => 'Bearer '.$token])->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['Idempotency-Key']]]);
         $this->withHeader('Authorization', 'Bearer '.$token)->call('POST', '/api/v1/orders', [], [], [], ['CONTENT_TYPE' => 'application/json'], '{invalid')->assertStatus(400)->assertJsonPath('error.code', 'http_400');
+    }
+
+    public function test_retry_of_a_pre_upgrade_idempotency_key_does_not_duplicate_order(): void
+    {
+        Notification::fake();
+        $this->seed();
+        [$user, $token] = $this->token();
+        $headers = ['Authorization' => 'Bearer '.$token, 'Idempotency-Key' => 'legacy-order-key'];
+        $first = $this->postJson('/api/v1/orders', $this->payload(), $headers)->assertCreated();
+        DB::table('idempotency_keys')->where('user_id', $user->id)->update(['request_hash' => hash('sha256', json_encode($this->payload(), JSON_THROW_ON_ERROR))]);
+        $this->postJson('/api/v1/orders', $this->payload(), $headers)->assertCreated()->assertJsonPath('data.id', $first->json('data.id'));
+        $this->assertDatabaseCount('orders', 1);
+    }
+
+    public function test_production_api_requires_https_and_records_rejection_without_secrets(): void
+    {
+        Notification::fake();
+        $this->seed();
+        [, $token] = $this->token(['orders:read']);
+        $this->app['env'] = 'production';
+        $this->withToken($token)->get('http://localhost/api/v1/orders')->assertStatus(426)->assertHeader('X-Request-ID');
+        $this->assertDatabaseHas('api_request_logs', ['status' => 426]);
+        $this->withToken($token)->get('https://localhost/api/v1/orders')->assertOk();
     }
 }
