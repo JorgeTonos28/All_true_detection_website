@@ -10,6 +10,12 @@ Antes de actualizar, crear y verificar un respaldo de base de datos, `storage/ap
 
 Cuando el SMTP no esté disponible en desarrollo, `php artisan portal:create-local-admin correo@example.com` permite crear o preparar un administrador local solicitando la contraseña de forma interactiva. El comando marca el correo como verificado, revoca sesiones/tokens anteriores y no envía nada por email. Solo funciona si `APP_ENV=local` y `APP_DEBUG=true`; producción debe usar `portal:create-admin` y su flujo normal de recuperación.
 
+### Enlaces de invitación y verificación
+
+En local, usar `APP_URL=http://127.0.0.1:8000`, incluyendo el puerto. En producción usar el dominio HTTPS canónico. Las notificaciones de autenticación conservan esa dirección al encolarse y generan sus rutas sin depender del host de la petición o del worker. Tras cambiar `.env`, ejecutar `php artisan config:clear` y reiniciar `composer run dev` completo; en producción volver a generar la caché y reiniciar los workers. Los procesos abiertos pueden conservar variables anteriores. Los correos ya enviados no cambian: solicitar otro enlace una vez reiniciados los procesos.
+
+Probar la invitación en una ventana privada, sin la sesión del administrador que la envió. El usuario establece su contraseña, recibe la verificación de correo, inicia sesión y confirma ese enlace. El personal debe además configurar 2FA. Un reenvío dentro del minuto de espera muestra un aviso; no asegura un envío inexistente. Usar el último enlace recibido, pues una nueva solicitud invalida el token anterior.
+
 Configurar el document root en `public/`, un usuario de BD exclusivo y permisos mínimos para aplicación y migraciones. Instalar dependencias con `composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader`. Nunca subir `.env`, SQLite, logs o ZIP antiguos al repositorio ni publicar el proyecto completo como carpeta servida por HTTP. El ZIP anterior de producción queda como archivo local heredado y no debe reutilizarse para desplegar el portal.
 
 ## Configuración necesaria

@@ -18,6 +18,9 @@ class ResetUserPassword implements ResetsUserPasswords
             $user->forceFill(['password' => $input['password'], 'remember_token' => Str::random(60)])->save();
             $user->tokens()->delete();
             DB::table('sessions')->where('user_id', $user->id)->delete();
+            if (! $user->hasVerifiedEmail()) {
+                $user->sendEmailVerificationNotification();
+            }
         });
     }
 }

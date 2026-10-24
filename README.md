@@ -23,6 +23,8 @@ En producción: HTTPS, `APP_DEBUG=false`, `SESSION_ENCRYPT=true`, `SESSION_SECUR
 
 Para pruebas locales sin depender del correo, el comando `php artisan portal:create-local-admin correo@example.com` crea un administrador temporal con contraseña introducida en la terminal. Está bloqueado fuera de `APP_ENV=local` con `APP_DEBUG=true`.
 
+Para probar invitaciones, configurar `APP_URL=http://127.0.0.1:8000` y reiniciar `composer run dev` después de cambiar `.env`. Abrir el último enlace en una ventana privada para evitar la sesión del administrador. Al establecer la contraseña se envía la verificación de correo pendiente; el cliente entra al portal tras confirmarla.
+
 Al actualizar una instalación existente, respaldar la base, los documentos y APP_KEY antes de migrar. La migración de seguridad revoca la antigua contraseña fija si sigue presente. El administrador del panel anterior debe prepararse con el comando seguro anterior; no se promueven usuarios automáticamente. Ver [operación y despliegue](docs/operations.md).
 
 ## Validación

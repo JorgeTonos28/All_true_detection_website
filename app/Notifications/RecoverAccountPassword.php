@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\AuthenticationLinks;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
@@ -14,10 +15,21 @@ class RecoverAccountPassword extends ResetPassword implements ShouldBeEncrypted,
 
     public int $tries = 5;
 
+    protected ?string $applicationUrl = null;
+
     public function __construct(#[\SensitiveParameter] $token)
     {
         parent::__construct($token);
+        $this->applicationUrl = config('app.url');
         $this->afterCommit();
+    }
+
+    protected function resetUrl($notifiable)
+    {
+        return AuthenticationLinks::generator($this->applicationUrl)->route('password.reset', [
+            'token' => $this->token,
+            'email' => $notifiable->getEmailForPasswordReset(),
+        ]);
     }
 
     protected function buildMailMessage($url)

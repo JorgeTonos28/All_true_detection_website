@@ -35,9 +35,11 @@ class UserController extends Controller
 
             return $user;
         });
-        Password::sendResetLink(['email' => $user->email]);
+        $status = Password::sendResetLink(['email' => $user->email]);
 
-        return back()->with('status', 'Usuario creado. Se envió un enlace para establecer su contraseña.');
+        return back()->with('status', $status === Password::ResetLinkSent
+            ? 'Usuario creado. La invitación está en cola para enviar al correo indicado.'
+            : 'Usuario creado. No se pudo encolar la invitación; utilice Reenviar acceso.');
     }
 
     public function update(Request $request, User $user)
@@ -65,9 +67,14 @@ class UserController extends Controller
     public function resend(Request $request, User $user)
     {
         abort_unless($user->is_active, 422);
-        Password::sendResetLink(['email' => $user->email]);
+        $status = Password::sendResetLink(['email' => $user->email]);
+        if ($status !== Password::ResetLinkSent) {
+            return back()->withErrors(['invitation' => $status === Password::ResetThrottled
+                ? 'Ya se solicitó un enlace recientemente. Espere un minuto antes de reenviar.'
+                : 'No se pudo solicitar el enlace de acceso. Inténtelo de nuevo.']);
+        }
         Audit::record($request->user(), 'user.invitation_resent', $user);
 
-        return back()->with('status', 'Se solicitó un nuevo enlace de acceso.');
+        return back()->with('status', 'La invitación está en cola para enviar al correo indicado.');
     }
 }
