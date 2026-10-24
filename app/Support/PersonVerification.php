@@ -111,4 +111,24 @@ class PersonVerification
             throw ValidationException::withMessages(['evidence' => 'Falta evidencia obligatoria: '.implode(', ', array_map(fn ($key) => self::LABELS[$key], $status['missing'])).'.']);
         }
     }
+
+    public static function findings(Order $order, array $findings): ?array
+    {
+        if (! $order->person()->exists()) {
+            Validator::make(['findings' => $findings], ['findings' => ['prohibited']])->validate();
+
+            return null;
+        }
+        self::requireEvidence($order);
+        $codes = self::selected($order->items()->with('service')->get()->map(fn ($item) => ['service_code' => $item->service->code])->all());
+        $rules = ['findings' => ['required', 'array:'.implode(',', $codes)]];
+        foreach ($codes as $code) {
+            $rules['findings.'.$code] = ['required', 'array:outcome,notes'];
+            $rules['findings.'.$code.'.outcome'] = ['required', Rule::in(array_keys(self::OUTCOMES))];
+            $rules['findings.'.$code.'.notes'] = ['required', 'string', 'min:5', 'max:5000'];
+        }
+        $validated = Validator::make(['findings' => $findings], $rules)->validate()['findings'];
+
+        return ['method' => 'manual', 'reviewed_at' => now()->toIso8601String(), 'checks' => collect($validated)->map(fn ($check, $code) => ['service_code' => $code] + $check)->values()->all()];
+    }
 }

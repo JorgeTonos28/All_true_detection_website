@@ -33,7 +33,7 @@ class PortalWorkflowTest extends TestCase
 
     private function order(User $user, string $key = 'request-1'): Order
     {
-        return app(CreateOrder::class)->handle($user, ['subject' => 'Validar título', 'details' => 'Datos de la evaluación de prueba', 'consent' => true, 'items' => [['service_code' => 'university-degree', 'quantity' => 2]]], $key);
+        return app(CreateOrder::class)->handle($user, ['subject' => 'Validar título', 'details' => 'Datos de la evaluación de prueba', 'consent' => true, 'items' => [['service_code' => 'profile-verification', 'quantity' => 2]]], $key);
     }
 
     public function test_complete_workflow_requires_paid_invoice_and_explicit_publication(): void
@@ -76,7 +76,7 @@ class PortalWorkflowTest extends TestCase
         $client = $this->customer();
         $this->order($client);
         $this->expectException(HttpException::class);
-        app(CreateOrder::class)->handle($client, ['subject' => 'Otro caso', 'details' => 'Datos diferentes', 'items' => [['service_code' => 'exequatur', 'quantity' => 1]]], 'request-1');
+        app(CreateOrder::class)->handle($client, ['subject' => 'Otro caso', 'details' => 'Datos diferentes', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]], 'request-1');
     }
 
     public function test_staff_cannot_confirm_payments_and_overpayment_is_rejected(): void

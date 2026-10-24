@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\OrderEvents;
+use App\Support\PersonVerification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -21,6 +22,7 @@ class IssueInvoice
             $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             Gate::forUser($actor)->authorize('administer', $order);
             abort_unless(in_array($order->status, [OrderStatus::Submitted, OrderStatus::Reviewing], true) && ! $order->invoice()->exists(), 409, 'La orden no admite una nueva factura.');
+            PersonVerification::requireEvidence($order);
             $subtotal = 0;
             foreach ($order->items as $item) {
                 $price = $data['prices'][$item->id] ?? null;

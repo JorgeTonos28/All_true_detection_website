@@ -68,7 +68,7 @@ class PortalWebTest extends TestCase
         Storage::fake('local');
         $client = $this->client();
         $this->actingAs($client);
-        $this->post('/portal/orders', ['subject' => 'Verificación', 'details' => 'Detalle suficiente para revisión', 'service_codes' => ['exequatur', 'university-degree'], 'consent' => true, 'idempotency_key' => 'web-order-1'])->assertRedirect();
+        $this->post('/portal/orders', ['subject' => 'Verificación', 'details' => 'Detalle suficiente para revisión', 'service_codes' => ['polygraph', 'profile-verification'], 'consent' => true, 'idempotency_key' => 'web-order-1'])->assertRedirect();
         $order = Order::first();
         $this->assertSame(2, $order->items()->count());
         $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Validación de Exequatur');
@@ -85,7 +85,7 @@ class PortalWebTest extends TestCase
         Storage::fake('local');
         $client = $this->client();
         $admin = $this->admin();
-        $order = app(CreateOrder::class)->handle($client, ['subject' => 'Resultado', 'details' => 'Detalle suficiente', 'items' => [['service_code' => 'exequatur', 'quantity' => 1]]]);
+        $order = app(CreateOrder::class)->handle($client, ['subject' => 'Resultado', 'details' => 'Detalle suficiente', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]]);
         $result = app(StoreResult::class)->handle($admin, $order, 'SECRETO-DEL-RESULTADO', UploadedFile::fake()->create('resultado.pdf', 10, 'application/pdf'));
         $this->actingAs($client)->get('/portal/orders/'.$order->public_id)->assertOk()->assertDontSee('SECRETO-DEL-RESULTADO');
         $this->get('/portal/results/'.$result->public_id)->assertForbidden();
@@ -130,7 +130,7 @@ class PortalWebTest extends TestCase
     {
         $client = $this->client();
         $admin = $this->admin();
-        $order = app(CreateOrder::class)->handle($client, ['subject' => 'Caso de facturación', 'details' => 'Detalle suficiente', 'items' => [['service_code' => 'exequatur', 'quantity' => 3]]]);
+        $order = app(CreateOrder::class)->handle($client, ['subject' => 'Caso de facturación', 'details' => 'Detalle suficiente', 'items' => [['service_code' => 'polygraph', 'quantity' => 3]]]);
         $this->actingAs($admin)->withSession(['auth.password_confirmed_at' => time()]);
         $this->post('/portal/orders/'.$order->public_id.'/invoice', ['prices' => [$order->items->first()->id => '10.05'], 'tax_percent' => '18'])->assertRedirect();
         $invoice = $order->invoice()->first();

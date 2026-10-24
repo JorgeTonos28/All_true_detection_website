@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\OrderEvents;
+use App\Support\PersonVerification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
@@ -35,6 +36,12 @@ class UpdateOrder
                 if ($data['status'] === 'cancelled') {
                     Gate::forUser($actor)->authorize('administer', $order);
                     abort_if($order->invoice()->exists(), 409, 'Una orden facturada no puede cancelarse.');
+                }
+                if (in_array($data['status'], ['reviewing', 'in_progress', 'completed'], true)) {
+                    PersonVerification::requireEvidence($order);
+                }
+                if ($data['status'] === 'completed' && $order->person()->exists()) {
+                    abort_unless($order->results()->whereNotNull('verification_findings')->exists(), 409, 'Prepare primero una conclusión humana por servicio.');
                 }
                 $order->status = OrderStatus::from($data['status']);
             }

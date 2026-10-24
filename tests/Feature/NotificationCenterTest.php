@@ -53,7 +53,7 @@ class NotificationCenterTest extends TestCase
         $admin = User::factory()->create(['role' => Role::Admin]);
         $client = app(CreateNewUser::class)->create(['name' => 'Avisos', 'email' => 'avisos@example.com', 'password' => 'PasswordCliente123', 'password_confirmation' => 'PasswordCliente123', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
-        app(CreateOrder::class)->handle($client, ['subject' => 'Caso privado', 'details' => 'Detalle privado que no debe ir al correo', 'items' => [['service_code' => 'exequatur', 'quantity' => 1]]]);
+        app(CreateOrder::class)->handle($client, ['subject' => 'Caso privado', 'details' => 'Detalle privado que no debe ir al correo', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]]);
         Notification::assertSentTo($admin, PortalActivity::class, fn ($notice) => $notice->title === 'Nueva solicitud por revisar');
         Notification::assertSentTo($client, PortalActivity::class, fn ($notice) => $notice->title === 'Recibimos su solicitud' && ! str_contains($notice->copy, 'Detalle privado'));
     }

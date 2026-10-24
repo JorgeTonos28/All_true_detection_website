@@ -34,7 +34,7 @@ class InitialDocumentsTest extends TestCase
     {
         $client = $this->client();
         $this->actingAs($client);
-        $payload = ['subject' => 'Con documentos', 'details' => 'Descripción suficiente del caso', 'service_codes' => ['exequatur'], 'consent' => true, 'idempotency_key' => 'initial-documents'];
+        $payload = ['subject' => 'Con documentos', 'details' => 'Descripción suficiente del caso', 'service_codes' => ['polygraph'], 'consent' => true, 'idempotency_key' => 'initial-documents'];
         $this->post('/portal/orders', $payload + ['documents' => [UploadedFile::fake()->create('uno.pdf', 10, 'application/pdf'), UploadedFile::fake()->image('foto.png', 20, 20)]])->assertSessionHasNoErrors()->assertRedirect();
         $order = Order::firstOrFail();
         $this->assertSame(2, $order->attachments()->count());
@@ -52,7 +52,7 @@ class InitialDocumentsTest extends TestCase
     public function test_invalid_audio_and_budget_failure_leave_no_order_or_orphan_files(): void
     {
         $client = $this->client();
-        $data = ['subject' => 'Falla controlada', 'details' => 'Detalle suficiente', 'items' => [['service_code' => 'exequatur', 'quantity' => 1]]];
+        $data = ['subject' => 'Falla controlada', 'details' => 'Detalle suficiente', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]];
         try {
             app(CreateOrder::class)->handle($client, $data, null, [UploadedFile::fake()->create('valido.pdf', 1, 'application/pdf'), UploadedFile::fake()->create('audio.mp3', 1, 'audio/mpeg')]);
             $this->fail('Debe rechazar audio.');
@@ -74,7 +74,7 @@ class InitialDocumentsTest extends TestCase
     public function test_attachment_retries_with_same_key_do_not_duplicate_documents(): void
     {
         $client = $this->client();
-        $order = app(CreateOrder::class)->handle($client, ['subject' => 'Idempotente', 'details' => 'Detalle suficiente', 'items' => [['service_code' => 'exequatur', 'quantity' => 1]]]);
+        $order = app(CreateOrder::class)->handle($client, ['subject' => 'Idempotente', 'details' => 'Detalle suficiente', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]]);
         $action = app(StoreAttachment::class);
         $first = $action->handle($client, $order, UploadedFile::fake()->create('evidencia.pdf', 1, 'application/pdf'), 'document-retry-1');
         $second = $action->handle($client, $order, UploadedFile::fake()->create('evidencia.pdf', 1, 'application/pdf'), 'document-retry-1');

@@ -26,7 +26,7 @@ class WebhookDeliveryTest extends TestCase
         $this->seed();
         $user = app(CreateNewUser::class)->create(['name' => 'Client', 'email' => 'hooks@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
-        $order = app(CreateOrder::class)->handle($user, ['subject' => 'Privado', 'details' => 'Texto sensible del expediente', 'items' => [['service_code' => 'exequatur', 'quantity' => 1]]]);
+        $order = app(CreateOrder::class)->handle($user, ['subject' => 'Privado', 'details' => 'Texto sensible del expediente', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]]);
         $endpoint = WebhookEndpoint::create(['customer_account_id' => $user->customer_account_id, 'url' => 'https://hooks.example.com/atd', 'secret' => 'test-secret']);
         OrderEvents::record($order, 'order.updated');
         $delivery = WebhookDelivery::first();

@@ -34,7 +34,7 @@ $admin = User::factory()->create(['name' => 'Administración ATD', 'email' => 'a
 $client = app(CreateNewUser::class)->create(['name' => 'Laura Méndez', 'company' => 'Comercial Horizonte', 'email' => 'cliente@atd.test', 'password' => $password, 'password_confirmation' => $password, 'terms' => true]);
 $client->forceFill(['email_verified_at' => now()])->save();
 foreach (['Validación de credenciales profesionales', 'Evaluación de nuevo ingreso', 'Verificación de perfil ejecutivo'] as $index => $subject) {
-    $order = app(CreateOrder::class)->handle($client, ['subject' => $subject, 'details' => 'Solicitamos verificar la información autorizada del expediente. Coordinar los siguientes pasos con el departamento de Recursos Humanos.', 'external_reference' => 'RRHH-'.($index + 1), 'items' => [['service_code' => ['university-degree', 'polygraph', 'profile-verification'][$index], 'quantity' => 1]]]);
+    $order = app(CreateOrder::class)->handle($client, ['subject' => $subject, 'details' => 'Solicitamos verificar la información autorizada del expediente. Coordinar los siguientes pasos con el departamento de Recursos Humanos.', 'external_reference' => 'RRHH-'.($index + 1), 'items' => [['service_code' => ['profile-verification', 'polygraph', 'profile-verification'][$index], 'quantity' => 1]]]);
     app(UpdateOrder::class)->handle($admin, $order, ['assigned_to' => $admin->id, 'status' => 'reviewing']);
     if ($index > 0) {
         $invoice = app(IssueInvoice::class)->handle($admin, $order, ['prices' => [$order->items->first()->id => 750000], 'tax_basis_points' => 1800]);

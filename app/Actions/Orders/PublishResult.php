@@ -7,6 +7,7 @@ use App\Models\OrderResult;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\OrderEvents;
+use App\Support\PersonVerification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
@@ -19,6 +20,10 @@ class PublishResult
             Gate::forUser($actor)->authorize('administer', $order);
             $result = OrderResult::whereKey($result->id)->lockForUpdate()->firstOrFail();
             abort_unless($order->canReleaseResults(), 409, 'Complete la orden y confirme el pago total antes de publicar.');
+            if ($order->person()->exists()) {
+                PersonVerification::requireEvidence($order);
+                abort_unless($result->verification_findings, 409, 'La entrega necesita conclusiones de verificación.');
+            }
             if (! $result->published_at) {
                 $result->update(['published_at' => now(), 'published_by' => $actor->id]);
                 Audit::record($actor, 'result.published', $result);

@@ -24,7 +24,7 @@ class PortalApiTest extends TestCase
 
     private function payload(): array
     {
-        return ['subject' => 'Validar título', 'details' => 'Solicito una validación de credenciales.', 'consent' => true, 'items' => [['service_code' => 'university-degree', 'quantity' => 1]]];
+        return ['subject' => 'Validar título', 'details' => 'Solicito una validación de credenciales.', 'consent' => true, 'items' => [['service_code' => 'profile-verification', 'quantity' => 1]]];
     }
 
     public function test_api_enforces_auth_scopes_isolation_and_idempotency(): void

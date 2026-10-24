@@ -32,7 +32,7 @@ class ApiDocumentsAndResultsTest extends TestCase
         $client = app(CreateNewUser::class)->create(['name' => 'Cliente API', 'email' => 'api-docs@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
         $admin = User::factory()->create(['role' => Role::Admin]);
-        $order = app(CreateOrder::class)->handle($client, ['subject' => 'Verificación por API', 'details' => 'Detalle del caso para revisar', 'items' => [['service_code' => 'exequatur', 'quantity' => 1]]]);
+        $order = app(CreateOrder::class)->handle($client, ['subject' => 'Verificación por API', 'details' => 'Detalle del caso para revisar', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]]);
         $token = $client->createToken('Automation', ['orders:read', 'orders:write', 'results:read'])->plainTextToken;
         $headers = ['Authorization' => 'Bearer '.$token];
         $upload = $this->post('/api/v1/orders/'.$order->public_id.'/attachments', ['file' => UploadedFile::fake()->create('titulo.pdf', 10, 'application/pdf')], $headers + ['Content-Type' => 'multipart/form-data'])->assertCreated()->assertDontSee('file_path');

@@ -30,7 +30,7 @@ class ApiBillingDeliveryTest extends TestCase
         $user = app(CreateNewUser::class)->create(['name' => 'Facturación API', 'email' => 'billing-api@example.com', 'password' => 'PasswordCliente123', 'password_confirmation' => 'PasswordCliente123', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
         $admin = User::factory()->create(['role' => Role::Admin]);
-        $order = app(CreateOrder::class)->handle($user, ['subject' => 'Caso API', 'details' => 'Detalle privado del caso', 'items' => [['service_code' => 'exequatur', 'quantity' => 1]]]);
+        $order = app(CreateOrder::class)->handle($user, ['subject' => 'Caso API', 'details' => 'Detalle privado del caso', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]]);
         $invoice = app(IssueInvoice::class)->handle($admin, $order, ['prices' => [$order->items->first()->id => 10000], 'due_date' => today()->subDay()]);
 
         return [$user, $admin, $order, $invoice];
