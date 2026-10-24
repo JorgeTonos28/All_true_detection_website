@@ -22,7 +22,7 @@ class PublishResult
             if (! $result->published_at) {
                 $result->update(['published_at' => now(), 'published_by' => $actor->id]);
                 Audit::record($actor, 'result.published', $result);
-                OrderEvents::record($order, 'result.published');
+                OrderEvents::record($order, 'result.published', $result->public_id);
             }
 
             return $result;

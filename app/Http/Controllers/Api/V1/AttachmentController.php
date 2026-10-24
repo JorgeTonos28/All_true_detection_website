@@ -41,6 +41,6 @@ class AttachmentController extends Controller
         abort_unless(Storage::disk('local')->exists($attachment->file_path), 404);
         Audit::record(request()->user(), 'document.downloaded', $attachment);
 
-        return Storage::disk('local')->download($attachment->file_path, $attachment->file_name, ['Content-Type' => 'application/octet-stream', 'Cache-Control' => 'no-store, private']);
+        return Storage::disk('local')->download($attachment->file_path, $attachment->file_name, array_filter(['Content-Type' => 'application/octet-stream', 'Cache-Control' => 'no-store, private', 'X-Content-SHA256' => $attachment->sha256]));
     }
 }

@@ -3,16 +3,19 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\WebhookEndpoint;
 use App\Services\Audit;
 use App\Services\WebhookUrl;
+use App\Support\IntegrationScopes;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SecurityController extends Controller
 {
-    public const SCOPES = ['orders:read', 'orders:write', 'results:read', 'messages:read', 'messages:write'];
+    public const SCOPES = IntegrationScopes::ALL;
 
     public function index(Request $request)
     {
@@ -25,10 +28,16 @@ class SecurityController extends Controller
     {
         $user = $request->user();
         abort_if($user->isStaff() || ! $user->customer_account_id, 403);
-        $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'scopes' => ['required', 'array', 'min:1', 'max:5'], 'scopes.*' => ['required', 'distinct', Rule::in(self::SCOPES)]]);
-        abort_if($user->tokens()->count() >= 10, 422, 'Revoque un token antes de crear otro.');
-        $token = $user->createToken($data['name'], $data['scopes'], now()->addDays(config('portal.token_days')));
-        Audit::record($user, 'token.created', $token->accessToken, ['scopes' => $data['scopes']]);
+        $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'scopes' => ['required', 'array', 'min:1', 'max:6'], 'scopes.*' => ['required', 'distinct', Rule::in(self::SCOPES)], 'expires_days' => ['nullable', 'integer', 'min:1', 'max:90']]);
+        $token = DB::transaction(function () use ($user, $data) {
+            $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+            abort_unless($user->is_active && $user->hasVerifiedEmail() && ! $user->isStaff() && $user->customer_account_id, 403);
+            abort_if($user->tokens()->count() >= 10, 422, 'Revoque un token antes de crear otro.');
+            $token = $user->createToken($data['name'], $data['scopes'], now()->addDays($data['expires_days'] ?? config('portal.token_days')));
+            Audit::record($user, 'token.created', $token->accessToken, ['scopes' => $data['scopes']]);
+
+            return $token;
+        });
 
         return back()->with('token', $token->plainTextToken)->with('status', 'Token creado. Cópielo ahora: no volverá a mostrarse.');
     }

@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 
 class OrderEvents
 {
-    public static function record(Order $order, string $type): void
+    public static function record(Order $order, string $type, ?string $resultId = null): void
     {
         [$title, $copy, $action] = match ($type) {
             'order.created' => ['Recibimos su solicitud', 'Su solicitud fue registrada. ATD revisará los servicios y la documentación para preparar la cotización.', 'Seguir mi solicitud'],
@@ -48,7 +48,7 @@ class OrderEvents
             $eventId = (string) Str::uuid();
             WebhookDelivery::create([
                 'event_id' => $eventId, 'webhook_endpoint_id' => $endpoint->id, 'order_id' => $order->id, 'event_type' => $type,
-                'payload' => ['id' => $eventId, 'type' => $type, 'created_at' => now()->toIso8601String(), 'data' => ['order_id' => $order->public_id, 'status' => $order->status->value, 'links' => ['order' => '/api/v1/orders/'.$order->public_id, 'results' => '/api/v1/orders/'.$order->public_id.'/results', 'deliveries' => '/api/v1/orders/'.$order->public_id.'/deliveries'], 'invoice_id' => $invoice?->public_id]],
+                'payload' => ['id' => $eventId, 'type' => $type, 'created_at' => now()->toIso8601String(), 'data' => ['order_id' => $order->public_id, 'status' => $order->status->value, 'links' => ['order' => '/api/v1/orders/'.$order->public_id, 'results' => '/api/v1/orders/'.$order->public_id.'/results', 'deliveries' => '/api/v1/orders/'.$order->public_id.'/deliveries'], 'invoice_id' => $invoice?->public_id, 'result_id' => $resultId]],
                 'next_attempt_at' => now(),
             ]);
         }

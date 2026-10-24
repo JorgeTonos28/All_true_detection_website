@@ -52,7 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 default => 500,
             };
             $message = match ($status) {
-                400 => 'JSON no válido.',401 => 'Token requerido o expirado.',403 => 'Acceso no autorizado.',404 => 'Recurso no encontrado.',413 => 'Solicitud demasiado grande.',415 => 'Tipo de contenido no compatible con este endpoint.',422 => 'Revise los datos enviados.',429 => 'Se ha excedido el límite de solicitudes.',409 => $e->getMessage(),default => 'No se pudo procesar la solicitud.'
+                400 => 'JSON no válido.',401 => 'Token requerido o expirado.',403 => 'Acceso no autorizado.',404 => 'Recurso no encontrado.',413 => 'Solicitud demasiado grande.',415 => 'Tipo de contenido no compatible con este endpoint.',422 => 'Revise los datos enviados.',426 => 'La API requiere HTTPS.',429 => 'Se ha excedido el límite de solicitudes.',409 => $e->getMessage(),default => 'No se pudo procesar la solicitud.'
             };
             $headers = $e instanceof HttpExceptionInterface ? $e->getHeaders() : [];
 
