@@ -2,6 +2,6 @@ CREATE DATABASE IF NOT EXISTS all_true_detection
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 
-CREATE USER IF NOT EXISTS 'alltrue_admin'@'localhost' IDENTIFIED BY 'ChangeThisStrongPassword!';
-GRANT ALL PRIVILEGES ON all_true_detection.* TO 'alltrue_admin'@'localhost';
-FLUSH PRIVILEGES;
+-- Create a dedicated database user through the hosting control panel or secret manager.
+-- Grant access only to this application database and store the generated password in .env.
+-- Do not provision database accounts with credentials committed to source control.

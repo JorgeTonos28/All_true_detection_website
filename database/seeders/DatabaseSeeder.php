@@ -3,10 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Setting;
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -17,13 +15,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::query()->updateOrCreate(
-            ['email' => 'admin@alltruedetection.com'],
-            [
-                'name' => 'Administrador ATD',
-                'password' => Hash::make('Admin123!'),
-            ],
-        );
+        $this->call(ServiceSeeder::class);
 
         $settings = [
             ['key' => 'company_name', 'label' => 'Nombre de la empresa', 'value' => 'All True Detection', 'group' => 'Marca'],
@@ -47,10 +39,12 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($settings as $setting) {
-            Setting::query()->updateOrCreate(
+            Setting::query()->firstOrCreate(
                 ['key' => $setting['key']],
                 $setting,
             );
         }
+
+        Setting::query()->firstOrCreate(['key' => 'favicon_path'], ['label' => 'Favicon', 'group' => 'Marca', 'type' => 'file']);
     }
 }

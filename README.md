@@ -1,58 +1,80 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# All True Detection
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sitio público y portal de servicios. PHP 8.3+, Laravel 13, Blade, Fortify, Socialite (Google), Sanctum y API versionada. Referencia: [Vamo al Game](https://github.com/JorgeTonos28/Vamo_al_game). Sin Auth0 ni aplicación móvil paralela.
 
-## About Laravel
+## Preparación
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+1. `composer install`.
+2. Copiar `.env.example` a `.env` y configurar base de datos, `APP_URL`, correo y clave (`php artisan key:generate` solo en una instalación nueva).
+3. `php artisan migrate --seed`. Los seeders preservan la configuración existente y crean el catálogo de once servicios; no crean contraseñas ni administradores predecibles.
+4. `php artisan storage:link` para logos públicos. Expedientes y resultados permanecen en `storage/app/private` y se descargan mediante autorización.
+5. `php artisan portal:create-admin correo@empresa.com`. Envía recuperación al correo indicado; si existe la cuenta, cambia su rol, rota la contraseña y revoca sesiones/tokens. El administrador verifica su correo y configura 2FA antes de operar.
+6. `php artisan serve`; para correo y tareas asíncronas ejecutar `php artisan queue:work --tries=5`.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+El sitio y el portal usan assets estáticos versionados en `public/assets`. El pipeline Vite del esqueleto sigue disponible con `npm install` y `npm run build`.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+La portada conserva la identidad ATD con composiciones generadas de fondo en WebP transparente, catálogo de servicios por familias y enlaces de solicitud de texto. El CTA de evaluación abre contacto en modal. El movimiento usa IntersectionObserver y CSS, sin scroll bloqueado y respetando movimiento reducido; el tema puede seguir al sistema o seleccionarse en el footer. Se mantienen anclajes, catálogo activo y fotografías. Recursos y prompts: [dirección artística](docs/design/home-art.md).
 
-## Learning Laravel
+## Acceso y seguridad
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+`/login`, `/register`, recuperación de contraseña, verificación de correo y 2FA TOTP con códigos de recuperación. Roles: administrador general, colaborador y cliente. El colaborador trabaja sobre órdenes asignadas; el cliente opera dentro de su cuenta.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Configurar `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI` con el callback `/auth/google/callback`. Para vincular Google a un correo existente, iniciar sesión primero y usar Seguridad. Google debe devolver un correo verificado; no se vinculan cuentas por simple coincidencia de correo. Una cuenta Google puede establecer contraseña mediante recuperación.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+En producción: HTTPS, `APP_DEBUG=false`, `SESSION_ENCRYPT=true`, `SESSION_SECURE_COOKIE=true`, SMTP real y `PORTAL_REQUIRE_STAFF_2FA=true`. El buzón de ATD se configura con SMTP seguro en `mail.alltruedetection.com:465`; `MAIL_AUDIT_BCC=info@alltruedetection.com` conserva una copia oculta de los correos salientes. `MAIL_MAILER=log` solo es apropiado para desarrollo: no envía correos y registra enlaces de autenticación en logs privados. Nunca publicar `.env`, ZIP de producción, base de datos, logs o archivos privados. Conservar `APP_KEY` para poder descifrar expedientes existentes.
 
-## Agentic Development
+Para pruebas locales sin depender del correo, el comando `php artisan portal:create-local-admin correo@example.com` crea un administrador temporal con contraseña introducida en la terminal. Está bloqueado fuera de `APP_ENV=local` con `APP_DEBUG=true`.
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Para probar invitaciones, configurar `APP_URL=http://127.0.0.1:8000` y reiniciar `composer run dev` después de cambiar `.env`. Abrir el último enlace en una ventana privada para evitar la sesión del administrador. Al establecer la contraseña se envía la verificación de correo pendiente; el cliente entra al portal tras confirmarla.
 
-```bash
-composer require laravel/boost --dev
+Usuarios y acceso incluye una tabla de 25 registros por página, búsqueda mientras escribe (coincidencia con cualquiera de las palabras), filtros por rol/estado y fichas de gestión en modal. Busca datos administrativos del usuario y de su cuenta; nunca credenciales. La selección de empresas se consulta bajo demanda, sin cargar todas las cuentas en el navegador.
 
-php artisan boost:install
-```
+Los enlaces de cada servicio pasan por `/solicitar`: conservan el servicio elegido durante login/registro y lo preseleccionan en el formulario. Las cuentas internas se dirigen a gestión de solicitudes. El CTA general «Solicitar evaluación» abre un modal de contacto sin exigir cuenta, con el mismo formulario, consentimiento, límites y validación del apartado Contacto; sin JavaScript sigue llevando a ese apartado. El portal ofrece navegación de regreso a la sección padre; las conversaciones muestran el nombre vigente de sus participantes.
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Las solicitudes admiten documentos privados desde su creación. PDF, DOCX sin macros y JPG/PNG/WebP: 10 MB por archivo, 5 archivos / 20 MB por carga inicial, 100 MB por solicitud y 1 GB por cuenta. Web/API comparten validación MIME, escaneo y cuotas; audio/vídeo no se admiten. Tras actualizar, preparar archivos anteriores con `php artisan portal:document-metadata`.
 
-## Contributing
+El formulario de solicitud agrupa los servicios en un selector múltiple con búsqueda, resumen de selección y carga inicial de archivos. La bandeja permite filtrar estado, facturación y asignación; la ficha muestra el progreso hasta la entrega.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+El header del portal incluye notificaciones por usuario, pendientes y enlaces a cada caso, factura o conversación. Los correos usan plantilla HTML/texto ATD y contenido específico del evento; no incluyen documentos ni resultados. Un worker procesa los canales de correo y bandeja; el contador se actualiza cada minuto con la página visible.
 
-## Code of Conduct
+Al actualizar una instalación existente, respaldar la base, los documentos y APP_KEY antes de migrar. La migración de seguridad revoca la antigua contraseña fija si sigue presente. El administrador del panel anterior debe prepararse con el comando seguro anterior; no se promueven usuarios automáticamente. Ver [operación y despliegue](docs/operations.md).
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Validación
 
-## Security Vulnerabilities
+`php vendor/phpunit/phpunit/phpunit`, `php vendor/bin/pint --test`, `composer audit`. Las pruebas usan SQLite en memoria y no modifican la base configurada en `.env`.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Solicitudes y cobros
 
-## License
+Las órdenes aceptan varios servicios y cantidades. Las facturas comerciales conservan los importes emitidos, el emisor y el destinatario. La interfaz recibe importes con dos decimales e impuestos en porcentaje; internamente y en la API se usan centavos enteros y puntos básicos (1800 = 18 %), sin cálculos monetarios en coma flotante. La moneda predeterminada es DOP. El administrador general registra pagos parciales y sus referencias; un pago repetido con la misma referencia no duplica el cobro. El cliente puede actualizar los datos fiscales/de contacto de su cuenta sin alterar facturas ya emitidas.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Preparar resultados, completar trabajo, confirmar pago y publicar entrega son operaciones distintas. Solo el administrador publica, y únicamente con orden completada y factura totalmente pagada. La descarga vuelve a comprobar estas condiciones. Los mensajes de seguimiento no deben utilizarse para enviar resultados; estos pertenecen al módulo de entregas. Los correos notifican actividad sin incluir mensajes ni datos del expediente.
+
+Ver [arquitectura](docs/architecture.md) y [guía de ingeniería](AGENTS.md).
+
+## Portal web
+
+Entrada en `/portal`. Clientes: resumen, solicitudes con varios servicios, documentos privados, facturas, conversaciones, resultados publicados y credenciales de API. Administradores: directorio e invitaciones de usuarios, asignación de responsables, estados operativos, emisión de facturas, confirmación de pagos, publicación, identidad del negocio y auditoría. Colaboradores: órdenes asignadas, documentos, seguimiento y preparación de entregas. `/admin` redirige a configuración solo para administradores.
+
+El sitio público comparte el catálogo, incorpora Validación de Título Universitario y Validación de Exequatur y dispone de formulario de consulta. Las consultas públicas se asocian al cliente únicamente después de demostrar acceso al mismo correo. Los avisos de mensajes llegan por email; las respuestas se escriben en el portal. No se importa automáticamente el correo entrante.
+
+Título, exequátur y el nuevo servicio de Verificación de Identidad usan una ficha cifrada por persona y orden. Se pueden combinar, siempre con cantidad 1 por servicio. El portal recoge datos, autorización, cédula y selfies con categorías privadas; el profesional registra conclusiones humanas por servicio, entregadas únicamente tras pago y publicación. La API permite JSON + cargas clasificadas y devuelve qué evidencia falta. No hay biometría automática ni prueba de vida activada; ver [opciones de automatización](docs/identity-verification.md).
+
+Clientes y administradores disponen de `/portal/integrations`: actividad, latencia p95 (muestra acotada), credenciales, endpoints, pruebas, rotación y reintentos con historial. Los clientes sólo gestionan sus tokens y los endpoints de su cuenta; ATD supervisa el conjunto y puede revocar conexiones. Las mutaciones sensibles exigen identidad reciente y el staff mantiene 2FA obligatoria. Para cuentas Google sin contraseña, se permite confirmar la identidad volviendo a autenticar la misma cuenta Google.
+
+Facturas comerciales imprimibles desde el navegador; no hay numeración fiscal/NCF, pasarela de pago automática, reembolsos ni conciliación bancaria. Adjuntos permitidos: PDF/DOCX/JPG/PNG/WebP, hasta 10 MB y 30 documentos de entrada por orden. Logos raster hasta 2 MB y favicon PNG hasta 512 KB. SVG de usuarios no se acepta.
+
+En producción, configurar `DOCUMENT_SCAN_BINARY` con la ruta de `clamdscan` o `clamscan`, sus firmas actualizadas y permisos para leer los temporales PHP. Las cargas privadas fallan de forma cerrada si falta el escáner, está indisponible o detecta malware. Correo de verificación y recuperación se procesa en cola con payload cifrado. La recuperación excepcional de 2FA usa `portal:reset-two-factor correo --confirmed-identity`, tras verificar la identidad por un canal independiente; revoca sesiones y tokens y queda auditada.
+
+## API y eventos
+
+Endpoints `/api/v1`, tokens por permisos, expiración, revocación, aislamiento por cuenta, idempotencia de creación y errores JSON con request ID. Ver [integración API](docs/api.md) y [OpenAPI](packages/contracts/openapi.json).
+
+Documentación pública en `/desarrolladores/api`, enlazada desde el footer, con guía, búsqueda de operaciones, esquemas y descarga pública de `/desarrolladores/openapi.json`. El contenido se genera desde la guía y el contrato del repositorio; no requiere cuenta ni expone credenciales.
+
+Facturas, saldos pendientes y documentos comerciales usan `invoices:read`. Las entregas ofrecen manifiesto, metadatos y descarga autenticada con SHA-256; siguen bloqueadas hasta pago y publicación. Las llamadas registran únicamente ruta normalizada, estado, duración e identificadores operativos durante 30 días, nunca cuerpos ni credenciales. En producción la API exige HTTPS.
+
+Para automatizaciones backend, el cliente puede elegir explícitamente un token persistente sin caducidad por fecha, limitado por scopes y revocable. Los temporales de hasta 90 días siguen siendo el valor predeterminado. No se cambian tokens ya emitidos; la recuperación/cambio de contraseña y los controles de acceso mantienen su revocación. Proteger y rotar las credenciales según [la guía API](docs/api.md).
+
+Webhooks con HMAC-SHA256 y bandeja transaccional. Configurar `WEBHOOK_ALLOWED_HOSTS`, worker y cron de `php artisan schedule:run` cada minuto. Los intentos fallidos se reintentan con espera creciente y dejan registro operativo. No hay entrega automática de documentos por correo ni archivos públicos.
+
+En desarrollo, `composer run dev` inicia servidor, cola, Vite y scheduler en una única terminal. Las pruebas de webhook esperan el siguiente despacho de minuto; no necesitan otra terminal. En producción se mantienen worker supervisado y cron por separado.

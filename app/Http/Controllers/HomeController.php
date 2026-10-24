@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Service;
 use App\Models\Setting;
+use App\Support\ServiceCatalog;
 use Illuminate\Support\Facades\Storage;
 
 class HomeController extends Controller
@@ -12,7 +14,7 @@ class HomeController extends Controller
         $settings = array_merge($this->defaults(), Setting::values());
 
         $logoUrl = filled($settings['logo_path'] ?? null)
-            ? Storage::url($settings['logo_path'])
+            ? Storage::disk('public')->url($settings['logo_path'])
             : asset('assets/images/brand-lockup-light.png');
 
         return view('home', [
@@ -20,7 +22,7 @@ class HomeController extends Controller
             'brand' => [
                 'logo_url' => $logoUrl,
                 'mark_url' => asset('assets/images/brand-mark.png'),
-                'dark_logo_url' => asset('assets/images/brand-lockup-dark.png'),
+                'dark_logo_url' => filled($settings['logo_path'] ?? null) ? $logoUrl : asset('assets/images/brand-lockup-dark.png'),
                 'whatsapp_url' => $this->whatsappUrl($settings['whatsapp'] ?? ''),
             ],
             'services' => $this->services(),
@@ -65,17 +67,13 @@ class HomeController extends Controller
 
     private function services(): array
     {
-        return [
-            ['title' => 'Evaluaciones con Polígrafo', 'text' => 'Preempleo, rutina, permanencia e investigación específica con protocolos documentados.', 'icon' => 'pulse'],
-            ['title' => 'Detección de Engaño', 'text' => 'Paquete integral que combina entrevista estructurada, evaluación con polígrafo, análisis asistido por IA y revisión técnica para escenarios donde se requiere mayor claridad.', 'icon' => 'scan'],
-            ['title' => 'Verificación de Perfiles', 'text' => 'Revisión profesional de información relevante para comprender mejor el perfil, su trayectoria y posibles áreas de atención.', 'icon' => 'file'],
-            ['title' => 'Análisis con IA Aplicada', 'text' => 'Paquete complementario para cruzar información, detectar patrones, organizar hallazgos y fortalecer reportes con inteligencia analítica.', 'icon' => 'ai'],
-            ['title' => 'Visitas Domiciliarias', 'text' => 'Confirmación de entorno, residencia y coherencia de datos declarados.', 'icon' => 'home'],
-            ['title' => 'Investigaciones', 'text' => 'Apoyo a procesos internos, fraude, conducta irregular y debida diligencia.', 'icon' => 'search'],
-            ['title' => 'Pruebas Antidoping', 'text' => 'Detección preventiva con manejo confidencial y enfoque de cumplimiento.', 'icon' => 'lab'],
-            ['title' => 'Pruebas Psicométricas', 'text' => 'Perfil laboral, competencias, personalidad y variables de riesgo humano.', 'icon' => 'mind'],
-            ['title' => 'Capacitación y Equipos', 'text' => 'Entrenamientos especializados, sensores, materiales y asesoría técnica.', 'icon' => 'training'],
-        ];
+        try {
+            $services = Service::where('is_active', true)->orderBy('sort_order')->get()->toArray();
+        } catch (\Throwable) {
+            $services = ServiceCatalog::all();
+        }
+
+        return array_map(fn (array $service) => ['code' => $service['code'], 'title' => $service['name'], 'text' => $service['description'], 'icon' => 'file'], $services);
     }
 
     private function sectors(): array
