@@ -7,6 +7,8 @@
     <title>{{ $settings['company_name'] ?? config('app.name') }} | Evaluación de confianza</title>
     @include('shared.favicon')
     <link rel="stylesheet" href="{{ asset('assets/css/site.css') }}?v={{ filemtime(public_path('assets/css/site.css')) }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/contact-dialog.css') }}?v={{ filemtime(public_path('assets/css/contact-dialog.css')) }}">
+    <script src="{{ asset('assets/js/contact.js') }}" defer></script>
     <script src="{{ asset('assets/js/site.js') }}?v={{ filemtime(public_path('assets/js/site.js')) }}" defer></script>
 </head>
 <body>
@@ -30,7 +32,7 @@
             <a href="{{ route('portal.dashboard') }}">Portal de clientes</a>
         </nav>
 
-        <a class="header-cta" href="{{ route('services.request') }}">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
+        <a class="header-cta" href="#contacto" data-contact-open>{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
     </header>
 
     <main id="inicio">
@@ -43,7 +45,7 @@
                     <p class="hero__lead">{{ $settings['hero_subtitle'] ?? '' }}</p>
 
                     <div class="hero__actions">
-                        <a class="btn btn-primary" href="{{ route('services.request') }}">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
+                        <a class="btn btn-primary" href="#contacto" data-contact-open>{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
                         <a class="btn btn-ghost" href="#servicios">Conocer servicios</a>
                     </div>
 
@@ -336,16 +338,7 @@
                     <p>Reciba orientación inicial para identificar el servicio más adecuado y determinar si el análisis con IA puede aportar valor a su caso.</p>
                     @if(session('contact_status'))<p class="contact-feedback" role="status">{{ session('contact_status') }}</p>@endif
                     @if($errors->any())<p class="contact-feedback" role="alert">{{ $errors->first() }}</p>@endif
-                    <form method="post" action="{{ route('contact.store') }}" class="public-contact-form">
-                        @csrf
-                        <label>Nombre<input name="name" value="{{ old('name') }}" maxlength="120" autocomplete="name" required></label>
-                        <label>Correo<input type="email" name="email" value="{{ old('email') }}" maxlength="255" autocomplete="email" required></label>
-                        <label>Asunto<input name="subject" value="{{ old('subject') }}" maxlength="200" required></label>
-                        <label>Mensaje<textarea name="body" minlength="10" maxlength="10000" rows="4" required>{{ old('body') }}</textarea></label>
-                        <input type="text" name="website" tabindex="-1" autocomplete="off" class="contact-honeypot" aria-hidden="true">
-                        <label class="contact-consent"><input type="checkbox" name="consent" value="1" required> Acepto el <a href="{{ route('privacy') }}">aviso de privacidad</a>.</label>
-                        <button class="btn btn-primary" type="submit">Enviar consulta</button>
-                    </form>
+                    @include('shared.contact-form')
                     <a class="btn btn-primary" href="{{ $brand['whatsapp_url'] }}" target="_blank" rel="noreferrer">Hablar por WhatsApp</a>
                     <ul>
                         <li>{{ $settings['phone'] ?? '' }}</li>
@@ -388,7 +381,7 @@
                 <h2>Proteja su empresa, su equipo y su futuro</h2>
                 <p>Solicite hoy una evaluación sin compromiso.</p>
                 <div class="hero__actions hero__actions--center">
-                    <a class="btn btn-primary" href="#contacto">{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
+                    <a class="btn btn-primary" href="#contacto" data-contact-open>{{ $settings['primary_cta_label'] ?? 'Solicitar evaluación' }}</a>
                     <a class="btn btn-ghost" href="{{ $brand['whatsapp_url'] }}" target="_blank" rel="noreferrer">Hablar con un asesor</a>
                 </div>
             </div>
@@ -428,5 +421,6 @@
             <span><a href="{{ route('privacy') }}">Aviso de privacidad</a> | <a href="{{ route('terms') }}">Términos y condiciones</a></span>
         </div>
     </footer>
+    @include('shared.contact-dialog')
 </body>
 </html>

@@ -27,7 +27,7 @@ Para probar invitaciones, configurar `APP_URL=http://127.0.0.1:8000` y reiniciar
 
 Usuarios y acceso incluye una tabla de 25 registros por página, búsqueda mientras escribe (coincidencia con cualquiera de las palabras), filtros por rol/estado y fichas de gestión en modal. Busca datos administrativos del usuario y de su cuenta; nunca credenciales. La selección de empresas se consulta bajo demanda, sin cargar todas las cuentas en el navegador.
 
-Los CTAs de la web pasan por `/solicitar`: conservan el servicio elegido durante login/registro y lo preseleccionan en el formulario. Las cuentas internas se dirigen a gestión de solicitudes. El portal ofrece navegación de regreso a la sección padre; las conversaciones muestran el nombre vigente de sus participantes.
+Los enlaces de cada servicio pasan por `/solicitar`: conservan el servicio elegido durante login/registro y lo preseleccionan en el formulario. Las cuentas internas se dirigen a gestión de solicitudes. El CTA general «Solicitar evaluación» abre un modal de contacto sin exigir cuenta, con el mismo formulario, consentimiento, límites y validación del apartado Contacto; sin JavaScript sigue llevando a ese apartado. El portal ofrece navegación de regreso a la sección padre; las conversaciones muestran el nombre vigente de sus participantes.
 
 Las solicitudes admiten documentos privados desde su creación. PDF, DOCX sin macros y JPG/PNG/WebP: 10 MB por archivo, 5 archivos / 20 MB por carga inicial, 100 MB por solicitud y 1 GB por cuenta. Web/API comparten validación MIME, escaneo y cuotas; audio/vídeo no se admiten. Tras actualizar, preparar archivos anteriores con `php artisan portal:document-metadata`.
 

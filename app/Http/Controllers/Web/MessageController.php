@@ -59,6 +59,10 @@ class MessageController extends Controller
         $data = $request->validate(['name' => ['required', 'string', 'max:120'], 'email' => ['required', 'email', 'max:255'], 'subject' => ['required', 'string', 'max:200'], 'body' => ['required', 'string', 'min:10', 'max:10000'], 'consent' => ['accepted'], 'website' => ['nullable', 'max:0']]);
         $action->handle(null, $data);
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Consulta recibida. Para consultar la conversación, cree una cuenta y verifique este mismo correo.'], 201);
+        }
+
         return redirect()->to(route('home').'#contacto')->with('contact_status', 'Consulta recibida. Para consultar la conversación, cree una cuenta y verifique este mismo correo.');
     }
 }
