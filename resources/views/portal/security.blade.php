@@ -22,18 +22,7 @@
 @if($user->google_id)<p>Google está vinculado a su cuenta.</p>@elseif(config('services.google.client_id'))<a class="button secondary" href="{{ route('google.link') }}">Vincular mi cuenta Google</a>@else<p class="muted">La conexión con Google estará disponible cuando ATD complete su configuración.</p>@endif
 </section>
 </div>
-@unless($user->isStaff())
-<section class="panel"><div class="panel-heading"><div><h2>Tokens de integración API</h2><p class="muted">Solo los permisos seleccionados. Vencimiento: {{ config('portal.token_days') }} días.</p></div><a href="{{ route('portal.api-guide') }}">Guía de integración →</a></div>
-@if(session('token'))<div class="notice"><strong>Guarde este token ahora</strong><p class="secret"><code>{{ session('token') }}</code></p></div>@endif
-<form method="post" action="{{ route('portal.tokens.store') }}" class="stack">@csrf<label>Nombre de la integración<input name="name" maxlength="100" placeholder="Ej. Sistema de recursos humanos" required></label><fieldset class="scope-list"><legend>Permisos del token</legend>@foreach($scopes as $scope)<label class="check"><input type="checkbox" name="scopes[]" value="{{ $scope }}">{{ $scope }}</label>@endforeach</fieldset><div><button>Generar token</button></div></form>
-<ul class="clean-list">@forelse($tokens as $token)<li><div><strong>{{ $token->name }}</strong><small>{{ implode(', ',$token->abilities) }} · Vence {{ $token->expires_at?->format('d/m/Y') ?? 'sin fecha' }}</small></div><form method="post" action="{{ route('portal.tokens.revoke',$token->id) }}">@csrf @method('DELETE')<button class="secondary">Revocar</button></form></li>@empty<li>Sin tokens emitidos.</li>@endforelse</ul>
-</section>
-<section class="panel"><h2>Webhooks</h2><p>Reciba avisos firmados cuando cambien sus solicitudes. El equipo ATD debe autorizar el dominio de destino antes de que pueda registrarlo.</p>
-@if(session('webhook_secret'))<div class="notice"><strong>Secreto de firma (se muestra una sola vez)</strong><p class="secret"><code>{{ session('webhook_secret') }}</code></p></div>@endif
-<form method="post" action="{{ route('portal.webhooks.store') }}" class="inline-form">@csrf<label>URL HTTPS<input type="url" name="url" placeholder="https://su-sistema.com/webhooks/atd" maxlength="2048" required></label><button>Registrar endpoint</button></form>
-@forelse($endpoints as $endpoint)<details class="form-details"><summary>{{ $endpoint->url }} · {{ $endpoint->is_active ? 'Activo' : 'Desactivado' }}</summary>
-@if($endpoint->is_active)<form method="post" action="{{ route('portal.webhooks.disable',$endpoint) }}">@csrf @method('DELETE')<button class="secondary">Desactivar endpoint</button></form>@endif
-<ul class="clean-list">@forelse($endpoint->deliveries as $delivery)<li><span>{{ $delivery->event_type }}<small class="reference">{{ $delivery->event_id }}</small></span><span>{{ $delivery->delivered_at ? 'Entregado' : ($delivery->failed_at ? 'Fallido' : 'Pendiente') }}<small>Intentos: {{ $delivery->attempts }} · HTTP {{ $delivery->response_status ?? '—' }}</small></span></li>@empty<li>Sin eventos registrados.</li>@endforelse</ul></details>@empty<p class="muted">Sin endpoints registrados.</p>@endforelse
-</section>
-@endunless
+@if($user->isAdmin() || !$user->isStaff())
+<section class="panel"><h2>Conexiones de su aplicación</h2><p>Tokens, webhooks y monitoreo tienen un espacio dedicado, separado de la seguridad personal.</p><a class="button secondary" href="{{ route('portal.integrations') }}">Abrir Integraciones API</a></section>
+@endif
 @endsection

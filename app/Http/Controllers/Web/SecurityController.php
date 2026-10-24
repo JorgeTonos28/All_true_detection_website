@@ -6,11 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\WebhookEndpoint;
 use App\Services\Audit;
-use App\Services\WebhookUrl;
+use App\Services\WebhookManagement;
 use App\Support\IntegrationScopes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class SecurityController extends Controller
@@ -19,9 +18,7 @@ class SecurityController extends Controller
 
     public function index(Request $request)
     {
-        $user = $request->user();
-
-        return view('portal.security', ['tokens' => $user->tokens()->latest('id')->get(), 'endpoints' => ! $user->isStaff() && $user->customer_account_id ? WebhookEndpoint::where('customer_account_id', $user->customer_account_id)->with(['deliveries' => fn ($q) => $q->latest('id')->limit(10)])->get() : collect(), 'scopes' => self::SCOPES]);
+        return view('portal.security');
     }
 
     public function token(Request $request)
@@ -51,23 +48,19 @@ class SecurityController extends Controller
         return back()->with('status', 'Token revocado.');
     }
 
-    public function webhook(Request $request, WebhookUrl $urls)
+    public function webhook(Request $request, WebhookManagement $management)
     {
         $user = $request->user();
         abort_if($user->isStaff() || ! $user->customer_account_id, 403);
-        $data = $request->validate(['url' => ['required', 'url:https', 'max:2048']]);
-        $urls->host($data['url']);
-        abort_if(WebhookEndpoint::where('customer_account_id', $user->customer_account_id)->where('is_active', true)->count() >= 5, 422, 'Límite de endpoints activos alcanzado.');
-        $secret = Str::random(64);
-        $endpoint = WebhookEndpoint::create(['customer_account_id' => $user->customer_account_id, 'url' => $data['url'], 'secret' => $secret]);
-        Audit::record($user, 'webhook.created', $endpoint);
+        $data = $request->validate(['url' => ['required', 'url:https', 'max:2048'], 'events' => ['nullable', 'array', 'min:1', 'max:6'], 'events.*' => ['distinct', Rule::in(WebhookEndpoint::EVENTS)]]);
+        [$endpoint, $secret] = $management->create($user, $data);
 
         return back()->with('webhook_secret', $secret)->with('status', 'Webhook creado. Guarde ahora el secreto de firma.');
     }
 
-    public function disableWebhook(Request $request, WebhookEndpoint $endpoint)
+    public function disableWebhook(Request $request, WebhookEndpoint $endpoint, WebhookManagement $management)
     {
-        abort_unless(! $request->user()->isStaff() && $endpoint->customer_account_id === $request->user()->customer_account_id, 403);
+        $management->authorize($request->user(), $endpoint);
         $endpoint->update(['is_active' => false]);
         Audit::record($request->user(), 'webhook.disabled', $endpoint);
 

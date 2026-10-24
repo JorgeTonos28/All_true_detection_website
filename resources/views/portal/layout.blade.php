@@ -21,7 +21,8 @@
             @endforeach
         @endif
         @unless(auth()->user()->isStaff())<a href="{{ route('portal.account') }}" @if(request()->routeIs('portal.account')) aria-current="page" @endif>Datos de mi cuenta</a>@endunless
-        <a href="{{ route('portal.security') }}" @if(request()->routeIs('portal.security')) aria-current="page" @endif>Seguridad{{ auth()->user()->isStaff() ? '' : ' y API' }}</a>
+        @if(auth()->user()->isAdmin() || !auth()->user()->isStaff())<a href="{{ route('portal.integrations') }}" @if(request()->routeIs('portal.integrations*')) aria-current="page" @endif>Integraciones API</a>@endif
+        <a href="{{ route('portal.security') }}" @if(request()->routeIs('portal.security')) aria-current="page" @endif>Seguridad y acceso</a>
     </nav>
     <div class="sidebar-footer"><a href="{{ route('home') }}">Visitar sitio web ↗</a><p>Información privada.<br>Acceso autorizado.</p></div>
 </aside>

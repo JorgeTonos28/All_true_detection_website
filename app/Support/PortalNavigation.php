@@ -16,7 +16,7 @@ class PortalNavigation
             str_starts_with($name, 'portal.messages.') && $name !== 'portal.messages.index' => route('portal.messages.index'),
             str_starts_with($name, 'portal.users.') && $name !== 'portal.users.index' => route('portal.users.index'),
             str_starts_with($name, 'portal.invoices.') => route('portal.orders.index'),
-            str_starts_with($name, 'portal.integrations.') && $name !== 'portal.integrations.index' => route('portal.integrations.index'),
+            str_starts_with($name, 'portal.integrations.') => route('portal.integrations'),
             default => route('portal.dashboard'),
         };
     }

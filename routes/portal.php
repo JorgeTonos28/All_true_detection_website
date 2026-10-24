@@ -4,6 +4,7 @@ use App\Http\Controllers\Web\AccountController;
 use App\Http\Controllers\Web\BillingController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DocumentController;
+use App\Http\Controllers\Web\IntegrationController;
 use App\Http\Controllers\Web\MessageController;
 use App\Http\Controllers\Web\NotificationController;
 use App\Http\Controllers\Web\OperationsController;
@@ -28,9 +29,17 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('porta
         Route::post('/tokens', [SecurityController::class, 'token'])->name('tokens.store');
         Route::delete('/tokens/{token}', [SecurityController::class, 'revoke'])->name('tokens.revoke');
         Route::post('/webhooks', [SecurityController::class, 'webhook'])->name('webhooks.store');
-        Route::delete('/webhooks/{endpoint}', [SecurityController::class, 'disableWebhook'])->name('webhooks.disable');
+        Route::delete('/webhooks/{endpoint}', [SecurityController::class, 'disableWebhook'])->middleware('staff-2fa')->name('webhooks.disable');
     });
     Route::middleware('staff-2fa')->group(function () {
+        Route::get('/integrations', [IntegrationController::class, 'index'])->name('integrations');
+        Route::get('/integrations/deliveries/{delivery}', [IntegrationController::class, 'show'])->name('integrations.delivery');
+        Route::middleware(['password.confirm', 'throttle:5,1'])->group(function () {
+            Route::post('/integrations/webhooks/{endpoint}/rotate', [IntegrationController::class, 'rotate'])->name('integrations.rotate');
+            Route::post('/integrations/webhooks/{endpoint}/test', [IntegrationController::class, 'test'])->name('integrations.test');
+            Route::post('/integrations/deliveries/{delivery}/replay', [IntegrationController::class, 'replay'])->name('integrations.replay');
+            Route::delete('/integrations/tokens/{token}', [IntegrationController::class, 'revoke'])->name('integrations.revoke');
+        });
         Route::get('/', DashboardController::class)->name('dashboard');
         Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
         Route::get('/orders/new', [OrderController::class, 'create'])->name('orders.create');
