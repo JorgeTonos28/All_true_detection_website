@@ -6,6 +6,10 @@ PHP 8.3+ con PDO MySQL/SQLite, mbstring, OpenSSL, cURL, fileinfo y XML; GD para 
 
 Antes de actualizar, crear y verificar un respaldo de base de datos, `storage/app/private`, logos, configuración privada y APP_KEY. Conservar APP_KEY: cifra mensajes, descripción de expedientes, resultados, secretos de webhooks y trabajos de autenticación en cola. Una clave distinta impide recuperar los datos. El almacenamiento privado y sus respaldos deben tener acceso restringido y cifrado de disco/servicio de almacenamiento; no colocarlos bajo el document root.
 
+### Acceso administrativo local sin correo
+
+Cuando el SMTP no esté disponible en desarrollo, `php artisan portal:create-local-admin correo@example.com` permite crear o preparar un administrador local solicitando la contraseña de forma interactiva. El comando marca el correo como verificado, revoca sesiones/tokens anteriores y no envía nada por email. Solo funciona si `APP_ENV=local` y `APP_DEBUG=true`; producción debe usar `portal:create-admin` y su flujo normal de recuperación.
+
 Configurar el document root en `public/`, un usuario de BD exclusivo y permisos mínimos para aplicación y migraciones. Instalar dependencias con `composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader`. Nunca subir `.env`, SQLite, logs o ZIP antiguos al repositorio ni publicar el proyecto completo como carpeta servida por HTTP. El ZIP anterior de producción queda como archivo local heredado y no debe reutilizarse para desplegar el portal.
 
 ## Configuración necesaria

@@ -21,6 +21,8 @@ Configurar `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI` co
 
 En producción: HTTPS, `APP_DEBUG=false`, `SESSION_ENCRYPT=true`, `SESSION_SECURE_COOKIE=true`, SMTP real y `PORTAL_REQUIRE_STAFF_2FA=true`. El buzón de ATD se configura con SMTP seguro en `mail.alltruedetection.com:465`; `MAIL_AUDIT_BCC=info@alltruedetection.com` conserva una copia oculta de los correos salientes. `MAIL_MAILER=log` solo es apropiado para desarrollo: no envía correos y registra enlaces de autenticación en logs privados. Nunca publicar `.env`, ZIP de producción, base de datos, logs o archivos privados. Conservar `APP_KEY` para poder descifrar expedientes existentes.
 
+Para pruebas locales sin depender del correo, el comando `php artisan portal:create-local-admin correo@example.com` crea un administrador temporal con contraseña introducida en la terminal. Está bloqueado fuera de `APP_ENV=local` con `APP_DEBUG=true`.
+
 Al actualizar una instalación existente, respaldar la base, los documentos y APP_KEY antes de migrar. La migración de seguridad revoca la antigua contraseña fija si sigue presente. El administrador del panel anterior debe prepararse con el comando seguro anterior; no se promueven usuarios automáticamente. Ver [operación y despliegue](docs/operations.md).
 
 ## Validación
