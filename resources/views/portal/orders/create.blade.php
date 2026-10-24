@@ -12,9 +12,9 @@
             <details class="service-dropdown">
                 <summary><span data-service-label>{{ count($selectedCodes) ? count($selectedCodes).' servicios seleccionados' : 'Seleccionar servicios' }}</span><span aria-hidden="true">⌄</span></summary>
                 <div class="service-dropdown-content">
-                    <label>Buscar servicio<input type="search" placeholder="Escriba para filtrar los servicios" data-service-filter autocomplete="off"></label>
+                    <label>Buscar servicio<input type="search" aria-label="Buscar servicio" placeholder="Escriba para filtrar los servicios" data-service-filter autocomplete="off"></label>
                     <div class="service-options">@foreach($services as $service)
-                        <label class="service-option" data-service-option><input type="checkbox" name="service_codes[]" value="{{ $service->code }}" data-label="{{ $service->name }}" @checked(in_array($service->code,$selectedCodes))><span><strong>{{ $service->name }}</strong><small>{{ $service->description }}</small></span></label>
+                        <label class="service-option" data-service-option><input type="checkbox" aria-label="{{ $service->name }}" name="service_codes[]" value="{{ $service->code }}" data-label="{{ $service->name }}" @checked(in_array($service->code,$selectedCodes))><span><strong>{{ $service->name }}</strong><small>{{ $service->description }}</small></span></label>
                     @endforeach</div>
                     <small data-service-empty hidden>No hay servicios que coincidan.</small>
                 </div>

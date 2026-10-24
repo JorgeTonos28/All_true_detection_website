@@ -9,7 +9,10 @@ use App\Actions\Orders\CreateOrder;
 use App\Actions\Orders\StoreResult;
 use App\Actions\Orders\UpdateOrder;
 use App\Enums\Role;
+use App\Models\ApiRequestLog;
 use App\Models\User;
+use App\Models\WebhookEndpoint;
+use App\Notifications\PortalActivity;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Notification;
@@ -43,5 +46,16 @@ foreach (['Validación de credenciales profesionales', 'Evaluación de nuevo ing
         }
     }
     app(ReplyToConversation::class)->handle($admin, $order->conversation, 'Hemos recibido su solicitud. Nuestro equipo está revisando la documentación para confirmar el alcance y los próximos pasos.');
+}
+$client->createToken('Conexión de RRHH (demostración)', ['orders:read', 'orders:write', 'results:read', 'invoices:read'], now()->addDays(30));
+$endpoint = WebhookEndpoint::create(['customer_account_id' => $client->customer_account_id, 'url' => 'https://integracion.example.com/atd', 'secret' => Str::random(64), 'events' => ['result.published', 'invoice.paid']]);
+$eventId = (string) Str::uuid();
+$delivery = $endpoint->deliveries()->create(['order_id' => $order->id, 'event_id' => $eventId, 'event_type' => 'result.published', 'payload' => ['id' => $eventId, 'type' => 'result.published', 'data' => ['order_id' => $order->public_id]], 'attempts' => 8, 'response_status' => 503, 'failed_at' => now()]);
+$delivery->history()->create(['response_status' => 503, 'error_code' => 'http_error', 'duration_ms' => 124, 'created_at' => now()]);
+foreach ([42, 81, 36, 127, 64] as $index => $duration) {
+    ApiRequestLog::create(['request_id' => (string) Str::uuid(), 'customer_account_id' => $client->customer_account_id, 'user_id' => $client->id, 'method' => 'GET', 'route' => 'api/v1/orders/{order}/deliveries', 'status' => $index === 3 ? 409 : 200, 'duration_ms' => $duration, 'created_at' => now()->subMinutes($index)]);
+}
+foreach ([$client, $admin] as $recipient) {
+    $recipient->notifications()->create(['id' => (string) Str::uuid(), 'type' => PortalActivity::class, 'data' => ['title' => 'Pago total confirmado', 'copy' => 'ATD confirmó el pago de la factura de demostración.', 'path' => '/portal/orders/'.$order->public_id, 'reference' => $order->public_id]]);
 }
 echo json_encode(['database' => $path, 'admin' => $admin->email, 'client' => $client->email, 'password' => $password], JSON_THROW_ON_ERROR).PHP_EOL;
