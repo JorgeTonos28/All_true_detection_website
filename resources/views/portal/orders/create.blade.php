@@ -1,4 +1,5 @@
 @extends('portal.layout')
+@push('styles')<link rel="stylesheet" href="{{ asset('assets/css/verification.css') }}?v={{ filemtime(public_path('assets/css/verification.css')) }}">@endpush
 @section('title','Nueva solicitud')
 @section('subtitle','Cuéntenos qué necesita. Revisaremos el alcance y le enviaremos una cotización.')
 @section('content')
@@ -22,8 +23,9 @@
             <div class="selected-services" data-selected-services aria-live="polite"></div>
         </fieldset>
         <div class="form-grid"><label>Título de la solicitud<input name="subject" value="{{ old('subject') }}" maxlength="200" required placeholder="Ej. Validación de credenciales profesionales"></label><label>Referencia de su empresa (opcional)<input name="external_reference" value="{{ old('external_reference') }}" maxlength="100" placeholder="Ej. RRHH-2026-014"></label></div>
+        @include('portal.orders.person-form')
         <label>Detalles de la solicitud<textarea name="details" rows="8" minlength="10" maxlength="10000" required placeholder="Indique el alcance, el objetivo y cualquier información necesaria para revisar el caso.">{{ old('details') }}</textarea></label>
-        <div class="compose-documents"><p class="eyebrow">02 · DOCUMENTACIÓN</p><h3>Adjuntar documentos <span class="muted">(opcional)</span></h3><p class="muted">PDF, Word DOCX sin macros, JPG, PNG o WebP. Hasta 5 archivos, 10 MB por archivo y 20 MB en total. Puede agregar más documentos después.</p><label>Seleccionar documentos<input type="file" name="documents[]" accept=".pdf,.docx,.jpg,.jpeg,.png,.webp" multiple data-order-files></label><p class="file-feedback" data-file-feedback role="status"></p></div>
+        <div class="compose-documents"><h3>Documentos de apoyo <span class="muted">(opcional)</span></h3><p class="muted">Adjunte el título, exequátur o autorización si los tiene. PDF, DOCX sin macros, JPG, PNG o WebP. El envío completo, incluyendo cédula y selfies, admite hasta 5 archivos, 10 MB por archivo y 20 MB en total. Puede agregar más documentos después.</p><label>Seleccionar documentos de apoyo<input type="file" name="documents[]" accept=".pdf,.docx,.jpg,.jpeg,.png,.webp" multiple data-order-files></label><p class="file-feedback" data-file-feedback role="status" aria-live="polite"></p></div>
         <label class="check"><input type="checkbox" name="consent" value="1" required @checked(old('consent'))>Confirmo que dispongo de autorización para solicitar estas verificaciones y acepto el tratamiento de datos conforme al <a href="{{ route('privacy') }}">aviso de privacidad</a>.</label>
         <div class="actions"><button data-order-submit>Enviar solicitud</button><a class="button secondary" href="{{ route('portal.orders.index') }}">Cancelar</a></div>
     </section>

@@ -34,8 +34,13 @@ $admin = User::factory()->create(['name' => 'Administración ATD', 'email' => 'a
 $client = app(CreateNewUser::class)->create(['name' => 'Laura Méndez', 'company' => 'Comercial Horizonte', 'email' => 'cliente@atd.test', 'password' => $password, 'password_confirmation' => $password, 'terms' => true]);
 $client->forceFill(['email_verified_at' => now()])->save();
 foreach (['Validación de credenciales profesionales', 'Evaluación de nuevo ingreso', 'Verificación de perfil ejecutivo'] as $index => $subject) {
-    $order = app(CreateOrder::class)->handle($client, ['subject' => $subject, 'details' => 'Solicitamos verificar la información autorizada del expediente. Coordinar los siguientes pasos con el departamento de Recursos Humanos.', 'external_reference' => 'RRHH-'.($index + 1), 'items' => [['service_code' => ['profile-verification', 'polygraph', 'profile-verification'][$index], 'quantity' => 1]]]);
-    app(UpdateOrder::class)->handle($admin, $order, ['assigned_to' => $admin->id, 'status' => 'reviewing']);
+    $data = ['subject' => $subject, 'details' => 'Solicitamos verificar la información autorizada del expediente. Datos y personas completamente ficticios para la revisión visual.', 'external_reference' => 'DEMO-'.($index + 1), 'items' => [['service_code' => ['profile-verification', 'polygraph', 'profile-verification'][$index], 'quantity' => 1]]];
+    if ($index === 0) {
+        $data['items'] = array_map(fn ($code) => ['service_code' => $code, 'quantity' => 1], ['university-degree', 'exequatur', 'identity-verification']);
+        $data['person'] = ['first_name' => 'Persona', 'last_name' => 'Ficticia', 'identity_number' => '00000000000', 'address' => 'Dirección ficticia de demostración', 'purpose' => 'Verificación sintética para revisar la interfaz', 'authorization_confirmed' => true, 'degree' => ['institution' => 'Institución ficticia', 'degree_name' => 'Título de demostración'], 'exequatur' => ['profession' => 'Profesión de prueba']];
+    }
+    $order = app(CreateOrder::class)->handle($client, $data);
+    app(UpdateOrder::class)->handle($admin, $order, ['assigned_to' => $admin->id] + ($index > 0 ? ['status' => 'reviewing'] : []));
     if ($index > 0) {
         $invoice = app(IssueInvoice::class)->handle($admin, $order, ['prices' => [$order->items->first()->id => 750000], 'tax_basis_points' => 1800]);
         if ($index === 2) {

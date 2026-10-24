@@ -5,6 +5,7 @@
 <title>@yield('title','Portal') | {{ $business['company_name'] ?? 'All True Detection' }}</title>
 @include('shared.favicon',['settings'=>$business])
 <link rel="stylesheet" href="{{ asset('assets/css/portal.css') }}?v={{ filemtime(public_path('assets/css/portal.css')) }}">
+@stack('styles')
 </head>
 <body><a class="skip-link" href="#content">Saltar al contenido</a>
 <div class="portal-shell">
