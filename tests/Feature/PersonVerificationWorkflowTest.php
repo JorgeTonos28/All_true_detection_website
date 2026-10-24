@@ -151,4 +151,15 @@ class PersonVerificationWorkflowTest extends TestCase
         $this->assertSame($order->id, app(CreateOrder::class)->handle($client, $data, 'keyed-fingerprint-1')->id);
         $this->assertDatabaseCount('orders', 1);
     }
+
+    public function test_encrypted_unicode_findings_fit_the_mysql_column_capacity(): void
+    {
+        $client = $this->client();
+        $admin = User::factory()->create(['role' => Role::Admin]);
+        $order = app(CreateOrder::class)->handle($client, self::data(), null, [], ['identity_front' => UploadedFile::fake()->image('front.png'), 'selfie' => UploadedFile::fake()->image('selfie.png')], true);
+        $findings = array_fill_keys(PersonVerification::SERVICES, ['outcome' => 'inconclusive', 'notes' => str_repeat('ñ', 5000)]);
+        $result = app(StoreResult::class)->handle($admin, $order, 'Prueba sintética de capacidad', null, $findings);
+        $this->assertGreaterThan(65535, strlen(DB::table('order_results')->where('id', $result->id)->value('verification_findings')));
+        $this->assertSame(5000, mb_strlen($result->fresh()->verification_findings['checks'][0]['notes']));
+    }
 }

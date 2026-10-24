@@ -12,7 +12,7 @@ return new class extends Migration
         Schema::create('order_people', function (Blueprint $table) {
             $table->id();
             $table->foreignId('order_id')->unique()->constrained()->restrictOnDelete();
-            $table->text('profile'); // encrypted JSON, never searchable plaintext
+            $table->longText('profile'); // encryption/Unicode expansion; never searchable plaintext
             $table->timestamps();
         });
         Schema::table('order_attachments', function (Blueprint $table) {
@@ -20,7 +20,7 @@ return new class extends Migration
             $table->index(['order_id', 'purpose']);
         });
         Schema::table('order_results', function (Blueprint $table) {
-            $table->text('verification_findings')->nullable(); // encrypted JSON
+            $table->longText('verification_findings')->nullable(); // encrypted JSON can exceed TEXT's MySQL limit
         });
     }
 
