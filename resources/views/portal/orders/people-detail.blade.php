@@ -1,0 +1,20 @@
+@if($order->people->isNotEmpty())
+<section class="panel person-detail"><div class="panel-heading"><h2>Personas del expediente</h2><span class="badge">{{ $order->people->count() }} · Información privada</span></div>
+    @foreach($order->people as $person)
+        @php($profile = $person->profile)
+        @php($verification = collect($verificationStatus['people'] ?? [])->firstWhere('person_id',$person->public_id))
+        <details class="person-record" @if($order->people->count()===1) open @endif><summary>{{ $profile['first_name'] }} {{ $profile['last_name'] }}<small>{{ $person->services->pluck('name')->join(' · ') }}</small></summary>
+            <dl class="person-facts">
+                @foreach(['identity_number'=>'Cédula','address'=>'Dirección','purpose'=>'Finalidad autorizada','birth_date'=>'Nacimiento','phone'=>'Teléfono','email'=>'Correo'] as $key=>$label)
+                    @if(!empty($profile[$key]))<div><dt>{{ $label }}</dt><dd class="preserve">{{ $profile[$key] }}</dd></div>@endif
+                @endforeach
+                @foreach(['degree'=>['institution'=>'Institución','degree_name'=>'Título','graduation_year'=>'Año de graduación','registration_number'=>'Registro académico'],'exequatur'=>['profession'=>'Profesión','number'=>'Número de exequátur','issuing_authority'=>'Entidad emisora','issued_on'=>'Fecha de expedición']] as $group=>$fields)
+                    @foreach($fields as $key=>$label)@if(!empty($profile[$group][$key]))<div><dt>{{ $label }}</dt><dd>{{ $profile[$group][$key] }}</dd></div>@endif @endforeach
+                @endforeach
+            </dl>
+            @if($verification)<div class="info-strip">@if($verification['ready_for_review'])Evidencia obligatoria recibida. Pendiente de la revisión humana y del proceso de entrega.@else Falta cargar: {{ implode(', ',array_map(fn($key)=>\App\Support\PersonVerification::LABELS[$key],$verification['missing'])) }}. La solicitud no avanzará hasta recibirla.@endif</div>@endif
+        </details>
+    @endforeach
+    <p class="muted">Autorización confirmada por el solicitante el {{ $order->consented_at->timezone('America/Santo_Domingo')->format('d/m/Y H:i') }}. Cada servicio y documento se conserva vinculado a su persona.</p>
+</section>
+@endif

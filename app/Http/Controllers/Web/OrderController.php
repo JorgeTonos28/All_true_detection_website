@@ -53,7 +53,7 @@ class OrderController extends Controller
         $selected = $request->query('service', $request->session()->get('requested_service'));
         $selected = is_string($selected) && Service::where('code', $selected)->where('is_active', true)->exists() ? $selected : null;
 
-        return view('portal.orders.create', ['services' => Service::where('is_active', true)->orderBy('sort_order')->get(), 'selectedService' => $selected]);
+        return view('portal.orders.compose', ['services' => Service::where('is_active', true)->orderBy('sort_order')->get(), 'selectedService' => $selected]);
     }
 
     public function store(StoreOrderRequest $request, CreateOrder $action)

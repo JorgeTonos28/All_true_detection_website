@@ -8,18 +8,36 @@
 <div class="order-overview"><span class="badge status-{{ $order->status->value }}">{{ $order->status->label() }}</span><span>{{ $order->created_at->timezone('America/Santo_Domingo')->format('d/m/Y H:i') }}</span><span>Cliente: <strong>{{ $order->account->name }}</strong></span>@if($order->external_reference)<span>Referencia: {{ $order->external_reference }}</span>@endif</div>
 <div class="detail-grid">
 <div class="stack">
-<section class="panel"><h2>Alcance de la solicitud</h2><p class="preserve">{{ $order->details }}</p><h3>Servicios solicitados</h3><ul class="clean-list">@foreach($order->items as $item)<li><strong>{{ $item->service_name }}</strong><span>{{ $item->quantity }} {{ $item->quantity === 1 ? 'unidad' : 'unidades' }}</span></li>@endforeach</ul></section>
-@include('portal.orders.person-detail')
+<section class="panel"><h2>Alcance de la solicitud</h2><p class="preserve">{{ $order->details ?: 'Sin instrucciones adicionales.' }}</p><h3>Servicios solicitados</h3><ul class="clean-list">@foreach($order->items as $item)<li><strong>{{ $item->service_name }}</strong><span>{{ $item->quantity }} {{ $item->quantity === 1 ? 'unidad' : 'unidades' }}</span></li>@endforeach</ul></section>
+@include('portal.orders.people-detail')
 <section class="panel"><h2>Documentos de entrada</h2><p class="muted">PDF, Word DOCX sin macros, JPG, PNG o WebP. Máximo 10 MB por archivo, 30 documentos y 100 MB por solicitud.</p>
-<ul class="clean-list">@forelse($order->attachments as $attachment)<li><a href="{{ route('portal.attachments.download',$attachment) }}">{{ $attachment->file_name }}</a><small>{{ \App\Support\PersonVerification::LABELS[$attachment->purpose] ?? 'Documento privado' }}</small></li>@empty<li>No hay documentos cargados.</li>@endforelse</ul>
-@if(!auth()->user()->isStaff() && !in_array($order->status->value,['completed','cancelled']))<form method="post" enctype="multipart/form-data" action="{{ route('portal.attachments.store',$order) }}" class="inline-form">@csrf<label>Categoría<select name="purpose"><option value="supporting">Documento de apoyo</option>@if($order->person)<option value="identity_front">Cédula: frente</option><option value="identity_back">Cédula: reverso</option>@if($order->items->contains(fn($item)=>$item->service->code==='identity-verification'))<option value="selfie">Selfie frontal</option><option value="selfie_extra">Selfie adicional</option>@endif @endif</select></label><label>Agregar documento<input type="file" name="file" accept=".pdf,.docx,.jpg,.jpeg,.png,.webp" required></label><button>Subir documento</button></form>@endif</section>
+<div class="attachment-gallery">@forelse($order->attachments as $attachment)<article class="attachment-card">
+    @if(in_array($attachment->mime_type,\App\Support\PrivateImage::TYPES,true))<button type="button" class="image-thumbnail" data-image-preview="{{ route('portal.attachments.preview',$attachment) }}" data-image-name="{{ $attachment->file_name }}" aria-label="Ampliar {{ $attachment->file_name }}"><img src="{{ route('portal.attachments.preview',$attachment) }}" alt="Vista previa de {{ $attachment->file_name }}" loading="lazy" decoding="async"></button>@endif
+    <p>{{ $attachment->file_name }}</p><small>{{ \App\Support\PersonVerification::LABELS[$attachment->purpose] ?? 'Documento privado' }}</small>
+    @if($attachment->person)<small>{{ $attachment->person->profile['first_name'] }} {{ $attachment->person->profile['last_name'] }}</small>@endif
+    <a href="{{ route('portal.attachments.download',$attachment) }}">Descargar archivo</a>
+</article>@empty<p class="muted">No hay documentos cargados.</p>@endforelse</div>
+@if(!auth()->user()->isStaff() && !in_array($order->status->value,['completed','cancelled']))<form method="post" enctype="multipart/form-data" action="{{ route('portal.attachments.store',$order) }}" class="stack" data-attachment-form>@csrf
+    <div class="form-grid"><label>Persona<select name="person_id" data-upload-person><option value="">Documento general de la solicitud</option>@foreach($order->people as $person)<option value="{{ $person->public_id }}" data-service-codes="{{ $person->services->pluck('code')->join(',') }}">{{ $person->profile['first_name'] }} {{ $person->profile['last_name'] }}</option>@endforeach</select></label>
+    <label>Categoría<select name="purpose" data-upload-purpose>@foreach(\App\Support\PersonVerification::LABELS as $key=>$label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select></label></div>
+    @include('portal.orders.file-input',['name'=>'file','label'=>'Agregar documento','required'=>true,'accept'=>'.pdf,.docx,.jpg,.jpeg,.png,.webp'])
+    <p class="muted">Seleccione la persona antes de agregar evidencia clasificada. El mismo archivo no se puede repetir, aunque cambie su nombre.</p><div><button>Subir documento</button></div>
+</form>@endif</section>
 <section class="panel"><h2>Resultados y entrega</h2>
 @if($results->isEmpty())<div class="info-strip">{{ $order->canReleaseResults() ? 'El equipo aún no ha publicado la entrega.' : 'La entrega se habilitará al completar el trabajo, confirmar el pago total y publicar los resultados.' }}</div>@endif
-@foreach($results as $result)<article class="result-card"><div class="panel-heading"><h3>Entrega {{ $loop->iteration }}</h3><span class="badge">{{ $result->published_at ? 'Publicada' : 'Preparada · privada' }}</span></div><p class="preserve">{{ $result->summary }}</p>@if($result->verification_findings)<div class="verification-conclusions"><p class="muted">Revisión humana · {{ $result->verification_findings['reviewed_at'] }}</p>@foreach($result->verification_findings['checks'] as $check)<article><h4>{{ $order->items->first(fn($item)=>$item->service->code===$check['service_code'])?->service_name ?? $check['service_code'] }}</h4><strong>{{ \App\Support\PersonVerification::OUTCOMES[$check['outcome']] }}</strong><p class="preserve">{{ $check['notes'] }}</p></article>@endforeach</div>@endif @if($result->file_path)<a class="button secondary" href="{{ route('portal.results.download',$result) }}">Descargar {{ $result->file_name }}</a>@endif
+@foreach($results as $result)<article class="result-card"><div class="panel-heading"><h3>Entrega {{ $loop->iteration }}</h3><span class="badge">{{ $result->published_at ? 'Publicada' : 'Preparada · privada' }}</span></div><p class="preserve">{{ $result->summary }}</p>
+@if($result->verification_findings)<div class="verification-conclusions"><p class="muted">Revisión humana · {{ $result->verification_findings['reviewed_at'] }}</p>@foreach($result->verification_findings['checks'] as $check)<article>
+    @php($checkedPerson = isset($check['person_id']) ? $order->people->firstWhere('public_id',$check['person_id']) : null)
+    @if($checkedPerson)<p><strong>{{ $checkedPerson->profile['first_name'] }} {{ $checkedPerson->profile['last_name'] }}</strong></p>@endif
+    <h4>{{ $order->items->first(fn($item)=>$item->service->code===$check['service_code'])?->service_name ?? $check['service_code'] }}</h4><strong>{{ \App\Support\PersonVerification::OUTCOMES[$check['outcome']] }}</strong><p class="preserve">{{ $check['notes'] }}</p></article>@endforeach</div>@endif
+@if($result->file_path)
+    @if(in_array($result->mime_type,\App\Support\PrivateImage::TYPES,true))<button type="button" class="image-thumbnail" data-image-preview="{{ route('portal.results.preview',$result) }}" data-image-name="{{ $result->file_name }}" aria-label="Ampliar {{ $result->file_name }}"><img src="{{ route('portal.results.preview',$result) }}" alt="Vista previa del resultado publicado" loading="lazy" decoding="async"></button>@endif
+    <a class="button secondary" href="{{ route('portal.results.download',$result) }}">Descargar {{ $result->file_name }}</a>
+@endif
 @if(auth()->user()->isAdmin() && !$result->published_at)<form method="post" action="{{ route('portal.results.publish',$result) }}">@csrf<button @disabled(!$order->canReleaseResults())>Publicar para el cliente</button></form>@endif</article>@endforeach
 @if(auth()->user()->isStaff())<details class="form-details"><summary>Preparar nueva entrega</summary><p>El resultado se guarda de forma privada. Para publicarlo, un administrador debe confirmar el pago total y completar la orden. Utilice esta sección para los resultados finales.</p><form method="post" enctype="multipart/form-data" action="{{ route('portal.results.store',$order) }}" class="stack">
 @csrf
-@include('portal.orders.findings-form')
+@include('portal.orders.people-findings-form')
 <label>Resumen del resultado<textarea name="summary" minlength="5" maxlength="20000" required>{{ old('summary') }}</textarea></label><label>Documento final (opcional, hasta 10 MB)<input type="file" name="file" accept=".pdf,.docx,.jpg,.jpeg,.png,.webp"></label><button @disabled($verificationStatus && !$verificationStatus['ready_for_review'])>Guardar resultado privado</button></form></details>@endif
 </section>
 </div>
@@ -41,4 +59,6 @@
 <section class="panel"><h3>Seguimiento</h3><p>Las actualizaciones y consultas quedan registradas en la conversación de esta solicitud.</p><a href="{{ route('portal.messages.show',$order->conversation) }}">Abrir conversación →</a></section>
 </aside>
 </div>
+@include('portal.orders.image-preview')
 @endsection
+@push('scripts')<script src="{{ asset('assets/js/document-previews.js') }}?v={{ filemtime(public_path('assets/js/document-previews.js')) }}" defer></script><script src="{{ asset('assets/js/order-documents.js') }}?v={{ filemtime(public_path('assets/js/order-documents.js')) }}" defer></script>@endpush

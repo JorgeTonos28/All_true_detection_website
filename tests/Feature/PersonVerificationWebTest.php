@@ -23,7 +23,7 @@ class PersonVerificationWebTest extends TestCase
         $this->seed();
         $client = app(CreateNewUser::class)->create(['name' => 'Prueba web', 'email' => 'web-person@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
-        $this->actingAs($client)->get(route('portal.orders.create', ['service' => 'identity-verification']))->assertOk()->assertSee('name="person[first_name]"', false)->assertSee('Selfie frontal')->assertSee('revisión humana');
+        $this->actingAs($client)->get(route('portal.orders.create', ['service' => 'identity-verification']))->assertOk()->assertSee('name="people[__INDEX__][first_name]"', false)->assertSee('Selfie frontal')->assertSee('revisión humana');
         $data = PersonVerificationWorkflowTest::data();
         $data['service_codes'] = array_column($data['items'], 'service_code');
         unset($data['items']);
@@ -34,7 +34,7 @@ class PersonVerificationWebTest extends TestCase
         $order = Order::firstOrFail();
         $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Persona Ficticia')->assertSee('00000000000')->assertSee('Evidencia obligatoria recibida')->assertDontSee('Conclusiones humanas por servicio');
         $admin = User::factory()->create(['role' => Role::Admin]);
-        $this->actingAs($admin)->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Conclusiones humanas por servicio')->assertSee('findings[identity-verification][outcome]', false);
+        $this->actingAs($admin)->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Conclusiones humanas por servicio')->assertSee('findings['.$order->people->first()->public_id.'][identity-verification][outcome]', false);
         $this->post('/portal/orders/'.$order->public_id.'/results', ['summary' => 'Resumen privado', 'findings' => []])->assertSessionHasErrors();
         $this->assertDatabaseCount('order_results', 0);
     }

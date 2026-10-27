@@ -14,7 +14,7 @@
     <p class="eyebrow">{{ auth()->user()->isStaff() ? 'OPERACIONES' : 'MI CUENTA' }}</p>
     <nav aria-label="Portal">
         @foreach (['portal.dashboard'=>'Resumen','portal.orders.index'=>'Solicitudes','portal.messages.index'=>'Mensajes'] as $name=>$label)
-            <a href="{{ route($name) }}" @if(request()->routeIs($name)) aria-current="page" @endif>{{ $label }}</a>
+            <a href="{{ route($name) }}" @if(request()->routeIs($name === 'portal.orders.index' ? 'portal.orders.*' : $name)) aria-current="page" @endif>{{ $label }}</a>
         @endforeach
         @if(auth()->user()->isAdmin())
             @foreach (['portal.users.index'=>'Usuarios y acceso','portal.settings'=>'Mi negocio','portal.operations'=>'Auditoría e integraciones'] as $name=>$label)
