@@ -29,10 +29,10 @@ Guardar el token en un gestor de secretos del backend. No colocarlo en JavaScrip
 
 ## Crear una solicitud
 
-Primero consulte `GET /services` para obtener los códigos activos. Luego envíe `POST /orders` con JSON, consentimiento e `Idempotency-Key`.
+Primero consulte `GET /services` para obtener los códigos activos y sus requisitos: `per_person`, `requires_identity_number` y `required_evidence`. Luego envíe `POST /orders` con JSON, consentimiento e `Idempotency-Key`. `details` es opcional: se admite omitirlo, enviarlo como `null` o usar un texto de hasta 10.000 caracteres, sin longitud mínima.
 
 ```json
-{"subject":"Validación de credenciales","details":"Solicitamos verificar las credenciales con la información autorizada.","external_reference":"RRHH-2026-001","consent":true,"items":[{"service_code":"profile-verification","quantity":1}]}
+{"subject":"Consulta de capacitación","external_reference":"RRHH-2026-001","consent":true,"items":[{"service_code":"training-equipment","quantity":1}]}
 ```
 
 La clave debe contener entre 8 y 128 caracteres ASCII alfanuméricos o `._:-`. Se aísla por usuario y se conserva durante la vida de la solicitud. Reutilice la misma clave y el mismo contenido tras timeout o error de red: recibirá la misma orden (201), sin crear una segunda. Reutilizar la clave con otros datos produce 409. Cree una clave nueva para otra solicitud de negocio. No genere claves nuevas indiscriminadamente al reintentar.
@@ -42,19 +42,24 @@ Cuenta, rol, precio, asignación y estado se determinan en el servidor. La refer
 Ejemplo para CMD de Windows, en una sola línea. Sustituya `SU_TOKEN` antes de ejecutarlo:
 
 ```bat
-curl.exe --request POST "http://127.0.0.1:8000/api/v1/orders" --header "Authorization: Bearer SU_TOKEN" --header "Content-Type: application/json" --header "Idempotency-Key: solicitud-rrhh-2026-001" --data "{\"subject\":\"Validacion de credenciales\",\"details\":\"Verificacion de credenciales autorizada por el titular.\",\"external_reference\":\"RRHH-2026-001\",\"consent\":true,\"items\":[{\"service_code\":\"profile-verification\",\"quantity\":1}]}"
+curl.exe --request POST "http://127.0.0.1:8000/api/v1/orders" --header "Authorization: Bearer SU_TOKEN" --header "Content-Type: application/json" --header "Idempotency-Key: solicitud-rrhh-2026-001" --data "{\"subject\":\"Consulta de capacitacion\",\"external_reference\":\"RRHH-2026-001\",\"consent\":true,\"items\":[{\"service_code\":\"training-equipment\",\"quantity\":1}]}"
 ```
 
 ## Verificaciones por persona
 
-Los códigos `university-degree`, `exequatur` e `identity-verification` requieren una ficha `person`. Cada orden corresponde a una sola persona y cada uno de estos servicios tiene cantidad 1. Puede solicitar uno, dos o los tres para esa persona sin duplicar sus datos; cree otra orden para otra persona. No existe un registro global de personas ni búsqueda de cédulas entre cuentas.
+Todos los servicios son por persona salvo `training-equipment` (Capacitación y Equipos). El portal y la API comparten el formato `people`: entre 1 y 10 fichas por orden, con una o varias entradas `service_codes` por persona. Cada servicio asignado debe figurar también en `items`; su `quantity` debe coincidir exactamente con el número de personas que lo reciben. Una misma persona puede combinar varios servicios sin duplicar su ficha. La orden, conversación y factura son únicas; las partidas facturan la cantidad correspondiente a cada servicio.
 
-| Campo de `person` | Requisito |
+No existe un registro global de personas ni búsqueda de cédulas entre cuentas. ATD genera un identificador público por ficha al crear la orden; no acepte ni envíe identificadores internos de base de datos. Dos fichas con la misma cédula normalizada se rechazan: combine sus servicios en una sola ficha. Si un servicio no necesita cédula, no aporte este dato; el servidor lo rechaza.
+
+Compatibilidad: `person` sigue disponible para una sola persona con título, exequátur o identidad, cantidad 1; no se combina con `people`. La creación API anterior sin ficha para los otros servicios se conserva para integraciones existentes. Las integraciones nuevas deben usar `people` para servicios personales. Las solicitudes históricas conservan sus datos y requisitos de evidencia; no se inventan personas para órdenes antiguas.
+
+| Campo de cada entrada de `people` | Requisito |
 | --- | --- |
 | `first_name`, `last_name` | Obligatorios, hasta 100 caracteres cada uno. |
-| `identity_number` | Cédula dominicana, 11 dígitos con o sin guiones; se guarda normalizada. El formato no acredita autenticidad. |
-| `address` | Obligatorio, hasta 1.000 caracteres. |
-| `purpose` | Finalidad autorizada de la verificación, 5-1.000 caracteres. |
+| `service_codes` | Lista no vacía, sin códigos repetidos; servicios de esta orden, nunca `training-equipment`. |
+| `identity_number` | Obligatoria solo para título, exequátur o identidad. Cédula dominicana de 11 dígitos con o sin guiones; se guarda normalizada. El formato no acredita autenticidad. Prohibida en los demás servicios. |
+| `address` | Obligatoria para título, exequátur, identidad y visitas domiciliarias; opcional para los demás, hasta 1.000 caracteres. |
+| `purpose` | Finalidad autorizada obligatoria para título, exequátur e identidad, 5-1.000 caracteres; opcional en los otros servicios. No sustituye a `details`, que sigue siendo opcional. |
 | `authorization_confirmed` | Debe ser `true` y representar autorización real de la persona. |
 | `birth_date`, `phone`, `email` | Opcionales; fecha `YYYY-MM-DD` no futura. |
 | `degree.institution`, `degree.degree_name` | Obligatorios solo para título universitario. |
@@ -67,7 +72,6 @@ Ejemplo completamente ficticio (la cédula es solo un marcador de pruebas):
 ```json
 {
   "subject": "Verificación de credenciales",
-  "details": "Solicitud ficticia con autorización documentada.",
   "consent": true,
   "items": [
     {
@@ -77,9 +81,14 @@ Ejemplo completamente ficticio (la cédula es solo un marcador de pruebas):
     {
       "service_code": "exequatur",
       "quantity": 1
+    },
+    {
+      "service_code": "psychometric",
+      "quantity": 1
     }
   ],
-  "person": {
+  "people": [{
+    "service_codes": ["university-degree", "exequatur"],
     "first_name": "Persona",
     "last_name": "Ficticia",
     "identity_number": "00000000000",
@@ -93,27 +102,36 @@ Ejemplo completamente ficticio (la cédula es solo un marcador de pruebas):
     "exequatur": {
       "profession": "Profesión de prueba"
     }
-  }
+  }, {
+    "first_name": "Otra persona",
+    "last_name": "Ficticia",
+    "service_codes": ["psychometric"],
+    "authorization_confirmed": true
+  }]
 }
 ```
 
-Después de crear la orden, suba cada evidencia a `/orders/{order}/attachments` mediante `file` y el campo `purpose`:
+La creación devuelve `people[].id`. Después suba cada evidencia a `/orders/{order}/attachments` mediante `file`, `purpose` y `person_id` de la ficha correspondiente. Si hay varias personas, `person_id` es obligatorio para evidencia clasificada. Con una sola persona se puede inferir por compatibilidad. Un identificador de otra orden devuelve 404, aunque ambas órdenes pertenezcan a la misma cuenta.
 
 - `identity_front`: frente de la cédula, obligatorio para título/exequátur; una copia sirve para ambos. PDF, JPG, PNG o WebP, escaneada o fotografiada.
 - `identity_back`: reverso opcional, en los mismos formatos.
+- `degree_document`: título universitario escaneado en PDF o fotografiado, obligatorio para `university-degree`.
+- `exequatur_document`: exequátur escaneado en PDF o fotografiado, obligatorio para `exequatur`.
 - `selfie`: selfie frontal obligatoria para identidad. Solo JPG, PNG o WebP; no se aceptan PDF/Word como selfie.
 - `selfie_extra`: segunda selfie opcional, solo para identidad.
-- `supporting`: título, exequátur, autorización u otros documentos pertinentes; valor predeterminado compatible con integraciones anteriores.
+- `supporting`: autorizaciones y otros documentos de apoyo; no sustituye al título, exequátur, cédula ni selfie obligatorios. Puede ser general o vincularse a una persona. Admite DOCX además de PDF e imágenes.
 
 ```bat
-curl.exe --request POST "http://127.0.0.1:8000/api/v1/orders/ID_ORDEN/attachments" --header "Authorization: Bearer SU_TOKEN" --header "Idempotency-Key: cedula-frente-001" --form "purpose=identity_front" --form "file=@C:/ruta/cedula-frente.jpg"
+curl.exe --request POST "http://127.0.0.1:8000/api/v1/orders/ID_ORDEN/attachments" --header "Authorization: Bearer SU_TOKEN" --header "Idempotency-Key: cedula-frente-001" --form "person_id=ID_PERSONA_DEVUELTO_POR_ATD" --form "purpose=identity_front" --form "file=@C:/ruta/cedula-frente.jpg"
 ```
 
-`GET /orders/{order}` devuelve `person` y `verification` con `method=manual`, `ready_for_review`, `required` y `missing`. El listado general omite ambos para no exportar fichas personales en bloque. `ready_for_review` solo indica documentación completa: NO significa identidad verificada. No se cotiza ni se inicia la revisión/trabajo con evidencia obligatoria pendiente. La clave idempotente también protege datos de persona y clasificación de adjuntos; cambiar contenido o categoría exige una clave nueva.
+`GET /orders/{order}` devuelve `people` y `verification` con `method=manual`, `ready_for_review`, `required`, `missing` y el desglose por `person_id` en `verification.people`. `person` es el perfil anterior si existe una sola persona; con varias es `null`. El listado general omite fichas y estado documental para no exportar datos personales en bloque. `ready_for_review` solo indica documentación completa: NO significa identidad verificada. No se cotiza ni se inicia la revisión/trabajo con evidencia obligatoria pendiente.
 
-El portal permite adjuntar evidencia al crear la orden, de forma atómica, con el límite conjunto de 5 archivos/20 MB, incluidos documentos de apoyo. La API conserva el flujo JSON + cargas individuales. Los límites, antivirus, almacenamiento privado, scopes y aislamiento existentes se aplican a cédulas y selfies.
+La clave idempotente protege el orden de las personas, sus datos y las asignaciones de servicios/documentos. Un reintento debe conservar el orden de `people` y el contenido original. Cambiar la persona, el contenido o la categoría de un documento con la misma clave devuelve 409. Una clave nueva no permite duplicar un archivo ya guardado: el contenido repetido se rechaza con 422, incluso si cambia el nombre. La comprobación compara bytes (SHA-256), no garantiza detectar recortes o imágenes reexportadas, ni prueba que una foto corresponda realmente al frente/reverso. La revisión humana sigue siendo necesaria.
 
-Un profesional de ATD registra una conclusión por servicio: `verified`, `not_verified` o `inconclusive`, con notas. No es una decisión automática de contratación ni una validación de identidad por acceso a registros oficiales. Después de pago total, finalización y publicación, `/deliveries` devuelve `verification_findings` con `method=manual`, `reviewed_at` y `checks[]` (`service_code`, `outcome`, `notes`). No se filtra esa conclusión por estado, notificaciones, listados ni webhooks antes de la entrega.
+El portal permite adjuntar evidencia al crear la orden, de forma atómica, con el límite conjunto de 20 archivos/20 MB entre todas las personas, incluidos documentos de apoyo. Si no caben los documentos obligatorios, divida las personas en solicitudes más pequeñas. La API conserva el flujo JSON + cargas individuales. Los límites, antivirus, almacenamiento privado, scopes y aislamiento existentes se aplican a todos los documentos. Una única copia PDF con ambas caras de la cédula puede aportarse como `identity_front`; no vuelva a cargar el mismo PDF como reverso.
+
+Un profesional de ATD registra una conclusión por persona y servicio: `verified`, `not_verified` o `inconclusive`, con notas. No es una decisión automática de contratación ni una validación de identidad por acceso a registros oficiales. Después de pago total, finalización y publicación, `/deliveries` devuelve `verification_findings` con `method=manual`, `reviewed_at` y `checks[]` (`person_id`, `service_code`, `outcome`, `notes`). Las entregas antiguas pueden no incluir `person_id`. No se filtra esa conclusión por estado, notificaciones, listados ni webhooks antes de la entrega.
 
 Las fichas y conclusiones se cifran en la base de datos. La huella de idempotencia de solicitudes con persona usa HMAC con una clave del servidor, no un hash simple de los datos personales. No use nombres/cédulas en asunto, referencia externa, nombres de archivos, claves de idempotencia, URLs o logs. Use referencias opacas. No envíe fotos en base64 dentro del JSON ni por correo. Aplique en su sistema acceso mínimo, cifrado y retención definida para estos datos sensibles. Las órdenes anteriores sin ficha siguen operando; no se inventan ni migran datos de personas.
 
@@ -128,7 +146,11 @@ PDF, Word DOCX sin macros/objetos incrustados/cifrado y JPG, PNG o WebP. Máximo
 curl.exe --request POST "http://127.0.0.1:8000/api/v1/orders/ID_ORDEN/attachments" --header "Authorization: Bearer SU_TOKEN" --header "Idempotency-Key: documento-rrhh-2026-001" --form "file=@C:/ruta/evidencia.pdf"
 ```
 
-`GET /orders/{order}/attachments` lista los adjuntos y devuelve sus metadatos. `download_url` requiere Bearer y `orders:read`; nunca es una URL pública. Los nuevos archivos incluyen `file_size` y `sha256`. Comparar la huella con el contenido descargado permite comprobar integridad. La web puede crear una solicitud junto con hasta 5 documentos / 20 MB, con persistencia atómica. Los límites del proxy/PHP también se aplican: ante 413 reduzca el cuerpo, no repita la misma carga indefinidamente.
+`GET /orders/{order}/attachments` lista los adjuntos y devuelve sus metadatos y `person_id` cuando corresponde. `download_url` requiere Bearer y `orders:read`; nunca es una URL pública. Los nuevos archivos incluyen `file_size` y `sha256`. Comparar la huella con el contenido descargado permite comprobar integridad. La web puede crear una solicitud junto con hasta 20 documentos / 20 MB, con persistencia atómica. Los límites del proxy/PHP también se aplican: ante 413 reduzca el cuerpo, no repita la misma carga indefinidamente.
+
+Para JPG/PNG/WebP se devuelve también `preview_url`: `GET /orders/{order}/attachments/{attachment}/preview`, con Bearer `orders:read`, comprobación de cuenta, MIME de imagen, disposición inline y caché privada deshabilitada. No use el enlace como URL pública ni coloque el token en el query string. Un backend consumidor puede descargar la imagen autenticada y servirla bajo sus propias autorizaciones. Para PDF/Word, `preview_url=null`; no se incrustan como imágenes y el endpoint de vista previa devuelve 415.
+
+La UI muestra miniaturas y ampliación en modal. Antes de enviar, las miniaturas de los archivos seleccionados se generan localmente en el navegador, sin subirlos ni enviarlos a terceros. Una vista previa no implica validación del contenido ni análisis antivirus; este se ejecuta al cargar al servidor.
 
 ## Seguimiento y conversación
 
@@ -155,6 +177,8 @@ Se devuelven subtotal, impuesto, total, `paid_amount`, `outstanding`, moneda, ve
 5. Descargar `download_url` con el mismo Bearer. Verificar `sha256`, guardar el archivo de forma privada y completar el procesamiento en su sistema.
 
 La orden debe estar completada, la factura totalmente pagada según el registro de pagos y la entrega publicada explícitamente por un administrador. Si falta trabajo/pago se responde 409; una entrega aún no publicada no aparece en el manifiesto. La regla se comprueba de nuevo en cada consulta y descarga. Un aviso recibido no concede acceso ni evita estas verificaciones. Los eventos no contienen el resumen, el archivo, nombres ni datos del expediente. Pueden existir varias entregas; deduplicar por el ULID de resultado y mantener su fecha de publicación. Una entrega solo con resumen tendrá `download_url=null`.
+
+Las entregas con imagen incluyen `preview_url` en `/orders/{order}/results/{result}/preview`. Exige `results:read` y las mismas comprobaciones de finalización, pago y publicación; no anticipa la entrega ni genera archivos públicos.
 
 Si se pierde un webhook o está temporalmente fuera de servicio, concilie periódicamente solicitudes y entregas con paginación y un intervalo moderado. No dependa exclusivamente del orden de llegada de los eventos.
 

@@ -332,7 +332,7 @@
       },
       "post": {
         "operationId": "createOrder",
-        "description": "Requiere orders:write. Misma clave y payload reproduce la orden; cambios producen 409. Para university-degree, exequatur e identity-verification se exige person y cantidad 1 por servicio. Cree con JSON y cargue la evidencia por attachments; el detalle informa verification.missing.",
+        "description": "Requiere orders:write. Misma clave y payload reproduce la orden; cambios o reordenar people producen 409. Hasta 10 personas por orden, cada una con service_codes; quantity coincide con las personas asignadas. Todos los servicios son personales salvo training-equipment. person se conserva por compatibilidad para una sola persona. details es opcional. Cree con JSON y cargue evidencia por attachments con person_id; el detalle informa verification.people[].missing.",
         "parameters": [
           {
             "name": "Idempotency-Key",
