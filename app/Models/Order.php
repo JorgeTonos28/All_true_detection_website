@@ -45,6 +45,11 @@ class Order extends Model
         return $this->hasOne(OrderPerson::class);
     }
 
+    public function people()
+    {
+        return $this->hasMany(OrderPerson::class)->orderBy('id');
+    }
+
     public function invoice()
     {
         return $this->hasOne(Invoice::class);

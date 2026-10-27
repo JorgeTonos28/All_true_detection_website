@@ -22,4 +22,9 @@ class OrderAttachment extends Model
     {
         return $this->belongsTo(Order::class);
     }
+
+    public function person()
+    {
+        return $this->belongsTo(OrderPerson::class, 'order_person_id');
+    }
 }

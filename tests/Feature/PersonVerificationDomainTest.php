@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Actions\Auth\CreateNewUser;
 use App\Actions\Orders\CreateOrder;
 use App\Support\PersonVerification;
-use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -21,7 +20,7 @@ class PersonVerificationDomainTest extends TestCase
         return ['first_name' => 'Persona', 'last_name' => 'Ficticia', 'identity_number' => '000-0000000-0', 'address' => 'Dirección ficticia para pruebas', 'purpose' => 'Verificación de prueba autorizada', 'authorization_confirmed' => true];
     }
 
-    public function test_profile_is_shared_and_encrypted_and_unique_per_order(): void
+    public function test_profiles_are_encrypted_and_multiple_people_can_share_an_order(): void
     {
         Notification::fake();
         $this->seed();
@@ -32,8 +31,9 @@ class PersonVerificationDomainTest extends TestCase
         $this->assertSame('Persona', $person->fresh()->profile['first_name']);
         $this->assertStringNotContainsString('Ficticia', DB::table('order_people')->value('profile'));
         $this->assertArrayNotHasKey('profile', $person->toArray());
-        $this->expectException(QueryException::class);
-        $order->person()->create(['profile' => self::profile()]);
+        $other = $order->people()->create(['profile' => self::profile()]);
+        $this->assertSame(2, $order->people()->count());
+        $this->assertNotSame($person->public_id, $other->public_id);
     }
 
     public function test_conditional_fields_quantity_and_unknown_keys_are_rejected(): void
