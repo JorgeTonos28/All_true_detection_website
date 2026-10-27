@@ -51,6 +51,11 @@ class PersonVerificationWorkflowTest extends TestCase
         return ['subject' => 'Verificación autorizada', 'details' => 'Datos de un expediente enteramente ficticio', 'consent' => true, 'items' => array_map(fn ($code) => ['service_code' => $code, 'quantity' => 1], $codes), 'person' => $person];
     }
 
+    public static function evidence(string $purpose): UploadedFile
+    {
+        return UploadedFile::fake()->image($purpose.'.png', 100 + array_search($purpose, PersonVerification::PURPOSES, true), 80);
+    }
+
     public function test_three_services_share_one_person_and_evidence_is_required_before_work(): void
     {
         $client = $this->client();
@@ -59,7 +64,7 @@ class PersonVerificationWorkflowTest extends TestCase
         $this->assertSame($order->id, app(CreateOrder::class)->handle($client, self::data(), 'person-case-1')->id);
         $this->assertDatabaseCount('order_people', 1);
         $this->assertSame(3, $order->items()->count());
-        $this->assertSame(['identity_front', 'selfie'], PersonVerification::evidenceStatus($order)['missing']);
+        $this->assertSame(['identity_front', 'selfie', 'degree_document', 'exequatur_document'], PersonVerification::evidenceStatus($order)['missing']);
         try {
             app(UpdateOrder::class)->handle($admin, $order, ['status' => 'reviewing']);
             $this->fail('No debe avanzar sin documentos.');
@@ -68,7 +73,9 @@ class PersonVerificationWorkflowTest extends TestCase
         }
         $attachments = app(StoreAttachment::class);
         $front = $attachments->handle($client, $order, UploadedFile::fake()->image('frente.png'), 'front-key-1', 'identity_front');
-        $attachments->handle($client, $order, UploadedFile::fake()->image('selfie.png'), null, 'selfie');
+        foreach (['selfie', 'degree_document', 'exequatur_document'] as $purpose) {
+            $attachments->handle($client, $order, self::evidence($purpose), null, $purpose);
+        }
         $this->assertTrue(PersonVerification::evidenceStatus($order)['ready_for_review']);
         $this->assertSame('identity_front', $front->purpose);
         try {
@@ -156,7 +163,8 @@ class PersonVerificationWorkflowTest extends TestCase
     {
         $client = $this->client();
         $admin = User::factory()->create(['role' => Role::Admin]);
-        $order = app(CreateOrder::class)->handle($client, self::data(), null, [], ['identity_front' => UploadedFile::fake()->image('front.png'), 'selfie' => UploadedFile::fake()->image('selfie.png')], true);
+        $evidence = array_combine(['identity_front', 'selfie', 'degree_document', 'exequatur_document'], array_map(self::evidence(...), ['identity_front', 'selfie', 'degree_document', 'exequatur_document']));
+        $order = app(CreateOrder::class)->handle($client, self::data(), null, [], $evidence, true);
         $findings = array_fill_keys(PersonVerification::SERVICES, ['outcome' => 'inconclusive', 'notes' => str_repeat('ñ', 5000)]);
         $result = app(StoreResult::class)->handle($admin, $order, 'Prueba sintética de capacidad', null, $findings);
         $this->assertGreaterThan(65535, strlen(DB::table('order_results')->where('id', $result->id)->value('verification_findings')));

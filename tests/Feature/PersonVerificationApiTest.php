@@ -13,7 +13,6 @@ use App\Models\Order;
 use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -45,8 +44,8 @@ class PersonVerificationApiTest extends TestCase
         $payload['person']['last_name'] = 'Distinta';
         $this->postJson('/api/v1/orders', $payload, $createHeaders)->assertConflict();
         $this->getJson('/api/v1/orders', $headers)->assertOk()->assertJsonMissingPath('data.0.person')->assertDontSee('00000000000');
-        foreach (['identity_front', 'selfie'] as $purpose) {
-            $this->post('/api/v1/orders/'.$id.'/attachments', ['file' => UploadedFile::fake()->image('evidencia.png'), 'purpose' => $purpose], $headers + ['Content-Type' => 'multipart/form-data'])->assertCreated()->assertJsonPath('data.purpose', $purpose)->assertDontSee('file_path');
+        foreach (['identity_front', 'selfie', 'degree_document', 'exequatur_document'] as $purpose) {
+            $this->post('/api/v1/orders/'.$id.'/attachments', ['file' => PersonVerificationWorkflowTest::evidence($purpose), 'purpose' => $purpose], $headers + ['Content-Type' => 'multipart/form-data'])->assertCreated()->assertJsonPath('data.purpose', $purpose)->assertDontSee('file_path');
         }
         $this->getJson('/api/v1/orders/'.$id, $headers)->assertOk()->assertJsonPath('data.verification.ready_for_review', true)->assertHeader('Cache-Control', 'no-store, private');
         $otherHeaders = $this->token('other-integration@example.test');

@@ -85,10 +85,11 @@ class PrivateUpload
         }
     }
 
-    public static function stage(array $files): array
+    public static function stage(array $files, ?int $maxFiles = null): array
     {
-        if (count($files) > config('portal.document_batch_max_files') || array_sum(array_map(fn ($file) => $file->getSize(), $files)) > config('portal.document_batch_max_kb') * 1024) {
-            throw ValidationException::withMessages(['documents' => 'Puede cargar hasta 5 documentos y 20 MB en total por envío.']);
+        $maxFiles ??= config('portal.document_batch_max_files');
+        if (count($files) > $maxFiles || array_sum(array_map(fn ($file) => $file->getSize(), $files)) > config('portal.document_batch_max_kb') * 1024) {
+            throw ValidationException::withMessages(['documents' => 'Puede cargar hasta '.$maxFiles.' documentos y '.(config('portal.document_batch_max_kb') / 1024).' MB en total por envío. Reduzca las personas o archivos de este lote.']);
         }
         $staged = [];
         $deadline = microtime(true) + 45;

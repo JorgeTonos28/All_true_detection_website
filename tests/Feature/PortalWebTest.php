@@ -68,7 +68,7 @@ class PortalWebTest extends TestCase
         Storage::fake('local');
         $client = $this->client();
         $this->actingAs($client);
-        $this->post('/portal/orders', ['subject' => 'Verificación', 'details' => 'Detalle suficiente para revisión', 'service_codes' => ['polygraph', 'profile-verification'], 'consent' => true, 'idempotency_key' => 'web-order-1'])->assertRedirect();
+        $this->post('/portal/orders', ['subject' => 'Verificación', 'details' => 'Detalle suficiente para revisión', 'service_codes' => ['polygraph', 'profile-verification'], 'people' => [['first_name' => 'Persona', 'last_name' => 'Ficticia', 'authorization_confirmed' => true, 'service_codes' => ['polygraph', 'profile-verification']]], 'consent' => true, 'idempotency_key' => 'web-order-1'])->assertSessionHasNoErrors()->assertRedirect();
         $order = Order::first();
         $this->assertSame(2, $order->items()->count());
         $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Evaluaciones con Polígrafo');

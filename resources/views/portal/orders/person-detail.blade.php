@@ -4,9 +4,9 @@
 <section class="panel person-detail"><div class="panel-heading"><h2>Persona del expediente</h2><span class="badge">Información privada</span></div>
     <dl class="person-facts">
         <div><dt>Nombre completo</dt><dd>{{ $profile['first_name'] }} {{ $profile['last_name'] }}</dd></div>
-        <div><dt>Cédula</dt><dd>{{ $profile['identity_number'] }}</dd></div>
-        <div><dt>Dirección</dt><dd class="preserve">{{ $profile['address'] }}</dd></div>
-        <div><dt>Finalidad autorizada</dt><dd class="preserve">{{ $profile['purpose'] }}</dd></div>
+        @if(!empty($profile['identity_number']))<div><dt>Cédula</dt><dd>{{ $profile['identity_number'] }}</dd></div>@endif
+        @if(!empty($profile['address']))<div><dt>Dirección</dt><dd class="preserve">{{ $profile['address'] }}</dd></div>@endif
+        @if(!empty($profile['purpose']))<div><dt>Finalidad autorizada</dt><dd class="preserve">{{ $profile['purpose'] }}</dd></div>@endif
         @foreach(['birth_date'=>'Nacimiento','phone'=>'Teléfono','email'=>'Correo'] as $key=>$label)
             @if(!empty($profile[$key]))<div><dt>{{ $label }}</dt><dd>{{ $profile[$key] }}</dd></div>@endif
         @endforeach

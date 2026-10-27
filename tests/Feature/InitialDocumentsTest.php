@@ -34,7 +34,7 @@ class InitialDocumentsTest extends TestCase
     {
         $client = $this->client();
         $this->actingAs($client);
-        $payload = ['subject' => 'Con documentos', 'details' => 'Descripción suficiente del caso', 'service_codes' => ['polygraph'], 'consent' => true, 'idempotency_key' => 'initial-documents'];
+        $payload = ['subject' => 'Con documentos', 'details' => 'Descripción suficiente del caso', 'service_codes' => ['polygraph'], 'people' => [['first_name' => 'Persona', 'last_name' => 'Ficticia', 'authorization_confirmed' => true, 'service_codes' => ['polygraph']]], 'consent' => true, 'idempotency_key' => 'initial-documents'];
         $this->post('/portal/orders', $payload + ['documents' => [UploadedFile::fake()->create('uno.pdf', 10, 'application/pdf'), UploadedFile::fake()->image('foto.png', 20, 20)]])->assertSessionHasNoErrors()->assertRedirect();
         $order = Order::firstOrFail();
         $this->assertSame(2, $order->attachments()->count());

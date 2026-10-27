@@ -8,6 +8,7 @@ return [
     'document_max_kb' => 10240,
     'document_batch_max_kb' => 20480,
     'document_batch_max_files' => 5,
+    'document_initial_max_files' => 20,
     'document_order_max_bytes' => 104857600,
     'document_account_max_bytes' => 1073741824,
     'webhook_allowed_hosts' => array_values(array_filter(array_map('trim', explode(',', env('WEBHOOK_ALLOWED_HOSTS', ''))))),

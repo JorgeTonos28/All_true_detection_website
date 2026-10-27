@@ -7,7 +7,6 @@ use App\Enums\Role;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -30,7 +29,8 @@ class PersonVerificationWebTest extends TestCase
         unset($data['items']);
         $this->post('/portal/orders', $data)->assertSessionHasErrors(['evidence.identity_front', 'evidence.selfie']);
         $this->assertDatabaseCount('orders', 0);
-        $this->post('/portal/orders', $data + ['evidence' => ['identity_front' => UploadedFile::fake()->image('front.png'), 'selfie' => UploadedFile::fake()->image('selfie.png')]])->assertSessionHasNoErrors()->assertRedirect();
+        $evidence = array_combine(['identity_front', 'selfie', 'degree_document', 'exequatur_document'], array_map(PersonVerificationWorkflowTest::evidence(...), ['identity_front', 'selfie', 'degree_document', 'exequatur_document']));
+        $this->post('/portal/orders', $data + ['evidence' => $evidence])->assertSessionHasNoErrors()->assertRedirect();
         $order = Order::firstOrFail();
         $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Persona Ficticia')->assertSee('00000000000')->assertSee('Evidencia obligatoria recibida')->assertDontSee('Conclusiones humanas por servicio');
         $admin = User::factory()->create(['role' => Role::Admin]);
