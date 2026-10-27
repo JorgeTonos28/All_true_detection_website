@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "All True Detection API",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API."
   },
   "servers": [
@@ -16,6 +16,34 @@
     }
   ],
   "paths": {
+    "/orders/{order}/attachments/{attachment}/preview": {
+      "get": {
+        "operationId": "previewAttachment",
+        "description": "Requiere orders:read y acceso a la cuenta de la orden. Solo JPG/PNG/WebP, inline y sin caché. PDF/Word devuelven 415; no es una URL pública.",
+        "parameters": [
+          { "name": "order", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "attachment", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Imagen privada", "content": { "image/jpeg": { "schema": { "type": "string", "format": "binary" } }, "image/png": { "schema": { "type": "string", "format": "binary" } }, "image/webp": { "schema": { "type": "string", "format": "binary" } } } },
+          "default": { "description": "401 sin token; 403 sin permiso; 404 inexistente; 415 formato no visualizable; 429 límite de uso.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/orders/{order}/results/{result}/preview": {
+      "get": {
+        "operationId": "previewResult",
+        "description": "Requiere results:read, acceso a la cuenta, orden completada, factura totalmente pagada y entrega publicada. Mismas restricciones que la descarga; nunca anticipa resultados.",
+        "parameters": [
+          { "name": "order", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "result", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Imagen privada publicada", "content": { "image/jpeg": { "schema": { "type": "string", "format": "binary" } }, "image/png": { "schema": { "type": "string", "format": "binary" } }, "image/webp": { "schema": { "type": "string", "format": "binary" } } } },
+          "default": { "description": "401 sin token; 403 sin permiso; 404 inexistente/no publicado; 409 no completado/pagado; 415 formato no visualizable; 429 límite de uso.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
     "/services": {
       "get": {
         "operationId": "listServices",
@@ -1392,10 +1420,18 @@
                       "identity_front",
                       "identity_back",
                       "selfie",
-                      "selfie_extra"
+                      "selfie_extra",
+                      "degree_document",
+                      "exequatur_document"
                     ],
                     "default": "supporting",
-                    "description": "identity_front obligatorio para título/exequátur; selfie obligatoria para identidad. Selfie/extra solo JPG/PNG/WebP. Frente/reverso PDF o imágenes, no DOCX."
+                    "description": "identity_front obligatorio para título/exequátur; degree_document para título; exequatur_document para exequátur; selfie para identidad. Selfies solo JPG/PNG/WebP; documentos clasificados PDF o imágenes, no DOCX. El mismo archivo no puede repetirse."
+                  },
+                  "person_id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "description": "Identificador público de people[].id, siempre perteneciente a esta orden. Obligatorio para evidencia clasificada si hay varias personas; con una se infiere."
                   }
                 }
               }
@@ -2591,6 +2627,9 @@
           "description"
         ],
         "properties": {
+          "per_person": { "type": "boolean", "description": "Todos salvo training-equipment." },
+          "requires_identity_number": { "type": "boolean" },
+          "required_evidence": { "type": "array", "items": { "type": "string" } },
           "code": {
             "type": "string"
           },
@@ -2606,7 +2645,6 @@
         "type": "object",
         "required": [
           "subject",
-          "details",
           "consent",
           "items"
         ],
@@ -2617,7 +2655,7 @@
           },
           "details": {
             "type": "string",
-            "minLength": 10,
+            "nullable": true,
             "maxLength": 10000
           },
           "external_reference": {
@@ -2650,13 +2688,20 @@
                   "type": "integer",
                   "minimum": 1,
                   "maximum": 100,
-                  "description": "Para los tres servicios por persona solo se acepta 1; cree otra orden para otra persona."
+                  "description": "Con people, debe coincidir con el número de personas asignadas a este servicio. Con el campo anterior person, se acepta 1."
                 }
               }
             }
           },
           "person": {
             "$ref": "#/components/schemas/VerificationPerson"
+          },
+          "people": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "description": "Una o varias personas, cada una con sus servicios. No se combina con person. Todos los servicios son por persona salvo training-equipment. Se conserva la creación anterior sin ficha para otros servicios por compatibilidad; para integraciones nuevas use people.",
+            "items": { "$ref": "#/components/schemas/OrderPerson" }
           }
         }
       },
@@ -2789,7 +2834,8 @@
             "type": "string"
           },
           "details": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "external_reference": {
             "type": "string",
@@ -2846,7 +2892,12 @@
               }
             ],
             "nullable": true,
-            "description": "Solo creación y detalle; ausente del listado; null para órdenes sin perfil/anteriores."
+            "description": "Compatibilidad: solo creación/detalle, perfil si hay una persona; null si hay varias o no hay ficha. Ausente del listado."
+          },
+          "people": {
+            "type": "array",
+            "description": "Solo creación y detalle autorizado; ausente del listado, notificaciones y webhooks.",
+            "items": { "$ref": "#/components/schemas/OrderPerson" }
           },
           "verification": {
             "$ref": "#/components/schemas/VerificationEvidence"
@@ -2856,6 +2907,7 @@
       "Result": {
         "type": "object",
         "properties": {
+          "preview_url": { "type": "string", "nullable": true, "description": "Solo imágenes; requiere results:read y las mismas condiciones de pago/publicación que la descarga." },
           "id": {
             "type": "string"
           },
@@ -2966,6 +3018,8 @@
           "download_url"
         ],
         "properties": {
+          "person_id": { "type": "string", "nullable": true, "description": "Identificador público de la persona, nunca el ID interno." },
+          "preview_url": { "type": "string", "nullable": true, "description": "Solo imágenes; requiere Bearer orders:read, no es un enlace público." },
           "id": {
             "type": "string"
           },
@@ -3000,7 +3054,9 @@
               "identity_front",
               "identity_back",
               "selfie",
-              "selfie_extra"
+              "selfie_extra",
+              "degree_document",
+              "exequatur_document"
             ],
             "default": "supporting"
           }
@@ -3063,10 +3119,31 @@
           }
         }
       },
+      "OrderPerson": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["first_name", "last_name", "authorization_confirmed", "service_codes"],
+        "description": "Ficha cifrada por solicitud. Cédula y finalidad obligatorias solo para título, exequátur e identidad; no aportar cédula para otros servicios. Dirección obligatoria también para visitas domiciliarias. degree/exequatur obligatorios solo con su servicio. No acepta decisiones ni identificadores del cliente.",
+        "properties": {
+          "id": { "type": "string", "readOnly": true, "description": "ULID público generado por ATD; úselo en person_id al cargar evidencia." },
+          "service_codes": { "type": "array", "minItems": 1, "maxItems": 11, "uniqueItems": true, "items": { "type": "string", "enum": ["polygraph", "deception-detection", "profile-verification", "applied-ai", "home-visits", "investigations", "drug-screening", "psychometric", "university-degree", "exequatur", "identity-verification"] } },
+          "first_name": { "$ref": "#/components/schemas/VerificationPerson/properties/first_name" },
+          "last_name": { "$ref": "#/components/schemas/VerificationPerson/properties/last_name" },
+          "identity_number": { "$ref": "#/components/schemas/VerificationPerson/properties/identity_number" },
+          "address": { "$ref": "#/components/schemas/VerificationPerson/properties/address" },
+          "birth_date": { "$ref": "#/components/schemas/VerificationPerson/properties/birth_date" },
+          "phone": { "$ref": "#/components/schemas/VerificationPerson/properties/phone" },
+          "email": { "$ref": "#/components/schemas/VerificationPerson/properties/email" },
+          "purpose": { "$ref": "#/components/schemas/VerificationPerson/properties/purpose" },
+          "authorization_confirmed": { "$ref": "#/components/schemas/VerificationPerson/properties/authorization_confirmed" },
+          "degree": { "$ref": "#/components/schemas/VerificationPerson/properties/degree" },
+          "exequatur": { "$ref": "#/components/schemas/VerificationPerson/properties/exequatur" }
+        }
+      },
       "VerificationPerson": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Una persona por orden para university-degree, exequatur o identity-verification. Obligatorio al crear nuevas solicitudes de estos servicios, cantidad=1. Datos sensibles: solo en creación/detalle autorizado, no en listados ni webhooks.",
+        "description": "Campo anterior compatible para una sola persona, cantidad=1. No combinar con people; se recomienda people para nuevas integraciones. Solo creación/detalle autorizado, nunca listados ni webhooks.",
         "required": [
           "first_name",
           "last_name",
@@ -3193,6 +3270,19 @@
           "missing"
         ],
         "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["person_id", "ready_for_review", "required", "missing"],
+              "properties": {
+                "person_id": { "type": "string" },
+                "ready_for_review": { "type": "boolean" },
+                "required": { "type": "array", "items": { "type": "string" } },
+                "missing": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
           "method": {
             "type": "string",
             "enum": [
@@ -3209,7 +3299,9 @@
               "type": "string",
               "enum": [
                 "identity_front",
-                "selfie"
+                "selfie",
+                "degree_document",
+                "exequatur_document"
               ]
             }
           },
@@ -3219,7 +3311,9 @@
               "type": "string",
               "enum": [
                 "identity_front",
-                "selfie"
+                "selfie",
+                "degree_document",
+                "exequatur_document"
               ]
             }
           }
@@ -3255,13 +3349,9 @@
                 "notes"
               ],
               "properties": {
+                "person_id": { "type": "string", "description": "Persona de la comprobación. Siempre incluido en conclusiones nuevas agrupadas por persona; puede faltar en entregas anteriores." },
                 "service_code": {
-                  "type": "string",
-                  "enum": [
-                    "university-degree",
-                    "exequatur",
-                    "identity-verification"
-                  ]
+                  "type": "string"
                 },
                 "outcome": {
                   "type": "string",

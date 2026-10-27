@@ -49,8 +49,10 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('porta
         Route::patch('/orders/{order}', [OrderController::class, 'update'])->name('orders.update');
         Route::post('/orders/{order}/attachments', [DocumentController::class, 'attach'])->middleware('throttle:10,1')->name('attachments.store');
         Route::get('/attachments/{attachment}', [DocumentController::class, 'downloadAttachment'])->name('attachments.download');
+        Route::get('/attachments/{attachment}/preview', [DocumentController::class, 'previewAttachment'])->name('attachments.preview');
         Route::post('/orders/{order}/results', [DocumentController::class, 'result'])->middleware('throttle:10,1')->name('results.store');
         Route::get('/results/{result}', [DocumentController::class, 'downloadResult'])->name('results.download');
+        Route::get('/results/{result}/preview', [DocumentController::class, 'previewResult'])->name('results.preview');
         Route::post('/results/{result}/publish', [DocumentController::class, 'publish'])->middleware('password.confirm')->name('results.publish');
         Route::get('/invoices/{invoice}', [BillingController::class, 'show'])->name('invoices.show');
         Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');

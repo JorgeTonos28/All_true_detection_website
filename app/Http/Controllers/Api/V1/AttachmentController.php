@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\AttachmentResource;
 use App\Models\Order;
 use App\Services\Audit;
+use App\Support\PrivateImage;
 use App\Support\PrivateUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -19,19 +20,29 @@ class AttachmentController extends Controller
     {
         Gate::authorize('view', $order);
 
-        return AttachmentResource::collection($order->attachments()->with('order')->latest('id')->paginate(30));
+        return AttachmentResource::collection($order->attachments()->with(['order', 'person'])->latest('id')->paginate(30));
     }
 
     public function store(Request $request, Order $order, StoreAttachment $action)
     {
         Gate::authorize('view', $order);
-        $request->validate(['file' => PrivateUpload::rules(), 'purpose' => ['sometimes', 'string', 'max:32']]);
+        $request->validate(['file' => PrivateUpload::rules(), 'purpose' => ['sometimes', 'string', 'max:32'], 'person_id' => ['nullable', 'string', 'size:26']]);
         $key = $request->header('Idempotency-Key');
         if ($key !== null && ! preg_match('/^[A-Za-z0-9._:-]{8,128}$/D', $key)) {
             throw ValidationException::withMessages(['Idempotency-Key' => 'Use entre 8 y 128 caracteres válidos.']);
         }
 
-        return (new AttachmentResource($action->handle($request->user(), $order, $request->file('file'), $key, $request->input('purpose', 'supporting'))->load('order')))->response()->setStatusCode(201);
+        return (new AttachmentResource($action->handle($request->user(), $order, $request->file('file'), $key, $request->input('purpose', 'supporting'), $request->input('person_id'))->load(['order', 'person'])))->response()->setStatusCode(201);
+    }
+
+    public function preview(Order $order, string $attachment)
+    {
+        Gate::authorize('view', $order);
+        $document = $order->attachments()->where('public_id', $attachment)->firstOrFail();
+        $response = PrivateImage::response($document);
+        Audit::record(request()->user(), 'document.previewed', $document);
+
+        return $response;
     }
 
     public function download(Order $order, string $attachment)

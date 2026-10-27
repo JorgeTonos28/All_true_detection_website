@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ResultResource;
 use App\Models\Order;
 use App\Services\Audit;
+use App\Support\PrivateImage;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 
@@ -36,5 +37,16 @@ class ResultController extends Controller
         abort_unless($order->canReleaseResults(), 409, 'Los resultados todavía no están disponibles.');
 
         return new ResultResource($order->results()->where('public_id', $result)->whereNotNull('published_at')->with('order')->firstOrFail());
+    }
+
+    public function preview(Order $order, string $result)
+    {
+        Gate::authorize('view', $order);
+        abort_unless($order->canReleaseResults(), 409, 'Los resultados todavía no están disponibles.');
+        $document = $order->results()->where('public_id', $result)->whereNotNull('published_at')->firstOrFail();
+        $response = PrivateImage::response($document);
+        Audit::record(request()->user(), 'result.previewed', $document);
+
+        return $response;
     }
 }

@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\OrderAttachment;
 use App\Models\OrderResult;
 use App\Services\Audit;
+use App\Support\PrivateImage;
 use App\Support\PrivateUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -25,8 +26,8 @@ class DocumentController extends Controller
     public function attach(Request $request, Order $order, StoreAttachment $action)
     {
         Gate::authorize('view', $order);
-        $request->validate(['file' => $this->fileRules(), 'purpose' => ['sometimes', 'string', 'max:32']]);
-        $action->handle($request->user(), $order, $request->file('file'), null, $request->input('purpose', 'supporting'));
+        $request->validate(['file' => $this->fileRules(), 'purpose' => ['sometimes', 'string', 'max:32'], 'person_id' => ['nullable', 'string', 'size:26']]);
+        $action->handle($request->user(), $order, $request->file('file'), null, $request->input('purpose', 'supporting'), $request->input('person_id'));
 
         return back()->with('status', 'Documento privado agregado.');
     }
@@ -38,6 +39,25 @@ class DocumentController extends Controller
         Audit::record(request()->user(), 'document.downloaded', $attachment);
 
         return Storage::disk('local')->download($attachment->file_path, $attachment->file_name, ['Content-Type' => 'application/octet-stream', 'Cache-Control' => 'no-store, private']);
+    }
+
+    public function previewAttachment(OrderAttachment $attachment)
+    {
+        Gate::authorize('view', $attachment->order);
+        $response = PrivateImage::response($attachment);
+        Audit::record(request()->user(), 'document.previewed', $attachment);
+
+        return $response;
+    }
+
+    public function previewResult(Request $request, OrderResult $result)
+    {
+        Gate::authorize('viewResults', $result->order);
+        abort_unless($request->user()->isStaff() || $result->published_at, 404);
+        $response = PrivateImage::response($result);
+        Audit::record($request->user(), 'result.previewed', $result);
+
+        return $response;
     }
 
     public function result(Request $request, Order $order, StoreResult $action)
