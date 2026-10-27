@@ -14,6 +14,16 @@ class MultiplePeopleSchemaTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_full_unicode_details_fit_after_encryption_without_truncation(): void
+    {
+        $user = User::factory()->create();
+        $account = CustomerAccount::create(['name' => 'Cuenta sintética', 'billing_email' => 'capacity@example.test']);
+        $details = str_repeat('🧪', 10000);
+        $order = Order::create(['customer_account_id' => $account->id, 'requested_by' => $user->id, 'subject' => 'Capacidad sintética', 'details' => $details, 'consented_at' => now()]);
+        $this->assertGreaterThan(65535, strlen(DB::table('orders')->where('id', $order->id)->value('details')));
+        $this->assertSame($details, $order->fresh()->details);
+    }
+
     public function test_nullable_details_multiple_people_and_cross_order_attachment_constraint(): void
     {
         $user = User::factory()->create();

@@ -38,15 +38,16 @@ return new class extends Migration
                 DB::table('order_attachments')->where('order_id', $person->order_id)->where('purpose', '!=', 'supporting')->update(['order_person_id' => $person->id]);
             }
         });
-        Schema::table('orders', fn (Blueprint $table) => $table->text('details')->nullable()->change());
+        Schema::table('orders', fn (Blueprint $table) => $table->longText('details')->nullable()->change());
     }
 
     public function down(): void
     {
         // Refuse a rollback that would erase people or invalidate existing nullable details.
         if (DB::table('order_people')->select('order_id')->groupBy('order_id')->havingRaw('COUNT(*) > 1')->exists()
-            || DB::table('orders')->whereNull('details')->exists()) {
-            throw new RuntimeException('No se puede revertir: existen solicitudes con varias personas o sin detalles.');
+            || DB::table('orders')->whereNull('details')->exists()
+            || DB::table('orders')->whereRaw('LENGTH(details) > 65535')->exists()) {
+            throw new RuntimeException('No se puede revertir: existen solicitudes con varias personas, sin detalles o con texto cifrado que excede el esquema anterior.');
         }
         Schema::table('order_attachments', function (Blueprint $table) {
             $table->dropForeign(['order_id', 'order_person_id']);

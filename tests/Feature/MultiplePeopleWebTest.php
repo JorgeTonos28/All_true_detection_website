@@ -7,6 +7,7 @@ use App\Enums\Role;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -61,5 +62,17 @@ class MultiplePeopleWebTest extends TestCase
         $file = $order->attachments()->firstOrFail();
         $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee(route('portal.attachments.preview', $file))->assertSee('data-image-preview', false)->assertSee('Título universitario escaneado o fotografiado');
         $this->assertSame(3, $order->attachments()->count());
+    }
+
+    public function test_supporting_documents_share_the_twenty_file_initial_limit(): void
+    {
+        $data = ['subject' => 'Capacitación sintética', 'service_codes' => ['training-equipment'], 'consent' => true];
+        $documents = [];
+        for ($i = 0; $i < 6; $i++) {
+            $documents[] = UploadedFile::fake()->image('apoyo-'.$i.'.png', 100 + $i, 80);
+        }
+        $this->post('/portal/orders', $data + ['documents' => $documents])->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertDatabaseCount('order_people', 0);
+        $this->assertDatabaseCount('order_attachments', 6);
     }
 }

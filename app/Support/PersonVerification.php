@@ -22,7 +22,7 @@ class PersonVerification
 
     public static function selected(array $items): array
     {
-        return array_values(array_intersect(self::SERVICES, array_column($items, 'service_code')));
+        return array_values(array_intersect(self::SERVICES, array_filter(array_column($items, 'service_code'), 'is_string')));
     }
 
     public static function rules(array $items): array
@@ -180,6 +180,7 @@ class PersonVerification
 
     public static function requiredEvidence(array $codes, int $version = 2): array
     {
+        $codes = array_filter($codes, 'is_string');
         $required = array_intersect($codes, ['university-degree', 'exequatur']) ? ['identity_front'] : [];
         if (in_array('identity-verification', $codes, true)) {
             $required[] = 'selfie';

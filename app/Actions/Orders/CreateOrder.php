@@ -23,6 +23,9 @@ class CreateOrder
         abort_unless($actor->is_active && $actor->hasVerifiedEmail() && $actor->role === Role::Client && $actor->customer_account_id, 403);
         $profile = isset($data['person']) ? PersonVerification::profile($data) : null;
         $people = PersonVerification::people($data);
+        if ($people && $evidence) {
+            throw ValidationException::withMessages(['evidence' => 'Con varias fichas use evidencia asociada a cada persona, no evidencia general sin destinatario.']);
+        }
         foreach ($evidence as $purpose => $file) {
             PersonVerification::validateEvidence(PersonVerification::selected($data['items']), $purpose, $file);
         }
@@ -60,7 +63,8 @@ class CreateOrder
                     $canonical['person'] = Arr::sortRecursive($profile);
                 }
                 if ($people) {
-                    $canonical['people'] = Arr::sortRecursive($people);
+                    // Preserve person positions: API consumers associate returned IDs with this order.
+                    $canonical['people'] = array_map(fn ($person) => Arr::sortRecursive($person), $people);
                 }
                 if ($staged) {
                     $canonical['documents'] = array_map(fn ($file) => ['sha256' => $file['sha256'], 'name' => $file['file_name'], 'size' => $file['file_size']] + ($file['purpose'] !== 'supporting' ? ['purpose' => $file['purpose']] : []) + (isset($file['_person_index']) ? ['person_index' => $file['_person_index']] : []), $staged);

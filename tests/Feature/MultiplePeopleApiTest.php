@@ -42,6 +42,9 @@ class MultiplePeopleApiTest extends TestCase
         $this->getJson('/api/v1/orders', $headers)->assertOk()->assertJsonMissingPath('data.0.people')->assertDontSee('Ficticia');
         $data['people'][1]['first_name'] = 'Cambio';
         $this->postJson('/api/v1/orders', $data, $headers)->assertConflict();
+        $reordered = MultiplePeopleWorkflowTest::data();
+        $reordered['people'] = array_reverse($reordered['people']);
+        $this->postJson('/api/v1/orders', $reordered, $headers)->assertConflict();
         $other = $this->token('other-batch@example.test');
         $this->app['auth']->forgetGuards();
         $this->getJson('/api/v1/orders/'.$id, $other)->assertForbidden()->assertDontSee('Ficticia');
@@ -90,5 +93,11 @@ class MultiplePeopleApiTest extends TestCase
         $bad = MultiplePeopleWorkflowTest::data();
         $bad['people'] = array_fill(0, 11, $bad['people'][0]);
         $this->postJson('/api/v1/orders', $bad, $headers + ['Idempotency-Key' => 'too-many-people'])->assertUnprocessable();
+        $bad = MultiplePeopleWorkflowTest::data();
+        $bad['items'][0]['service_code'] = ['malformed'];
+        $this->postJson('/api/v1/orders', $bad, $headers + ['Idempotency-Key' => 'malformed-service'])->assertUnprocessable();
+        $bad = MultiplePeopleWorkflowTest::data();
+        $bad['people'][0]['service_codes'] = [['malformed']];
+        $this->postJson('/api/v1/orders', $bad, $headers + ['Idempotency-Key' => 'malformed-person-service'])->assertUnprocessable();
     }
 }

@@ -61,7 +61,7 @@ class StoreOrderRequest extends FormRequest
             'items.*.service_code' => ['required', 'string', 'distinct', 'exists:services,code'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100'],
             'idempotency_key' => ['nullable', 'string', 'max:128'],
-            'documents' => ['sometimes', 'array', 'max:5'],
+            'documents' => ['sometimes', 'array', 'max:'.config('portal.document_initial_max_files', 20)],
             'documents.*' => PrivateUpload::rules(),
             'person_evidence' => $api ? ['prohibited'] : ['sometimes', 'array', 'max:10'],
             'evidence' => $api || $people ? ['prohibited'] : ['sometimes', 'array:'.implode(',', PersonVerification::PURPOSES)],
