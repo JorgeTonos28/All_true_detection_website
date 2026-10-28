@@ -16,7 +16,7 @@ class OrderResource extends JsonResource
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($i) => ['service_code' => $i->service->code, 'service_name' => $i->service_name, 'quantity' => $i->quantity, 'unit_price' => $i->unit_price])),
             // Detail only: never bulk-export identity data in the paginated list.
             'person' => $this->whenLoaded('person', fn () => $this->people()->count() <= 1 ? $this->person?->profile : null),
-            'people' => $this->whenLoaded('people', fn () => $this->people->map(fn ($person) => ['id' => $person->public_id, 'service_codes' => $person->services->pluck('code')->all()] + $person->profile)),
+            'people' => $this->whenLoaded('people', fn () => $this->people->map(fn ($person) => ['id' => $person->public_id, 'identity_mode' => $person->identity_mode, 'service_codes' => $person->services->pluck('code')->all(), 'identity_session_url' => $person->identity_mode === 'didit' ? url('/api/v1/orders/'.$this->public_id.'/people/'.$person->public_id.'/identity-session') : null] + $person->profile)),
             'verification' => $this->whenLoaded('person', fn () => PersonVerification::evidenceStatus($this->resource)),
             'invoice' => $this->whenLoaded('invoice', fn () => $this->invoice && $request->user()?->tokenCan('invoices:read') ? new InvoiceResource($this->invoice->setRelation('order', $this->resource)) : null),
             'links' => ['self' => url('/api/v1/orders/'.$this->public_id), 'results' => url('/api/v1/orders/'.$this->public_id.'/results'), 'messages' => url('/api/v1/orders/'.$this->public_id.'/messages')],

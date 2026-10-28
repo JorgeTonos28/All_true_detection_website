@@ -182,6 +182,18 @@ Las entregas con imagen incluyen `preview_url` en `/orders/{order}/results/{resu
 
 Si se pierde un webhook o está temporalmente fuera de servicio, concilie periódicamente solicitudes y entregas con paginación y un intervalo moderado. No dependa exclusivamente del orden de llegada de los eventos.
 
+## Verificación de identidad con Didit
+
+`GET /services` informa el modo vigente. Cada persona de una orden conserva su `identity_mode`: `manual` o `didit`; el cambio administrativo solo afecta solicitudes nuevas. No envíe selfies a ATD para iniciar el modo Didit: la captura se realiza en la sesión del proveedor. Los documentos obligatorios de título/exequátur siguen siendo independientes.
+
+Después de crear la orden, use el ULID de la persona para `POST /orders/{order}/people/{person}/identity-session`, con `orders:write`, JSON `consent=true` y `notice_version="didit-2026-10-v1"`. Debe haber mostrado el aviso y obtenido la autorización para documento, captura facial, prueba de vida y tratamiento por Didit. ATD registra la versión y fecha de la confirmación del solicitante; el integrador conserva su evidencia de consentimiento. Repetir es seguro: devuelve la misma sesión, nunca crea otra por persona.
+
+La respuesta es 202. Consulte `GET` en la misma ruta con `orders:write` hasta `state=awaiting_person`; use su `verification_url` para presentar el flujo al titular. El backend de su app conserva el Bearer ATD y entrega únicamente ese enlace privado a su frontend. No lo registre, almacene públicamente ni lo envíe por correo/webhooks. No se admiten callbacks arbitrarios del cliente: el retorno alojado vuelve a una página neutra ATD, que no confirma ni modifica decisiones. Si quiere permanecer dentro de su app, puede usar el mismo enlace con el iframe/SDK oficial Didit, sujeto a HTTPS, permisos de cámara y política de seguridad de su propio sitio; compruebe origen y ventana de cualquier postMessage, y nunca lo use como aprobación.
+
+Estados públicos: `preparing`, `awaiting_person`, `processing`, `received`, `attention_required`. `received` solo significa que ATD obtuvo una conclusión; no revela si fue aprobada. Los casos con comprobaciones insuficientes, cédula diferente, vencimiento o revisión pueden ser no concluyentes. Un fallo incierto al crear la sesión necesita conciliación operativa, no repetir con nuevos identificadores. Consulte cada 10–30 segundos durante la captura, con backoff; se aplican los límites compartidos de la API.
+
+ATD verifica callbacks Didit y reconcilia por API en segundo plano. No acepte decisiones de parámetros URL, mensajes del navegador o cuerpos enviados por sus usuarios. Una orden exclusivamente de identidad automatizada prepara la entrega sin transcripción humana. Las órdenes mixtas combinan el resultado Didit con las demás conclusiones profesionales. La finalización, pago manual y publicación administrativa siguen siendo obligatorios: el resultado se obtiene por `/deliveries` tras `result.published`, con `results:read`. No se emiten conclusiones en webhooks antes de esa publicación. Una corrección posterior del proveedor invalida la publicación anterior para revisión de ATD.
+
 ## Webhooks y firma
 
 Configure endpoints, eventos y secreto desde Integraciones API. ATD debe autorizar cada hostname exacto en `WEBHOOK_ALLOWED_HOSTS`. Solo HTTPS en puerto 443, sin credenciales, fragmentos o IP literal. El destino se vuelve a resolver y su IP pública se fija en cada intento, sin redirecciones ni proxies de entorno. El endpoint recibe POST JSON y debe responder 2xx rápidamente, después de guardar el evento de forma durable. No realice análisis de documentos dentro de esa respuesta HTTP.

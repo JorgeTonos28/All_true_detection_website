@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderResult;
 use App\Models\User;
 use App\Services\Audit;
+use App\Services\IdentityChecks;
 use App\Services\OrderEvents;
 use App\Support\PersonVerification;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,11 @@ class PublishResult
             if ($order->person()->exists()) {
                 PersonVerification::requireEvidence($order);
                 abort_unless($result->verification_findings, 409, 'La entrega necesita conclusiones de verificación.');
+                foreach ($order->people()->where('identity_mode', 'didit')->get() as $person) {
+                    $expected = IdentityChecks::check($person);
+                    $actual = collect($result->verification_findings['checks'] ?? [])->first(fn ($check) => ($check['person_id'] ?? null) === $person->public_id && ($check['service_code'] ?? null) === 'identity-verification');
+                    abort_unless($expected && $actual === $expected, 409, 'La conclusión de identidad está pendiente o cambió. Prepare una entrega actualizada.');
+                }
             }
             if (! $result->published_at) {
                 $result->update(['published_at' => now(), 'published_by' => $actor->id]);

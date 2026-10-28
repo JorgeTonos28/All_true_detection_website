@@ -51,6 +51,7 @@ class ProcessIdentitySession
                 return;
             }
             $decision = DiditDecisions::summarize($session, $body);
+            $previous = $session->decision;
             $state = $decision ? 'received' : (in_array($body['status'], ['Not Started', 'Resubmitted'], true) ? 'awaiting_person' : 'processing');
             $url = $body['url'] ?? $body['session_url'] ?? null;
             $session->fill(['provider_status' => $body['status'], 'decision' => $decision, 'state' => $state, 'sync_requested' => false, 'last_synced_at' => now()]);
@@ -58,6 +59,15 @@ class ProcessIdentitySession
                 $session->verification_url = $url;
             }
             $session->save();
+            if (($previous['outcome'] ?? null) !== ($decision['outcome'] ?? null) || ($previous['reason'] ?? null) !== ($decision['reason'] ?? null)) {
+                // A later correction/expiry must not leave an obsolete published conclusion accessible.
+                foreach ($session->order->results()->whereNotNull('published_at')->get() as $result) {
+                    $result->update(['published_at' => null, 'published_by' => null]);
+                    Audit::record(null, 'identity.publication_invalidated', $result);
+                }
+                Audit::record(null, 'identity.decision_received', $session);
+            }
+            IdentityChecks::prepare($session->order);
         });
     }
 }

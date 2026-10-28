@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApiDocumentationController;
+use App\Http\Controllers\IdentitySessionController;
 use App\Http\Controllers\Web\AccountController;
 use App\Http\Controllers\Web\BillingController;
 use App\Http\Controllers\Web\DashboardController;
@@ -46,6 +47,7 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('porta
         Route::get('/orders/new', [OrderController::class, 'create'])->name('orders.create');
         Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:20,1')->name('orders.store');
         Route::get('/orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+        Route::post('/orders/{order}/people/{person}/identity-session', [IdentitySessionController::class, 'store'])->middleware('throttle:10,1')->name('identity.store');
         Route::patch('/orders/{order}', [OrderController::class, 'update'])->name('orders.update');
         Route::post('/orders/{order}/attachments', [DocumentController::class, 'attach'])->middleware('throttle:10,1')->name('attachments.store');
         Route::get('/attachments/{attachment}', [DocumentController::class, 'downloadAttachment'])->name('attachments.download');

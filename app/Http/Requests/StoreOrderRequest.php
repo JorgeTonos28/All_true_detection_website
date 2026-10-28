@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Services\IdentitySettings;
 use App\Support\PersonVerification;
 use App\Support\PrivateUpload;
 use Illuminate\Foundation\Http\FormRequest;
@@ -46,7 +47,7 @@ class StoreOrderRequest extends FormRequest
         if (! $api && $people) {
             foreach ($people as $index => $person) {
                 $selected = is_array($person) && is_array($person['service_codes'] ?? null) ? $person['service_codes'] : [];
-                $required = PersonVerification::requiredEvidence($selected);
+                $required = PersonVerification::requiredEvidence($selected, 2, IdentitySettings::mode());
                 $evidenceRules['person_evidence.'.$index] = ['sometimes', 'array:'.implode(',', PersonVerification::PURPOSES)];
                 foreach (array_diff(PersonVerification::PURPOSES, ['supporting']) as $purpose) {
                     $evidenceRules['person_evidence.'.$index.'.'.$purpose] = array_merge([in_array($purpose, $required, true) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1));
@@ -67,7 +68,7 @@ class StoreOrderRequest extends FormRequest
             'evidence' => $api || $people ? ['prohibited'] : ['sometimes', 'array:'.implode(',', PersonVerification::PURPOSES)],
             'evidence.identity_front' => array_merge([! $api && ! $people && array_intersect($codes, ['university-degree', 'exequatur']) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1)),
             'evidence.identity_back' => PrivateUpload::rules(false),
-            'evidence.selfie' => array_merge([! $api && ! $people && in_array('identity-verification', $codes, true) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1)),
+            'evidence.selfie' => array_merge([! $api && ! $people && IdentitySettings::mode() !== 'didit' && in_array('identity-verification', $codes, true) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1)),
             'evidence.selfie_extra' => PrivateUpload::rules(false),
             'evidence.degree_document' => array_merge([! $api && ! $people && in_array('university-degree', $codes, true) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1)),
             'evidence.exequatur_document' => array_merge([! $api && ! $people && in_array('exequatur', $codes, true) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1)),

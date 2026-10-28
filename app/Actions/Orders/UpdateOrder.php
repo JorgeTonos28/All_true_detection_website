@@ -41,6 +41,7 @@ class UpdateOrder
                     PersonVerification::requireEvidence($order);
                 }
                 if ($data['status'] === 'completed' && $order->person()->exists()) {
+                    abort_if($order->people()->where('identity_mode', 'didit')->whereDoesntHave('identitySession', fn ($q) => $q->whereNotNull('decision'))->exists(), 409, 'Hay verificaciones Didit pendientes.');
                     abort_unless($order->results()->whereNotNull('verification_findings')->exists(), 409, 'Prepare primero una conclusión humana por servicio.');
                 }
                 $order->status = OrderStatus::from($data['status']);

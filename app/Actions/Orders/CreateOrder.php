@@ -9,6 +9,7 @@ use App\Models\Service;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\DocumentBudget;
+use App\Services\IdentitySettings;
 use App\Services\OrderEvents;
 use App\Support\PersonVerification;
 use App\Support\PrivateUpload;
@@ -118,6 +119,11 @@ class CreateOrder
                 if ($profile) {
                     $records[0] = $order->people()->create(['profile' => $profile]);
                     $records[0]->services()->attach(array_map(fn ($code) => $services[$code]->id, PersonVerification::selected($data['items'])));
+                }
+                foreach ($records as $record) {
+                    if (IdentitySettings::mode() === 'didit' && $record->services()->where('code', 'identity-verification')->exists()) {
+                        $record->update(['identity_mode' => 'didit']);
+                    }
                 }
                 Conversation::create(['customer_account_id' => $actor->customer_account_id, 'order_id' => $order->id, 'subject' => $order->subject, 'contact_name' => $actor->name, 'contact_email' => $actor->email]);
                 foreach ($staged as $file) {

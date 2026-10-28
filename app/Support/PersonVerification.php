@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Order;
+use App\Services\IdentityChecks;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -169,20 +170,20 @@ class PersonVerification
         }
         $statuses = [];
         foreach ($people as $person) {
-            $required = self::requiredEvidence($person->services->pluck('code')->all(), $person->evidence_version);
+            $required = self::requiredEvidence($person->services->pluck('code')->all(), $person->evidence_version, $person->identity_mode);
             $uploaded = $order->attachments()->where(fn ($q) => $q->where('order_person_id', $person->id)->when($people->count() === 1, fn ($q) => $q->orWhereNull('order_person_id')))->pluck('purpose')->all();
             $missing = array_values(array_diff($required, $uploaded));
-            $statuses[] = ['person_id' => $person->public_id, 'ready_for_review' => ! $missing, 'required' => $required, 'missing' => $missing];
+            $statuses[] = ['person_id' => $person->public_id, 'method' => $person->identity_mode, 'identity_pending' => ! IdentityChecks::completed($person), 'ready_for_review' => ! $missing, 'required' => $required, 'missing' => $missing];
         }
 
-        return ['method' => 'manual', 'ready_for_review' => ! collect($statuses)->contains('ready_for_review', false), 'required' => array_values(array_unique(array_merge(...array_column($statuses, 'required')))), 'missing' => array_values(array_unique(array_merge(...array_column($statuses, 'missing')))), 'people' => $statuses];
+        return ['method' => collect($statuses)->contains('method', 'didit') ? 'mixed_or_didit' : 'manual', 'ready_for_review' => ! collect($statuses)->contains('ready_for_review', false), 'required' => array_values(array_unique(array_merge(...array_column($statuses, 'required')))), 'missing' => array_values(array_unique(array_merge(...array_column($statuses, 'missing')))), 'people' => $statuses];
     }
 
-    public static function requiredEvidence(array $codes, int $version = 2): array
+    public static function requiredEvidence(array $codes, int $version = 2, string $identityMode = 'manual'): array
     {
         $codes = array_filter($codes, 'is_string');
         $required = array_intersect($codes, ['university-degree', 'exequatur']) ? ['identity_front'] : [];
-        if (in_array('identity-verification', $codes, true)) {
+        if ($identityMode !== 'didit' && in_array('identity-verification', $codes, true)) {
             $required[] = 'selfie';
         }
         if ($version >= 2) {
@@ -225,12 +226,32 @@ class PersonVerification
         }
         self::requireEvidence($order);
         $people = $order->people()->with('services')->get();
+        $automated = [];
+        foreach ($people as $person) {
+            if ($person->identity_mode === 'didit') {
+                $check = IdentityChecks::check($person);
+                if (! $check) {
+                    throw ValidationException::withMessages(['findings' => 'La verificación Didit todavía no tiene una conclusión confirmada.']);
+                }
+                $automated[] = $check;
+                // Provider conclusions cannot be supplied or overwritten through the staff/client form.
+                if (isset($findings[$person->public_id]['identity-verification']) || isset($findings['identity-verification'])) {
+                    throw ValidationException::withMessages(['findings' => 'La conclusión automática se obtiene únicamente del proveedor.']);
+                }
+                $person->setRelation('services', $person->services->reject(fn ($service) => $service->code === 'identity-verification'));
+            }
+        }
+        if ($automated && $people->every(fn ($person) => $person->services->isEmpty())) {
+            Validator::make(['findings' => $findings], ['findings' => ['prohibited']])->validate();
+
+            return ['method' => 'didit', 'reviewed_at' => now()->toIso8601String(), 'checks' => $automated];
+        }
         if ($people->count() > 1 || ($people->count() === 1 && array_key_exists($people->first()->public_id, $findings))) {
             $rules = ['findings' => ['required', 'array:'.implode(',', $people->pluck('public_id')->all())]];
             foreach ($people as $person) {
                 $prefix = 'findings.'.$person->public_id;
                 $codes = $person->services->pluck('code')->all();
-                $rules[$prefix] = ['required', 'array:'.implode(',', $codes)];
+                $rules[$prefix] = $codes ? ['required', 'array:'.implode(',', $codes)] : ['prohibited'];
                 foreach ($codes as $code) {
                     $rules[$prefix.'.'.$code] = ['required', 'array:outcome,notes'];
                     $rules[$prefix.'.'.$code.'.outcome'] = ['required', Rule::in(array_keys(self::OUTCOMES))];
@@ -245,7 +266,7 @@ class PersonVerification
                 }
             }
 
-            return ['method' => 'manual', 'reviewed_at' => now()->toIso8601String(), 'checks' => $checks];
+            return ['method' => $automated ? 'mixed' : 'manual', 'reviewed_at' => now()->toIso8601String(), 'checks' => array_merge($checks, $automated)];
         }
         $codes = $people->first()->services->pluck('code')->all();
         $rules = ['findings' => ['required', 'array:'.implode(',', $codes)]];
@@ -256,6 +277,6 @@ class PersonVerification
         }
         $validated = Validator::make(['findings' => $findings], $rules)->validate()['findings'];
 
-        return ['method' => 'manual', 'reviewed_at' => now()->toIso8601String(), 'checks' => collect($validated)->map(fn ($check, $code) => ['service_code' => $code] + $check)->values()->all()];
+        return ['method' => $automated ? 'mixed' : 'manual', 'reviewed_at' => now()->toIso8601String(), 'checks' => array_merge(collect($validated)->map(fn ($check, $code) => ['service_code' => $code] + $check)->values()->all(), $automated)];
     }
 }
