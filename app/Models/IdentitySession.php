@@ -15,7 +15,7 @@ class IdentitySession extends Model
 
     protected function casts(): array
     {
-        return ['verification_url' => 'encrypted', 'provider_status' => 'encrypted', 'decision' => 'encrypted:array', 'sync_requested' => 'boolean', 'consented_at' => 'datetime', 'last_synced_at' => 'datetime'];
+        return ['verification_url' => 'encrypted', 'provider_status' => 'encrypted', 'decision' => 'encrypted:array', 'sync_requested' => 'boolean', 'consented_at' => 'datetime', 'last_synced_at' => 'datetime', 'credit_authorized_at' => 'datetime', 'credit_accepted_at' => 'datetime', 'decision_revision' => 'integer'];
     }
 
     public function order()
