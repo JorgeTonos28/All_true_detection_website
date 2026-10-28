@@ -11,7 +11,7 @@ class WebhookEndpoint extends Model
 
     protected $guarded = ['id'];
 
-    public const EVENTS = ['order.created', 'order.updated', 'invoice.issued', 'payment.recorded', 'invoice.paid', 'result.published'];
+    public const EVENTS = ['order.created', 'order.updated', 'invoice.issued', 'payment.recorded', 'invoice.paid', 'result.published', 'identity.verification.updated'];
 
     protected $hidden = ['secret', 'previous_secret'];
 

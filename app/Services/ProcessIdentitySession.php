@@ -14,6 +14,9 @@ class ProcessIdentitySession
             return;
         }
         if ($session->state === 'pending') {
+            if ($session->access_channel === 'api_credit' && ! $session->order->account->hasIdentityApiCredit()) {
+                return;
+            }
             $claimed = IdentitySession::whereKey($id)->where('state', 'pending')->update(['state' => 'creating', 'updated_at' => now()]);
             if (! $claimed) {
                 return;
@@ -35,7 +38,8 @@ class ProcessIdentitySession
 
                         return;
                     }
-                    $session->update(['provider_session_id' => $body['session_id'], 'verification_url' => $body['url'], 'state' => 'awaiting_person', 'sync_requested' => true]);
+                    $session->update(['provider_session_id' => $body['session_id'], 'verification_url' => $body['url'], 'state' => 'awaiting_person', 'sync_requested' => true,
+                        'credit_accepted_at' => $session->access_channel === 'api_credit' ? ($session->credit_accepted_at ?? now()) : null]);
                     Audit::record(null, 'identity.session_created', $session);
                 });
             } catch (\Throwable) {
@@ -60,22 +64,33 @@ class ProcessIdentitySession
             }
             $decision = DiditDecisions::summarize($session, $body);
             $previous = $session->decision;
+            $changed = ($previous['outcome'] ?? null) !== ($decision['outcome'] ?? null) || ($previous['reason'] ?? null) !== ($decision['reason'] ?? null);
+            if (! $changed && $decision && $previous) {
+                $decision['reviewed_at'] = $previous['reviewed_at'];
+            }
             $state = $decision ? 'received' : (in_array($body['status'], ['Not Started', 'Resubmitted'], true) ? 'awaiting_person' : 'processing');
             $url = $body['url'] ?? $body['session_url'] ?? null;
             $session->fill(['provider_status' => $body['status'], 'decision' => $decision, 'state' => $state, 'sync_requested' => false, 'last_synced_at' => now()]);
+            if ($session->access_channel === 'api_credit' && ! $session->credit_accepted_at) {
+                $session->credit_accepted_at = now();
+            }
             if (DiditClient::safeUrl($url)) {
                 $session->verification_url = $url;
             }
             $session->save();
-            if (($previous['outcome'] ?? null) !== ($decision['outcome'] ?? null) || ($previous['reason'] ?? null) !== ($decision['reason'] ?? null)) {
+            if ($changed) {
                 // A later correction/expiry must not leave an obsolete published conclusion accessible.
                 foreach ($session->order->results()->whereNotNull('published_at')->get() as $result) {
                     $result->update(['published_at' => null, 'published_by' => null]);
                     Audit::record(null, 'identity.publication_invalidated', $result);
                 }
                 Audit::record(null, 'identity.decision_received', $session);
+                $session->increment('decision_revision');
+                IdentityEvents::record($session);
             }
-            IdentityChecks::prepare($session->order);
+            if ($session->access_channel !== 'api_credit') {
+                IdentityChecks::prepare($session->order);
+            }
         });
     }
 }

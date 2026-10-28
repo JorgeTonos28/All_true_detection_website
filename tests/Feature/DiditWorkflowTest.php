@@ -47,7 +47,7 @@ class DiditWorkflowTest extends TestCase
         Setting::put('identity_verification_mode', 'didit');
     }
 
-    public function test_api_flow_is_idempotent_scoped_and_withholds_decision_until_paid_published(): void
+    public function test_web_session_withholds_api_delivery_until_paid_published(): void
     {
         $this->bootDidit();
         $client = $this->client('automated@example.test');
@@ -56,15 +56,15 @@ class DiditWorkflowTest extends TestCase
         $response = $this->postJson('/api/v1/orders', $payload, $headers + ['Idempotency-Key' => 'didit-e2e'])->assertCreated()->assertJsonPath('data.people.0.identity_mode', 'didit');
         $order = Order::where('public_id', $response->json('data.id'))->firstOrFail();
         $url = '/api/v1/orders/'.$order->public_id.'/people/'.$order->person->public_id.'/identity-session';
-        $this->postJson($url, [], $headers)->assertUnprocessable();
         $consent = ['consent' => true, 'notice_version' => config('identity.notice_version')];
-        $id = $this->postJson($url, $consent, $headers)->assertStatus(202)->assertJsonPath('data.state', 'preparing')->json('data.id');
-        $this->postJson($url, $consent, $headers)->assertStatus(202)->assertJsonPath('data.id', $id);
+        $action = app(RequestIdentitySession::class);
+        $first = $action->handle($client, $order, $order->person, $consent);
+        $this->assertSame($first->id, $action->handle($client, $order, $order->person, $consent)->id);
         $this->assertDatabaseCount('identity_sessions', 1);
         Http::assertNothingSent();
         $session = IdentitySession::firstOrFail();
         $session->update(['provider_session_id' => (string) Str::uuid(), 'state' => 'awaiting_person', 'verification_url' => 'https://verify.didit.me/session/synthetic']);
-        $this->getJson($url, $headers)->assertOk()->assertJsonPath('data.verification_url', 'https://verify.didit.me/session/synthetic')->assertHeader('Cache-Control', 'no-store, private');
+        $this->getJson($url, $headers)->assertForbidden();
         $body = DiditProviderTest::decision($session);
         $responses = Http::fakeSequence()->push($body);
         app(ProcessIdentitySession::class)->handle($session->id);
@@ -72,7 +72,7 @@ class DiditWorkflowTest extends TestCase
         $this->assertNull($result->published_at);
         $this->assertNull($result->created_by);
         $this->assertSame('verified', $result->verification_findings['checks'][0]['outcome']);
-        $this->getJson($url, $headers)->assertOk()->assertJsonPath('data.state', 'received')->assertJsonPath('data.verification_url', null)->assertDontSee('verified')->assertDontSee('Approved');
+        $this->assertSame('received', $session->fresh()->publicState());
         $this->getJson('/api/v1/orders/'.$order->public_id, $headers)->assertOk()->assertDontSee('verified')->assertDontSee('Approved');
         $this->getJson('/api/v1/orders/'.$order->public_id.'/results', $headers)->assertConflict();
         $admin = User::factory()->create(['role' => Role::Admin]);

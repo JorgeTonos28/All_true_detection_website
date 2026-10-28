@@ -21,6 +21,7 @@ class IssueInvoice
         return DB::transaction(function () use ($actor, $order, $data) {
             $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             Gate::forUser($actor)->authorize('administer', $order);
+            abort_if($order->people()->whereHas('identitySession', fn ($q) => $q->where('access_channel', 'api_credit'))->exists(), 409, 'Esta solicitud pertenece al consumo a crédito; no admite una factura individual.');
             abort_unless(in_array($order->status, [OrderStatus::Submitted, OrderStatus::Reviewing], true) && ! $order->invoice()->exists(), 409, 'La orden no admite una nueva factura.');
             PersonVerification::requireEvidence($order);
             $subtotal = 0;

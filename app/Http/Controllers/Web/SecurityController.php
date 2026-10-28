@@ -25,10 +25,11 @@ class SecurityController extends Controller
     {
         $user = $request->user();
         abort_if($user->isStaff() || ! $user->customer_account_id, 403);
-        $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'scopes' => ['required', 'array', 'min:1', 'max:6'], 'scopes.*' => ['required', 'distinct', Rule::in(self::SCOPES)], 'lifetime' => ['nullable', 'in:expiring,persistent'], 'expires_days' => ['nullable', 'integer', 'min:1', 'max:90']]);
+        $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'scopes' => ['required', 'array', 'min:1', 'max:'.count(self::SCOPES)], 'scopes.*' => ['required', 'distinct', Rule::in(self::SCOPES)], 'lifetime' => ['nullable', 'in:expiring,persistent'], 'expires_days' => ['nullable', 'integer', 'min:1', 'max:90']]);
         $token = DB::transaction(function () use ($user, $data) {
             $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             abort_unless($user->is_active && $user->hasVerifiedEmail() && ! $user->isStaff() && $user->customer_account_id, 403);
+            abort_if(count(array_intersect($data['scopes'], ['identity:verify', 'identity:read'])) > 0 && ! $user->account?->hasIdentityApiCredit(), 403, 'ATD debe autorizar primero la cuenta para identidad por API.');
             abort_if($user->tokens()->count() >= 10, 422, 'Revoque un token antes de crear otro.');
             $persistent = ($data['lifetime'] ?? 'expiring') === 'persistent';
             $token = $user->createToken($data['name'], $data['scopes'], $persistent ? null : now()->addDays($data['expires_days'] ?? config('portal.token_days')));
@@ -53,7 +54,7 @@ class SecurityController extends Controller
     {
         $user = $request->user();
         abort_if($user->isStaff() || ! $user->customer_account_id, 403);
-        $data = $request->validate(['url' => ['required', 'url:https', 'max:2048'], 'events' => ['nullable', 'array', 'min:1', 'max:6'], 'events.*' => ['distinct', Rule::in(WebhookEndpoint::EVENTS)]]);
+        $data = $request->validate(['url' => ['required', 'url:https', 'max:2048'], 'events' => ['nullable', 'array', 'min:1', 'max:'.count(WebhookEndpoint::EVENTS)], 'events.*' => ['distinct', Rule::in(WebhookEndpoint::EVENTS)]]);
         [$endpoint, $secret] = $management->create($user, $data);
 
         return back()->with('webhook_secret', $secret)->with('status', 'Webhook creado. Guarde ahora el secreto de firma.');

@@ -6,6 +6,7 @@ Referencia: https://github.com/JorgeTonos28/Vamo_al_game. Adaptar sus principios
 - Construir backend reusable: migraciones → modelos → FormRequests → policies → actions/services → resources → API `/api/v1` → UI. Los controladores web y API comparten reglas de negocio.
 - Autorización obligatoria en servidor. Clientes aislados por cuenta; colaboradores solo acceden a órdenes asignadas; solo administradores generales administran usuarios, marca, facturas y pagos.
 - Nunca entregar resultados, archivos ni contenido sensible en mensajes, notificaciones o webhooks antes de confirmar el pago y publicar la entrega. Esta regla se verifica también al descargar.
+- Excepción autorizada: solo el resultado técnico Didit de sesiones `api_credit` de partners expresamente aprobados se devuelve automáticamente con `identity:read`, sin prepago ni publicación manual. Revalidar autorización de cuenta en cada acceso; no extender la excepción a documentos, otros servicios o solicitudes web. Los webhooks siguen siendo metadatos sin contenido sensible.
 - Archivos de clientes y resultados exclusivamente en almacenamiento privado. No incluir secretos, datos personales, tokens o credenciales en Git, logs o respuestas de error.
 - Validar entradas, proteger asignación masiva, CSRF, OAuth state, sesiones, 2FA, límites de uso y tokens con permisos mínimos, expiración y revocación.
 - Persistencia con relaciones, restricciones, índices y transacciones. Dinero en unidades menores enteras; operaciones financieras auditadas; nunca usar flotantes.

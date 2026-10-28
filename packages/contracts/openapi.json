@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "All True Detection API",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API."
   },
   "servers": [
@@ -23,19 +23,36 @@
       ],
       "post": {
         "operationId": "requestIdentitySession",
-        "description": "Cliente de la cuenta y scope orders:write. Solo personas con identity_mode=didit. Confirma autorización para Didit conforme al aviso versionado. En live exige factura totalmente pagada antes de crear. Una única sesión por persona; repetir devuelve la existente. Procesamiento asíncrono, sin nuevo cobro al repetir. Nunca acepta decisiones del cliente ni convierte casos manuales históricos. Cuotas diarias globales y por cuenta.",
+        "description": "Solo partners autorizados a crédito y scope identity:verify. Cuenta activa/verificada y aprobación vigente comprobada en servidor. Requiere solicitud exclusiva de identity-verification, sin factura ni sesiones web, y persona identity_mode=didit. Consentimiento versionado obligatorio. No exige prepago. Una sesión por persona; repetir devuelve la existente sin nueva creación. Asíncrono. No acepta portrait_image, reference_image, workflow_id ni decision. No convierte casos manuales. Cuotas globales y por partner; preflight ACTIVE_3D obligatorio.",
+        "x-required-scopes": ["identity:verify"],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["consent", "notice_version"], "properties": { "consent": { "type": "boolean", "enum": [true] }, "notice_version": { "type": "string", "enum": ["didit-2026-10-v1"] } } } } } },
         "responses": {
           "202": { "description": "Sesión aceptada/existente; consultar GET para obtener el enlace.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentitySession" } } } } } },
-          "default": { "description": "401 sin token; 403 otra cuenta/scope/rol; 404 persona ajena/manual; 409 cancelada o pago live pendiente; 422 falta consentimiento/versión; 429 límite de solicitudes/cuota diaria; 503 configuración no disponible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "default": { "description": "401 sin token; 403 cuenta no autorizada/otro tenant/scope/rol; 404 persona ajena/manual; 409 cancelada, mezcla de servicios/canales o factura individual; 422 consentimiento/versión/campos prohibidos; 429 cuota; 503 configuración no disponible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "get": {
         "operationId": "getIdentitySession",
-        "description": "Cliente de la cuenta y orders:write (el enlace es una capacidad de captura, no un resultado). No devuelve decisión, datos extraídos ni media del proveedor. Sin caché. Poll moderado; received no significa Approved. La entrega solo se consulta vía results:read tras completar, pagar y publicar.",
+        "description": "Partner con aprobación vigente y identity:read. Solo sesiones api_credit de su cuenta. No devuelve decisión ni media. El enlace privado habilita la captura; no debe registrarse ni compartirse fuera de la persona. Poll moderado; received no significa verified. Consulte links.result para la conclusión técnica automática.",
+        "x-required-scopes": ["identity:read"],
         "responses": {
           "200": { "description": "Estado operativo y enlace privado cuando se requiere participación.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentitySession" } } } } } },
           "default": { "description": "401, 403, 404 o 429.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/orders/{order}/people/{person}/identity-session/result": {
+      "parameters": [
+        { "name": "order", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "person", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "get": {
+        "operationId": "getIdentityTechnicalResult",
+        "x-required-scopes": ["identity:read"],
+        "description": "Excepción de crédito exclusiva para partner autorizado actualmente, misma cuenta y sesión api_credit. Resultado Didit confirmado automáticamente en servidor, sin prepago ni publicación manual. Nunca entrega documentos, fotos, biometría o informe bruto. No es una decisión de elegibilidad ni garantía de ausencia de fraude. No válido como identidad real si environment=sandbox. Revocar autorización bloquea incluso tokens existentes. Conserve la revisión mayor; una corrección puede cambiar o retirar una conclusión previa.",
+        "responses": {
+          "200": { "description": "Conclusión técnica privada", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentityTechnicalResult" } } } } } },
+          "default": { "description": "401 sin token; 403 sin aprobación/scope/tenant o sesión web; 404 inexistente; 409 pendiente o sandbox en producción; 429 cuota.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
@@ -2638,9 +2655,21 @@
           "provider": { "type": "string", "enum": ["didit"] },
           "state": { "type": "string", "enum": ["preparing", "awaiting_person", "processing", "received", "attention_required"] },
           "environment": { "type": "string", "enum": ["sandbox", "live"] },
+          "billing_mode": { "type": "string", "enum": ["partner_credit"] }, "revision": { "type": "integer", "minimum": 0 },
           "verification_url": { "type": "string", "format": "uri", "nullable": true, "description": "Enlace secreto Didit, solo awaiting_person. No enviarlo por logs, correo ni webhooks; no exponer Bearer ATD al navegador." },
           "consented_at": { "type": "string", "format": "date-time" }, "notice_version": { "type": "string" },
-          "links": { "type": "object", "properties": { "self": { "type": "string" }, "results": { "type": "string" } } }
+          "links": { "type": "object", "properties": { "self": { "type": "string" }, "result": { "type": "string" } } }
+        }
+      },
+      "IdentityTechnicalResult": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "order_id": { "type": "string" }, "person_id": { "type": "string" },
+          "provider": { "type": "string", "enum": ["didit"] }, "environment": { "type": "string", "enum": ["sandbox", "live"] },
+          "billing_mode": { "type": "string", "enum": ["partner_credit"] }, "revision": { "type": "integer", "minimum": 1 },
+          "outcome": { "type": "string", "enum": ["verified", "not_verified", "inconclusive"] },
+          "reason": { "type": "string", "description": "Referencia técnica; no contiene datos personales." },
+          "reviewed_at": { "type": "string", "format": "date-time" }, "requires_review": { "type": "boolean" }
         }
       },
       "OrderStatus": {
