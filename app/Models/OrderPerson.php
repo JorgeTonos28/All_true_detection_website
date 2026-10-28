@@ -9,7 +9,7 @@ class OrderPerson extends Model
 {
     use HasPublicId;
 
-    protected $fillable = ['profile', 'evidence_version'];
+    protected $fillable = ['profile', 'evidence_version', 'identity_mode'];
 
     protected $attributes = ['evidence_version' => 2];
 
@@ -33,5 +33,10 @@ class OrderPerson extends Model
     public function attachments()
     {
         return $this->hasMany(OrderAttachment::class);
+    }
+
+    public function identitySession()
+    {
+        return $this->hasOne(IdentitySession::class);
     }
 }
