@@ -6,7 +6,10 @@ use App\Http\Controllers\Api\V1\MessageController;
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\ResultController;
 use App\Http\Controllers\Api\V1\ServiceController;
+use App\Http\Controllers\DiditWebhookController;
 use Illuminate\Support\Facades\Route;
+
+Route::post('/providers/didit/webhook', DiditWebhookController::class)->middleware('throttle:300,1')->name('didit.webhook');
 
 Route::prefix('v1')->middleware(['throttle:api-edge', 'auth:sanctum', 'active', 'verified', 'integration', 'throttle:api', 'api-json'])->group(function () {
     Route::get('/invoices', [InvoiceController::class, 'index'])->middleware('integration:invoices:read');

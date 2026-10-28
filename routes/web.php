@@ -7,6 +7,8 @@ use App\Http\Controllers\Web\ServiceEntryController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
+// Browser redirects never authenticate a decision. Ignore every provider query parameter.
+Route::view('/verificacion/retorno', 'identity-return')->name('identity.return');
 Route::get('/solicitar', ServiceEntryController::class)->name('services.request');
 Route::get('/desarrolladores/api', [ApiDocumentationController::class, 'index'])->name('api.docs');
 Route::get('/desarrolladores/openapi.json', [ApiDocumentationController::class, 'contract'])->name('api.contract');
