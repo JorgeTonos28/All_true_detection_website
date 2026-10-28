@@ -3,7 +3,7 @@
 @section('subtitle', $admin ? 'Control operativo de conexiones, credenciales y entrega de eventos.' : 'Conecte su sistema y supervise la actividad de su cuenta.')
 @section('actions')<a class="button secondary" href="{{ route('portal.api-guide') }}">Documentación API ↗</a>@endsection
 @section('content')
-<nav class="integration-tabs" aria-label="Secciones de integraciones">@foreach(['overview'=>'Resumen','tokens'=>'Credenciales','webhooks'=>'Webhooks','deliveries'=>'Entregas de eventos','requests'=>'Registro de llamadas'] as $key=>$label)<a href="{{ route('portal.integrations',['section'=>$key]) }}" @if($section===$key) aria-current="page" @endif>{{ $label }}</a>@endforeach</nav>
+@include('portal.integrations.tabs')
 @if(session('token'))<div class="notice"><strong>Token: se muestra una sola vez</strong><p class="secret"><code>{{ session('token') }}</code></p><small>Guárdelo en el gestor de secretos de su servidor, nunca en código de navegador.</small></div>@endif
 @if(session('webhook_secret'))<div class="notice"><strong>Secreto HMAC: se muestra una sola vez</strong><p class="secret"><code>{{ session('webhook_secret') }}</code></p><small>No es un token de acceso API. Configure su receptor y no lo comparta.</small></div>@endif
 @if($section==='overview')

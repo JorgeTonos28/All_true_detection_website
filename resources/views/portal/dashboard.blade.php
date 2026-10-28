@@ -10,5 +10,5 @@
     <section><span>Conversaciones abiertas</span><strong>{{ $conversationCount }}</strong></section>
 </div>
 <section class="panel"><div class="panel-heading"><h2>Solicitudes recientes</h2><a href="{{ route('portal.orders.index') }}">Ver todas →</a></div>@include('portal.orders.table')</section>
-<div class="info-strip"><strong>Entregas protegidas</strong><p>Los resultados se habilitan cuando el trabajo está completado, el pago ha sido confirmado y ATD publica la entrega.</p></div>
+<div class="info-strip"><strong>Entregas protegidas</strong><p>Los informes se habilitan al completar el trabajo, confirmar el pago y publicar la entrega. Solo la conclusión técnica de identidad API a crédito se devuelve automáticamente a los partners autorizados.</p></div>
 @endsection

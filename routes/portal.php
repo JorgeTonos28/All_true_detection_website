@@ -6,6 +6,7 @@ use App\Http\Controllers\Web\AccountController;
 use App\Http\Controllers\Web\BillingController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DocumentController;
+use App\Http\Controllers\Web\IdentityPartnerController;
 use App\Http\Controllers\Web\IntegrationController;
 use App\Http\Controllers\Web\MessageController;
 use App\Http\Controllers\Web\NotificationController;
@@ -35,6 +36,7 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('porta
     });
     Route::middleware('staff-2fa')->group(function () {
         Route::get('/integrations', [IntegrationController::class, 'index'])->name('integrations');
+        Route::get('/integrations/identity', [IdentityPartnerController::class, 'index'])->name('integrations.identity');
         Route::get('/integrations/deliveries/{delivery}', [IntegrationController::class, 'show'])->name('integrations.delivery');
         Route::middleware(['password.confirm', 'throttle:5,1'])->group(function () {
             Route::post('/integrations/webhooks/{endpoint}/rotate', [IntegrationController::class, 'rotate'])->name('integrations.rotate');
@@ -62,6 +64,7 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('porta
         Route::get('/messages/{conversation}', [MessageController::class, 'show'])->name('messages.show');
         Route::post('/messages/{conversation}', [MessageController::class, 'reply'])->middleware('throttle:20,1')->name('messages.reply');
         Route::middleware(['can:manage-business', 'password.confirm'])->group(function () {
+            Route::patch('/integrations/identity/accounts/{account}', [IdentityPartnerController::class, 'update'])->middleware('throttle:10,1')->name('integrations.identity.update');
             Route::post('/orders/{order}/invoice', [BillingController::class, 'issue'])->name('invoices.issue');
             Route::post('/invoices/{invoice}/payments', [BillingController::class, 'pay'])->name('payments.store');
             Route::patch('/messages/{conversation}', [MessageController::class, 'close'])->name('messages.status');

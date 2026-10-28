@@ -2,6 +2,7 @@
 
 // CLI-only synthetic UI fixture. No real Didit calls, mail or production database.
 use App\Actions\Auth\CreateNewUser;
+use App\Actions\Identity\ManagePartnerAccess;
 use App\Actions\Orders\CreateOrder;
 use App\Enums\Role;
 use App\Models\IdentitySession;
@@ -35,4 +36,9 @@ $client->forceFill(['email_verified_at' => now()])->save();
 Setting::put('identity_verification_mode', 'didit');
 $order = app(CreateOrder::class)->handle($client, ['subject' => 'Identidad · demostración sin datos reales', 'consent' => true, 'items' => [['service_code' => 'identity-verification', 'quantity' => 1]], 'people' => [['first_name' => 'Persona', 'last_name' => 'Ficticia', 'identity_number' => '00000000000', 'address' => 'Dirección ficticia', 'purpose' => 'Revisar visualmente la integración', 'authorization_confirmed' => true, 'service_codes' => ['identity-verification']]]]);
 IdentitySession::create(['order_id' => $order->id, 'order_person_id' => $order->person->id, 'application_id' => config('identity.didit.application_id'), 'workflow_id' => config('identity.didit.workflow_id'), 'environment' => 'sandbox', 'provider_session_id' => Str::uuid(), 'state' => 'awaiting_person', 'verification_url' => 'https://verify.didit.me/session/synthetic-ui-do-not-open', 'consented_at' => now(), 'notice_version' => config('identity.notice_version')]);
+if (in_array('--credit', $argv, true)) {
+    app(ManagePartnerAccess::class)->handle($admin, $client->account, ['enabled' => true, 'daily_limit' => 40]);
+    IdentitySession::firstOrFail()->update(['access_channel' => 'api_credit', 'credit_authorized_by' => $admin->id, 'credit_authorized_at' => now(), 'credit_accepted_at' => now(), 'state' => 'received', 'decision_revision' => 1,
+        'decision' => ['method' => 'didit', 'outcome' => 'verified', 'reason' => 'synthetic-preview-only', 'reviewed_at' => now()->toIso8601String()]]);
+}
 echo json_encode(['database' => $path, 'admin' => $admin->email, 'client' => $client->email, 'password' => $password, 'order_id' => $order->public_id], JSON_THROW_ON_ERROR).PHP_EOL;

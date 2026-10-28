@@ -54,7 +54,9 @@ class IntegrationController extends Controller
             $bytes += $model::when(! $admin, fn ($q) => $q->whereHas('order', fn ($q) => $q->where('customer_account_id', $account)))->sum('file_size');
         }
 
-        return view('portal.integrations.index', compact('section', 'status', 'rows', 'metrics', 'admin', 'bytes') + ['scopes' => IntegrationScopes::LABELS, 'events' => WebhookEndpoint::EVENTS, 'scheduler' => Cache::get('portal.webhooks.dispatched_at'), 'queuePending' => $admin ? DB::table('jobs')->count() : null, 'queueFailed' => $admin ? DB::table('failed_jobs')->count() : null]);
+        $scopes = collect(IntegrationScopes::LABELS)->reject(fn ($label, $scope) => str_starts_with($scope, 'identity:') && ! $request->user()->account?->hasIdentityApiCredit())->all();
+
+        return view('portal.integrations.index', compact('section', 'status', 'rows', 'metrics', 'admin', 'bytes', 'scopes') + ['events' => WebhookEndpoint::EVENTS, 'scheduler' => Cache::get('portal.webhooks.dispatched_at'), 'queuePending' => $admin ? DB::table('jobs')->count() : null, 'queueFailed' => $admin ? DB::table('failed_jobs')->count() : null]);
     }
 
     public function show(Request $request, WebhookDelivery $delivery, WebhookManagement $management)

@@ -15,7 +15,7 @@ class DashboardController extends Controller
 
         return view('portal.dashboard', [
             'counts' => (clone $query)->selectRaw('status, count(*) as aggregate')->groupBy('status')->pluck('aggregate', 'status'),
-            'orders' => (clone $query)->with(['account', 'invoice'])->latest('id')->limit(8)->get(),
+            'orders' => (clone $query)->withIdentityCredit()->with(['account', 'invoice'])->latest('id')->limit(8)->get(),
             'conversationCount' => Conversation::visibleTo($request->user())->where('status', 'open')->count(),
         ]);
     }

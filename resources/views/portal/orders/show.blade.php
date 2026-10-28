@@ -4,7 +4,10 @@
 @section('subtitle','Solicitud '.$order->public_id)
 @section('actions')<a class="button secondary" href="{{ route('portal.messages.show',$order->conversation) }}">Conversar con {{ auth()->user()->isStaff() ? 'el cliente' : 'ATD' }}</a>@endsection
 @section('content')
+@php($creditOrder = $order->people->contains(fn($person)=>$person->identitySession?->access_channel==='api_credit'))
+@if($creditOrder)<div class="info-strip">Solicitud exclusiva de identidad API a crédito. La conclusión técnica se entrega automáticamente a la integración autorizada. El consumo se concilia por período; no se emite una factura individual en este expediente.</div>@else
 <ol class="order-progress" aria-label="Progreso de la solicitud"><li class="done"><strong>1. Recibida</strong><small>{{ $order->created_at->format('d/m/Y') }}</small></li><li class="{{ $order->status->value !== 'submitted' ? 'done' : '' }}"><strong>2. Revisión y cotización</strong><small>{{ $order->invoice ? 'Factura disponible' : 'En revisión' }}</small></li><li class="{{ in_array($order->status->value,['in_progress','completed']) ? 'done' : '' }}"><strong>3. En ejecución</strong><small>{{ $order->status->value === 'completed' ? 'Trabajo completado' : 'Seguimiento del caso' }}</small></li><li class="{{ $order->canReleaseResults() && $results->whereNotNull('published_at')->isNotEmpty() ? 'done' : '' }}"><strong>4. Entrega</strong><small>{{ $order->canReleaseResults() && $results->whereNotNull('published_at')->isNotEmpty() ? 'Resultados disponibles' : 'Pendiente de pago / publicación' }}</small></li></ol>
+@endif
 <div class="order-overview"><span class="badge status-{{ $order->status->value }}">{{ $order->status->label() }}</span><span>{{ $order->created_at->timezone('America/Santo_Domingo')->format('d/m/Y H:i') }}</span><span>Cliente: <strong>{{ $order->account->name }}</strong></span>@if($order->external_reference)<span>Referencia: {{ $order->external_reference }}</span>@endif</div>
 <div class="detail-grid">
 <div class="stack">
@@ -24,7 +27,7 @@
     <p class="muted">Seleccione la persona antes de agregar evidencia clasificada. El mismo archivo no se puede repetir, aunque cambie su nombre.</p><div><button>Subir documento</button></div>
 </form>@endif</section>
 <section class="panel"><h2>Resultados y entrega</h2>
-@if($results->isEmpty())<div class="info-strip">{{ $order->canReleaseResults() ? 'El equipo aún no ha publicado la entrega.' : 'La entrega se habilitará al completar el trabajo, confirmar el pago total y publicar los resultados.' }}</div>@endif
+@if($results->isEmpty())<div class="info-strip">{{ $creditOrder ? 'La conclusión técnica de este servicio se consulta por la API, no como un informe publicado en este panel.' : ($order->canReleaseResults() ? 'El equipo aún no ha publicado la entrega.' : 'La entrega se habilitará al completar el trabajo, confirmar el pago total y publicar los resultados.') }}</div>@endif
 @foreach($results as $result)<article class="result-card"><div class="panel-heading"><h3>Entrega {{ $loop->iteration }}</h3><span class="badge">{{ $result->published_at ? 'Publicada' : 'Preparada · privada' }}</span></div><p class="preserve">{{ $result->summary }}</p>
 @if($result->verification_findings)<div class="verification-conclusions"><p class="muted">{{ match($result->verification_findings['method'] ?? 'manual') {'didit'=>'Procesamiento Didit','mixed'=>'Didit + revisión profesional',default=>'Revisión profesional'} }} · {{ $result->verification_findings['reviewed_at'] }}</p>@foreach($result->verification_findings['checks'] as $check)<article>
     @php($checkedPerson = isset($check['person_id']) ? $order->people->firstWhere('public_id',$check['person_id']) : null)
@@ -35,7 +38,7 @@
     <a class="button secondary" href="{{ route('portal.results.download',$result) }}">Descargar {{ $result->file_name }}</a>
 @endif
 @if(auth()->user()->isAdmin() && !$result->published_at)<form method="post" action="{{ route('portal.results.publish',$result) }}">@csrf<button @disabled(!$order->canReleaseResults())>Publicar para el cliente</button></form>@endif</article>@endforeach
-@if(auth()->user()->isStaff())<details class="form-details"><summary>Preparar nueva entrega</summary><p>El resultado se guarda de forma privada. Para publicarlo, un administrador debe confirmar el pago total y completar la orden. Utilice esta sección para los resultados finales.</p><form method="post" enctype="multipart/form-data" action="{{ route('portal.results.store',$order) }}" class="stack">
+@if(auth()->user()->isStaff() && !$creditOrder)<details class="form-details"><summary>Preparar nueva entrega</summary><p>El resultado se guarda de forma privada. Para publicarlo, un administrador debe confirmar el pago total y completar la orden. Utilice esta sección para los resultados finales.</p><form method="post" enctype="multipart/form-data" action="{{ route('portal.results.store',$order) }}" class="stack">
 @csrf
 @include('portal.orders.people-findings-form')
 <label>Resumen del resultado<textarea name="summary" minlength="5" maxlength="20000" required>{{ old('summary') }}</textarea></label><label>Documento final (opcional, hasta 10 MB)<input type="file" name="file" accept=".pdf,.docx,.jpg,.jpeg,.png,.webp"></label><button @disabled($verificationStatus && !$verificationStatus['ready_for_review'])>Guardar resultado privado</button></form></details>@endif
@@ -46,7 +49,10 @@
 @if(auth()->user()->isAdmin())<label>Responsable<select name="assigned_to"><option value="">Sin asignar</option>@foreach($staff as $member)<option value="{{ $member->id }}" @selected($order->assigned_to === $member->id)>{{ $member->name }}</option>@endforeach</select></label>@else<p>Responsable: {{ $order->assignee?->name ?? 'Sin asignar' }}</p>@endif
 <label>Estado<select name="status">@foreach(\App\Enums\OrderStatus::cases() as $state)<option value="{{ $state->value }}" @selected($order->status === $state)>{{ $state->label() }}</option>@endforeach</select></label><small>La cotización cambia automáticamente el estado a Cotizada. Las transiciones se validan en servidor. En verificaciones por persona, complete la evidencia y prepare las conclusiones humanas antes de marcar el trabajo completado.</small><button>Actualizar caso</button></form></section>@endif
 <section class="panel"><h2>Facturación</h2>
-@if($order->invoice)
+@if($creditOrder)
+    <span class="badge">Consumo a crédito</span><p>ATD coordina el cobro por corte según el acuerdo comercial. No hay un pago individual pendiente para habilitar la captura o la conclusión técnica.</p>
+    @if(auth()->user()->isAdmin() || !auth()->user()->isStaff())<a href="{{ route('portal.integrations.identity') }}">Consultar consumo y acceso →</a>@endif
+@elseif($order->invoice)
     @php($invoice = $order->invoice)
     <span class="badge {{ $invoice->status === 'paid' ? 'status-completed' : '' }}">{{ $invoice->status === 'paid' ? 'Pago confirmado' : 'Pago pendiente' }}</span><p class="reference">{{ $invoice->number }}</p><dl class="amounts"><dt>Subtotal</dt><dd>{{ \App\Support\Money::format($invoice->subtotal,$invoice->currency) }}</dd><dt>Impuestos</dt><dd>{{ \App\Support\Money::format($invoice->tax,$invoice->currency) }}</dd><dt>Total</dt><dd><strong>{{ \App\Support\Money::format($invoice->total,$invoice->currency) }}</strong></dd><dt>Saldo pendiente</dt><dd>{{ \App\Support\Money::format($invoice->outstanding(),$invoice->currency) }}</dd></dl><a class="button secondary" href="{{ route('portal.invoices.show',$invoice) }}">Ver factura</a>
     @if($invoice->payments->isNotEmpty())<h3>Pagos registrados</h3><ul class="clean-list">@foreach($invoice->payments as $payment)<li><span>{{ \App\Support\Money::format($payment->amount,$invoice->currency) }}<small>{{ $payment->reference }}</small></span><small>{{ $payment->received_at->format('d/m/Y') }}</small></li>@endforeach</ul>@endif

@@ -20,10 +20,10 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $data = $request->validate(['status' => ['nullable', Rule::enum(OrderStatus::class)], 'q' => ['nullable', 'string', 'max:100'], 'billing' => ['nullable', 'in:pending,paid,unquoted'], 'mine' => ['nullable', 'in:1']]);
+        $data = $request->validate(['status' => ['nullable', Rule::enum(OrderStatus::class)], 'q' => ['nullable', 'string', 'max:100'], 'billing' => ['nullable', 'in:pending,paid,unquoted,credit'], 'mine' => ['nullable', 'in:1']]);
         $base = Order::visibleTo($request->user());
         $summary = ['total' => (clone $base)->count(), 'working' => (clone $base)->whereIn('status', ['reviewing', 'quoted', 'in_progress'])->count(), 'pending' => (clone $base)->whereHas('invoice', fn ($q) => $q->where('status', 'unpaid'))->count(), 'completed' => (clone $base)->where('status', 'completed')->count()];
-        $query = $base->with(['account', 'invoice' => fn ($q) => $q->withSum('payments', 'amount'), 'assignee', 'items'])->withCount('attachments');
+        $query = $base->withIdentityCredit()->with(['account', 'invoice' => fn ($q) => $q->withSum('payments', 'amount'), 'assignee', 'items'])->withCount('attachments');
         if (! empty($data['status'])) {
             $query->where('status', $data['status']);
         }
@@ -32,7 +32,9 @@ class OrderController extends Controller
             $query->where(fn ($q) => $q->whereRaw("LOWER(subject) LIKE ? ESCAPE '!'", [$pattern])->orWhere('public_id', $data['q'])->orWhereRaw("LOWER(external_reference) LIKE ? ESCAPE '!'", [$pattern])->orWhereHas('account', fn ($account) => $account->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])));
         }
         if (($data['billing'] ?? null) === 'unquoted') {
-            $query->whereDoesntHave('invoice');
+            $query->whereDoesntHave('invoice')->whereDoesntHave('people', fn ($q) => $q->whereHas('identitySession', fn ($q) => $q->where('access_channel', 'api_credit')));
+        } elseif (($data['billing'] ?? null) === 'credit') {
+            $query->whereHas('people', fn ($q) => $q->whereHas('identitySession', fn ($q) => $q->where('access_channel', 'api_credit')));
         } elseif (! empty($data['billing'])) {
             $query->whereHas('invoice', fn ($q) => $q->where('status', $data['billing'] === 'paid' ? 'paid' : 'unpaid'));
         }

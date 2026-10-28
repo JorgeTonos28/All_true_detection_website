@@ -82,6 +82,11 @@ class Order extends Model
         return $query->where('customer_account_id', $user->customer_account_id ?? 0);
     }
 
+    public function scopeWithIdentityCredit(Builder $query): Builder
+    {
+        return $query->withExists(['people as identity_credit' => fn ($q) => $q->whereHas('identitySession', fn ($q) => $q->where('access_channel', 'api_credit'))]);
+    }
+
     public function canReleaseResults(): bool
     {
         return $this->status === OrderStatus::Completed && $this->hasConfirmedPayment();
