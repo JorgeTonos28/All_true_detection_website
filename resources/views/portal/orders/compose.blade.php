@@ -9,6 +9,7 @@
     <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
     <div class="stack">
         <section class="panel stack">
+            @if(\App\Services\IdentitySettings::mode()==='didit')<p class="info-strip">Identidad con Didit: después de enviar podrá preparar una captura guiada por persona. La persona debe participar con su documento y cámara; no envíe aquí selfies para sustituir la prueba de vida. {{ config('identity.didit.environment')==='sandbox' ? 'Entorno de prueba: resultados simulados.' : '' }}</p>@endif
             <div><h2>¿Qué necesita solicitar?</h2><p class="muted">Elija los servicios; después podrá asignarlos a una o varias personas.</p></div>
             <button type="button" class="service-picker-trigger secondary" data-open-services aria-haspopup="dialog" aria-controls="service-picker-dialog"><span data-service-label>Seleccionar servicios</span><span aria-hidden="true">+</span></button>
             <div class="selected-services" data-selected-services aria-live="polite"></div>
@@ -42,7 +43,7 @@
         <div class="dialog-heading"><div><h2 id="service-picker-title">Seleccione los servicios</h2><p class="muted">Puede combinar varios y asignarlos después a cada persona.</p></div><button type="button" class="secondary" data-close-dialog aria-label="Cerrar selector de servicios">Cerrar</button></div>
         <label>Buscar servicio<input type="search" data-service-filter placeholder="Nombre o descripción del servicio" autocomplete="off"></label>
         <div class="service-options">@foreach($services as $service)
-            <label class="service-option" data-service-option><input type="checkbox" name="service_codes[]" value="{{ $service->code }}" data-label="{{ $service->name }}" @checked(in_array($service->code,$selectedCodes))><span><strong>{{ $service->name }}</strong><small>{{ $service->description }}</small><small class="service-kind">{{ $service->code === 'training-equipment' ? 'Solicitud general' : 'Por persona' }}</small></span></label>
+            <label class="service-option" data-service-option><input type="checkbox" name="service_codes[]" value="{{ $service->code }}" data-label="{{ $service->name }}" @checked(in_array($service->code,$selectedCodes))><span><strong>{{ $service->name }}</strong><small>{{ $service->code==='identity-verification' ? \App\Services\IdentitySettings::description() : $service->description }}</small><small class="service-kind">{{ $service->code === 'training-equipment' ? 'Solicitud general' : 'Por persona' }}</small></span></label>
         @endforeach</div>
         <p class="muted" data-service-empty hidden>No hay servicios que coincidan con la búsqueda.</p>
         <div class="dialog-actions"><span class="muted" data-services-count></span><button type="button" data-close-dialog>Confirmar servicios</button></div>

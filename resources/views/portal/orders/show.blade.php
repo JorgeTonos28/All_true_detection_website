@@ -26,7 +26,7 @@
 <section class="panel"><h2>Resultados y entrega</h2>
 @if($results->isEmpty())<div class="info-strip">{{ $order->canReleaseResults() ? 'El equipo aún no ha publicado la entrega.' : 'La entrega se habilitará al completar el trabajo, confirmar el pago total y publicar los resultados.' }}</div>@endif
 @foreach($results as $result)<article class="result-card"><div class="panel-heading"><h3>Entrega {{ $loop->iteration }}</h3><span class="badge">{{ $result->published_at ? 'Publicada' : 'Preparada · privada' }}</span></div><p class="preserve">{{ $result->summary }}</p>
-@if($result->verification_findings)<div class="verification-conclusions"><p class="muted">Revisión humana · {{ $result->verification_findings['reviewed_at'] }}</p>@foreach($result->verification_findings['checks'] as $check)<article>
+@if($result->verification_findings)<div class="verification-conclusions"><p class="muted">{{ match($result->verification_findings['method'] ?? 'manual') {'didit'=>'Procesamiento Didit','mixed'=>'Didit + revisión profesional',default=>'Revisión profesional'} }} · {{ $result->verification_findings['reviewed_at'] }}</p>@foreach($result->verification_findings['checks'] as $check)<article>
     @php($checkedPerson = isset($check['person_id']) ? $order->people->firstWhere('public_id',$check['person_id']) : null)
     @if($checkedPerson)<p><strong>{{ $checkedPerson->profile['first_name'] }} {{ $checkedPerson->profile['last_name'] }}</strong></p>@endif
     <h4>{{ $order->items->first(fn($item)=>$item->service->code===$check['service_code'])?->service_name ?? $check['service_code'] }}</h4><strong>{{ \App\Support\PersonVerification::OUTCOMES[$check['outcome']] }}</strong><p class="preserve">{{ $check['notes'] }}</p></article>@endforeach</div>@endif

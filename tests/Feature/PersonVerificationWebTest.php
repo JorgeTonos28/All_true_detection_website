@@ -32,9 +32,9 @@ class PersonVerificationWebTest extends TestCase
         $evidence = array_combine(['identity_front', 'selfie', 'degree_document', 'exequatur_document'], array_map(PersonVerificationWorkflowTest::evidence(...), ['identity_front', 'selfie', 'degree_document', 'exequatur_document']));
         $this->post('/portal/orders', $data + ['evidence' => $evidence])->assertSessionHasNoErrors()->assertRedirect();
         $order = Order::firstOrFail();
-        $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Persona Ficticia')->assertSee('00000000000')->assertSee('Evidencia obligatoria recibida')->assertDontSee('Conclusiones humanas por servicio');
+        $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Persona Ficticia')->assertSee('00000000000')->assertSee('Documentación de entrada completa')->assertDontSee('Conclusiones por servicio');
         $admin = User::factory()->create(['role' => Role::Admin]);
-        $this->actingAs($admin)->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Conclusiones humanas por servicio')->assertSee('findings['.$order->people->first()->public_id.'][identity-verification][outcome]', false);
+        $this->actingAs($admin)->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Conclusiones por servicio')->assertSee('findings['.$order->people->first()->public_id.'][identity-verification][outcome]', false);
         $this->post('/portal/orders/'.$order->public_id.'/results', ['summary' => 'Resumen privado', 'findings' => []])->assertSessionHasErrors();
         $this->assertDatabaseCount('order_results', 0);
     }

@@ -11,7 +11,7 @@ class IdentitySettings
     {
         $config = config('identity.didit');
 
-        return filled($config['api_key']) && filled($config['webhook_secret'])
+        return filled($config['api_key']) && is_string($config['webhook_secret']) && strlen($config['webhook_secret']) >= 16
             && Str::isUuid($config['application_id'] ?? '') && Str::isUuid($config['workflow_id'] ?? '')
             && $config['privacy_approved'] && in_array($config['environment'], ['sandbox', 'live'], true)
             && (! app()->isProduction() || ($config['environment'] === 'live' && $config['production_approved']));

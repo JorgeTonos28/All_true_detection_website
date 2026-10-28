@@ -12,7 +12,8 @@
                     @foreach($fields as $key=>$label)@if(!empty($profile[$group][$key]))<div><dt>{{ $label }}</dt><dd>{{ $profile[$group][$key] }}</dd></div>@endif @endforeach
                 @endforeach
             </dl>
-            @if($verification)<div class="info-strip">@if($verification['ready_for_review'])Evidencia obligatoria recibida. Pendiente de la revisión humana y del proceso de entrega.@else Falta cargar: {{ implode(', ',array_map(fn($key)=>\App\Support\PersonVerification::LABELS[$key],$verification['missing'])) }}. La solicitud no avanzará hasta recibirla.@endif</div>@endif
+            @if($verification)<div class="info-strip">@if($verification['ready_for_review'])Documentación de entrada completa. {{ $person->identity_mode==='didit' ? 'El procesamiento de identidad se consulta abajo.' : 'Pendiente de revisión profesional.' }} La entrega conserva sus controles de pago y publicación.@else Falta cargar: {{ implode(', ',array_map(fn($key)=>\App\Support\PersonVerification::LABELS[$key],$verification['missing'])) }}. La solicitud no avanzará hasta recibirla.@endif</div>@endif
+            @include('portal.orders.identity-session')
         </details>
     @endforeach
     <p class="muted">Autorización confirmada por el solicitante el {{ $order->consented_at->timezone('America/Santo_Domingo')->format('d/m/Y H:i') }}. Cada servicio y documento se conserva vinculado a su persona.</p>

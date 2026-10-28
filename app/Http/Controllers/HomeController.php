@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Service;
 use App\Models\Setting;
+use App\Services\IdentitySettings;
 use App\Support\ServiceCatalog;
 use Illuminate\Support\Facades\Storage;
 
@@ -73,7 +74,7 @@ class HomeController extends Controller
             $services = ServiceCatalog::all();
         }
 
-        return array_map(fn (array $service) => ['code' => $service['code'], 'title' => $service['name'], 'text' => $service['description'], 'icon' => 'file'], $services);
+        return array_map(fn (array $service) => ['code' => $service['code'], 'title' => $service['name'], 'text' => $service['code'] === 'identity-verification' ? IdentitySettings::description() : $service['description'], 'icon' => 'file'], $services);
     }
 
     private function sectors(): array
