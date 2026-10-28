@@ -19,7 +19,7 @@ class IdentityChecks
             return null;
         }
 
-        return ['person_id' => $person->public_id, 'service_code' => 'identity-verification', 'method' => 'didit', 'session_id' => $session->public_id,
+        return ['person_id' => $person->public_id, 'service_code' => 'identity-verification', 'method' => 'didit', 'session_id' => $session->public_id, 'environment' => $session->environment,
             'outcome' => $session->decision['outcome'], 'notes' => 'Resultado de Didit. Referencia técnica: '.$session->decision['reason'].'. No constituye una decisión de elegibilidad ni garantiza ausencia de fraude.'];
     }
 
@@ -27,7 +27,7 @@ class IdentityChecks
     {
         $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
         $people = $order->people()->with(['services', 'identitySession'])->get();
-        if ($order->items()->whereHas('service', fn ($q) => $q->where('code', '!=', 'identity-verification'))->exists() || $people->isEmpty() || $people->contains(fn ($person) => $person->identity_mode !== 'didit' || ! self::check($person))) {
+        if ($order->status->value === 'cancelled' || $order->items()->whereHas('service', fn ($q) => $q->where('code', '!=', 'identity-verification'))->exists() || $people->isEmpty() || $people->contains(fn ($person) => $person->identity_mode !== 'didit' || ! self::check($person))) {
             return; // Mixed orders keep their human conclusions; never invent outcomes for other services.
         }
         $checks = $people->map(fn ($person) => self::check($person))->all();

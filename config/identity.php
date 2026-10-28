@@ -12,4 +12,6 @@ return [
         'privacy_approved' => (bool) env('DIDIT_PRIVACY_APPROVED', false),
     ],
     'notice_version' => 'didit-2026-10-v1',
+    'daily_session_limit' => (int) env('DIDIT_DAILY_SESSION_LIMIT', 200),
+    'account_daily_session_limit' => (int) env('DIDIT_ACCOUNT_DAILY_SESSION_LIMIT', 20),
 ];

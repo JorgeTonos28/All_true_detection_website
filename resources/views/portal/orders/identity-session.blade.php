@@ -8,8 +8,9 @@
         <form method="post" action="{{ route('portal.identity.store',[$order,$person->public_id]) }}" class="stack">@csrf
             <input type="hidden" name="notice_version" value="{{ config('identity.notice_version') }}">
             <p class="muted">Didit capturará el documento, rostro y prueba de vida. La persona debe realizar el proceso con su cámara. No se envían automáticamente a Didit los archivos ya cargados en ATD.</p>
+            @if(config('identity.didit.environment')==='live' && !$order->hasConfirmedPayment())<p class="info-strip">ATD debe emitir la factura y confirmar su pago total antes de habilitar una captura real con Didit.</p>@endif
             <label class="check"><input type="checkbox" name="consent" value="1" required>He informado a la persona y cuento con su autorización para el tratamiento por Didit descrito en el <a href="{{ route('privacy') }}">aviso de privacidad</a>, versión {{ config('identity.notice_version') }}.</label>
-            <div><button @disabled(!\App\Services\IdentitySettings::ready())>Preparar verificación con Didit</button></div>
+            <div><button @disabled(!\App\Services\IdentitySettings::ready() || (config('identity.didit.environment')==='live' && !$order->hasConfirmedPayment()))>Preparar verificación con Didit</button></div>
         </form>
         @else<p class="muted">El cliente debe confirmar la autorización e iniciar la captura desde su cuenta o integración API.</p>@endif
     @else

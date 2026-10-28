@@ -23,11 +23,11 @@
       ],
       "post": {
         "operationId": "requestIdentitySession",
-        "description": "Cliente de la cuenta y scope orders:write. Solo personas con identity_mode=didit. Confirma autorización para Didit conforme al aviso versionado. Una única sesión por persona; repetir devuelve la existente. Procesamiento asíncrono, sin nuevo cobro al repetir. Nunca acepta decisiones del cliente. No convierte casos manuales históricos.",
+        "description": "Cliente de la cuenta y scope orders:write. Solo personas con identity_mode=didit. Confirma autorización para Didit conforme al aviso versionado. En live exige factura totalmente pagada antes de crear. Una única sesión por persona; repetir devuelve la existente. Procesamiento asíncrono, sin nuevo cobro al repetir. Nunca acepta decisiones del cliente ni convierte casos manuales históricos. Cuotas diarias globales y por cuenta.",
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["consent", "notice_version"], "properties": { "consent": { "type": "boolean", "enum": [true] }, "notice_version": { "type": "string", "enum": ["didit-2026-10-v1"] } } } } } },
         "responses": {
           "202": { "description": "Sesión aceptada/existente; consultar GET para obtener el enlace.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentitySession" } } } } } },
-          "default": { "description": "401 sin token; 403 otra cuenta/scope/rol; 404 persona ajena/manual; 409 cancelada; 422 falta consentimiento/versión; 429 límite; 503 configuración no disponible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "default": { "description": "401 sin token; 403 otra cuenta/scope/rol; 404 persona ajena/manual; 409 cancelada o pago live pendiente; 422 falta consentimiento/versión; 429 límite de solicitudes/cuota diaria; 503 configuración no disponible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "get": {
@@ -2662,6 +2662,7 @@
           "description"
         ],
         "properties": {
+          "identity_mode": { "type": "string", "nullable": true, "enum": ["manual", "didit", null] },
           "per_person": { "type": "boolean", "description": "Todos salvo training-equipment." },
           "requires_identity_number": { "type": "boolean" },
           "required_evidence": { "type": "array", "items": { "type": "string" } },
@@ -3160,6 +3161,8 @@
         "required": ["first_name", "last_name", "authorization_confirmed", "service_codes"],
         "description": "Ficha cifrada por solicitud. Cédula y finalidad obligatorias solo para título, exequátur e identidad; no aportar cédula para otros servicios. Dirección obligatoria también para visitas domiciliarias. degree/exequatur obligatorios solo con su servicio. No acepta decisiones ni identificadores del cliente.",
         "properties": {
+          "identity_mode": { "type": "string", "enum": ["manual", "didit"], "readOnly": true },
+          "identity_session_url": { "type": "string", "format": "uri", "nullable": true, "readOnly": true },
           "id": { "type": "string", "readOnly": true, "description": "ULID público generado por ATD; úselo en person_id al cargar evidencia." },
           "service_codes": { "type": "array", "minItems": 1, "maxItems": 11, "uniqueItems": true, "items": { "type": "string", "enum": ["polygraph", "deception-detection", "profile-verification", "applied-ai", "home-visits", "investigations", "drug-screening", "psychometric", "university-degree", "exequatur", "identity-verification"] } },
           "first_name": { "$ref": "#/components/schemas/VerificationPerson/properties/first_name" },
@@ -3312,6 +3315,8 @@
               "required": ["person_id", "ready_for_review", "required", "missing"],
               "properties": {
                 "person_id": { "type": "string" },
+                "method": { "type": "string", "enum": ["manual", "didit"] },
+                "identity_pending": { "type": "boolean", "description": "Estado operativo, nunca aprobación/rechazo." },
                 "ready_for_review": { "type": "boolean" },
                 "required": { "type": "array", "items": { "type": "string" } },
                 "missing": { "type": "array", "items": { "type": "string" } }
@@ -3321,7 +3326,7 @@
           "method": {
             "type": "string",
             "enum": [
-              "manual"
+              "manual", "mixed_or_didit"
             ]
           },
           "ready_for_review": {
@@ -3357,7 +3362,7 @@
       "VerificationFindings": {
         "type": "object",
         "nullable": true,
-        "description": "Solo entregas publicadas tras pago total y finalización. Conclusión humana, sin prueba de vida ni motor biométrico.",
+        "description": "Solo entregas publicadas tras pago total y finalización. Conclusiones manuales, Didit o mixtas. No es una decisión de elegibilidad. Una corrección del proveedor invalida la publicación anterior.",
         "required": [
           "method",
           "reviewed_at",
@@ -3367,7 +3372,7 @@
           "method": {
             "type": "string",
             "enum": [
-              "manual"
+              "manual", "didit", "mixed"
             ]
           },
           "reviewed_at": {
@@ -3385,6 +3390,9 @@
               ],
               "properties": {
                 "person_id": { "type": "string", "description": "Persona de la comprobación. Siempre incluido en conclusiones nuevas agrupadas por persona; puede faltar en entregas anteriores." },
+                "method": { "type": "string", "enum": ["didit"], "description": "Incluido en comprobaciones automáticas." },
+                "session_id": { "type": "string", "description": "Referencia ATD, no token ni identificador secreto del proveedor." },
+                "environment": { "type": "string", "enum": ["sandbox", "live"], "description": "Sandbox no es una verificación real ni puede publicarse en producción." },
                 "service_code": {
                   "type": "string"
                 },

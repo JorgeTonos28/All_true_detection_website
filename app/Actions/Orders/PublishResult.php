@@ -25,6 +25,7 @@ class PublishResult
                 PersonVerification::requireEvidence($order);
                 abort_unless($result->verification_findings, 409, 'La entrega necesita conclusiones de verificación.');
                 foreach ($order->people()->where('identity_mode', 'didit')->get() as $person) {
+                    abort_if(app()->isProduction() && $person->identitySession?->environment !== 'live', 409, 'No se puede publicar una simulación Didit como entrega de producción.');
                     $expected = IdentityChecks::check($person);
                     $actual = collect($result->verification_findings['checks'] ?? [])->first(fn ($check) => ($check['person_id'] ?? null) === $person->public_id && ($check['service_code'] ?? null) === 'identity-verification');
                     abort_unless($expected && $actual === $expected, 409, 'La conclusión de identidad está pendiente o cambió. Prepare una entrega actualizada.');

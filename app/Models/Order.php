@@ -84,8 +84,13 @@ class Order extends Model
 
     public function canReleaseResults(): bool
     {
+        return $this->status === OrderStatus::Completed && $this->hasConfirmedPayment();
+    }
+
+    public function hasConfirmedPayment(): bool
+    {
         $invoice = $this->invoice;
 
-        return $this->status === OrderStatus::Completed && $invoice?->status === 'paid' && $invoice->total > 0 && $invoice->paidAmount() === $invoice->total;
+        return $invoice?->status === 'paid' && $invoice->total > 0 && $invoice->paidAmount() === $invoice->total;
     }
 }

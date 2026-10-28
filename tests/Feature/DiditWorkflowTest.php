@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class DiditWorkflowTest extends TestCase
@@ -80,6 +81,15 @@ class DiditWorkflowTest extends TestCase
         app(UpdateOrder::class)->handle($admin, $order, ['status' => 'completed']);
         app(RecordPayment::class)->handle($admin, $invoice, ['amount' => 100, 'method' => 'cash', 'reference' => 'SYNTHETIC-DIDIT']);
         $this->getJson('/api/v1/orders/'.$order->public_id.'/results', $headers)->assertOk()->assertJsonCount(0, 'data');
+        $this->app->detectEnvironment(fn () => 'production');
+        try {
+            app(PublishResult::class)->handle($admin, $result);
+            $this->fail('No se puede publicar sandbox en producción.');
+        } catch (HttpException $error) {
+            $this->assertSame(409, $error->getStatusCode());
+        } finally {
+            $this->app->detectEnvironment(fn () => 'testing');
+        }
         app(PublishResult::class)->handle($admin, $result);
         $this->getJson('/api/v1/orders/'.$order->public_id.'/results', $headers)->assertOk()->assertJsonPath('data.0.verification_findings.method', 'didit');
         $body['status'] = 'Kyc Expired';
@@ -121,5 +131,64 @@ class DiditWorkflowTest extends TestCase
         $admin = User::factory()->create(['role' => Role::Admin]);
         $this->expectException(ValidationException::class);
         app(StoreResult::class)->handle($admin, $order, 'Synthetic', null, ['identity-verification' => ['outcome' => 'not_verified', 'notes' => 'Synthetic overwrite']]);
+    }
+
+    public function test_daily_budgets_do_not_block_safe_retries_or_allow_unbounded_sessions(): void
+    {
+        $this->bootDidit();
+        $client = $this->client('budget@example.test');
+        $data = PersonVerificationWorkflowTest::data(['identity-verification']);
+        $first = app(CreateOrder::class)->handle($client, $data);
+        $second = app(CreateOrder::class)->handle($client, $data);
+        config(['identity.account_daily_session_limit' => 1]);
+        $consent = ['consent' => true, 'notice_version' => config('identity.notice_version')];
+        $action = app(RequestIdentitySession::class);
+        $session = $action->handle($client, $first, $first->person, $consent);
+        $this->assertSame($session->id, $action->handle($client, $first, $first->person, $consent)->id);
+        try {
+            $action->handle($client, $second, $second->person, $consent);
+            $this->fail('Debe limitar las creaciones por cuenta.');
+        } catch (HttpException $error) {
+            $this->assertSame(429, $error->getStatusCode());
+        }
+        config(['identity.account_daily_session_limit' => 20, 'identity.daily_session_limit' => 1]);
+        try {
+            $action->handle($client, $second, $second->person, $consent);
+            $this->fail('Debe limitar las creaciones globales.');
+        } catch (HttpException $error) {
+            $this->assertSame(429, $error->getStatusCode());
+        }
+        $this->assertDatabaseCount('identity_sessions', 1);
+        Http::assertNothingSent();
+    }
+
+    public function test_live_capture_is_only_available_after_admin_confirms_full_payment(): void
+    {
+        $this->bootDidit();
+        config(['identity.didit.environment' => 'live']);
+        $client = $this->client('live-gate@example.test');
+        $order = app(CreateOrder::class)->handle($client, PersonVerificationWorkflowTest::data(['identity-verification']));
+        $consent = ['consent' => true, 'notice_version' => config('identity.notice_version')];
+        $action = app(RequestIdentitySession::class);
+        try {
+            $action->handle($client, $order, $order->person, $consent);
+            $this->fail('Sin pago no debe entregar la capacidad live.');
+        } catch (HttpException $error) {
+            $this->assertSame(409, $error->getStatusCode());
+        }
+        $admin = User::factory()->create(['role' => Role::Admin]);
+        $invoice = app(IssueInvoice::class)->handle($admin, $order, ['prices' => [$order->items->first()->id => 100]]);
+        app(RecordPayment::class)->handle($admin, $invoice, ['amount' => 50, 'method' => 'cash', 'reference' => 'SYNTHETIC-LIVE-PARTIAL']);
+        try {
+            $action->handle($client, $order, $order->person, $consent);
+            $this->fail('El abono parcial no habilita una captura real.');
+        } catch (HttpException $error) {
+            $this->assertSame(409, $error->getStatusCode());
+        }
+        app(RecordPayment::class)->handle($admin, $invoice->fresh(), ['amount' => 50, 'method' => 'cash', 'reference' => 'SYNTHETIC-LIVE-PAID']);
+        $session = $action->handle($client, $order, $order->person, $consent);
+        $this->assertSame('live', $session->environment);
+        $this->assertDatabaseCount('identity_sessions', 1);
+        Http::assertNothingSent();
     }
 }

@@ -10,7 +10,7 @@ class ProcessIdentitySession
     public function handle(int $id): void
     {
         $session = IdentitySession::find($id);
-        if (! $session || ! IdentitySettings::ready() || $session->application_id !== config('identity.didit.application_id') || $session->workflow_id !== config('identity.didit.workflow_id') || $session->environment !== config('identity.didit.environment') || $session->order->status->value === 'cancelled') {
+        if (! $session || ! IdentitySettings::ready() || $session->application_id !== config('identity.didit.application_id') || $session->environment !== config('identity.didit.environment') || $session->order->status->value === 'cancelled') {
             return;
         }
         if ($session->state === 'pending') {
