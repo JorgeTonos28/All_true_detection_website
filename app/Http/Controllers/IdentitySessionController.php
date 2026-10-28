@@ -32,6 +32,7 @@ class IdentitySessionController extends Controller
         Gate::authorize('view', $order);
         abort_if($request->user()->isStaff(), 403);
         IdentityPartnerAccess::authorize($request->user(), 'identity:read');
+        abort_if($order->status->value === 'cancelled', 409, 'Esta solicitud está cancelada.');
         $record = $order->people()->where('public_id', $person)->firstOrFail();
         $session = $record->identitySession()->firstOrFail();
         abort_unless($session->access_channel === 'api_credit', 403);

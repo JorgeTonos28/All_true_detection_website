@@ -180,4 +180,68 @@ class IdentityCreditWorkflowTest extends TestCase
         $this->assertDatabaseCount('identity_sessions', 1);
         Http::assertNothingSent();
     }
+
+    public function test_credit_cannot_absorb_mixed_services_or_an_existing_web_session(): void
+    {
+        $this->grant();
+        $consent = ['consent' => true, 'notice_version' => config('identity.notice_version')];
+        $mixed = app(CreateOrder::class)->handle($this->client, PersonVerificationWorkflowTest::data(['identity-verification', 'exequatur']));
+        $this->postJson('/api/v1/orders/'.$mixed->public_id.'/people/'.$mixed->person->public_id.'/identity-session', $consent, $this->headers)->assertConflict();
+        app(RequestIdentitySession::class)->handle($this->client, $this->order, $this->order->person, $consent);
+        $this->postJson($this->url, $consent, $this->headers)->assertConflict();
+        $this->getJson($this->url, $this->headers)->assertForbidden();
+        $this->getJson($this->url.'/result', $this->headers)->assertForbidden();
+        $this->assertDatabaseCount('identity_sessions', 1);
+        Http::assertNothingSent();
+    }
+
+    public function test_multi_person_credit_completes_only_after_each_decision_and_is_tenant_isolated(): void
+    {
+        $this->grant();
+        $data = PersonVerificationWorkflowTest::data(['identity-verification']);
+        $person = $data['person'] + ['service_codes' => ['identity-verification']];
+        unset($data['person']);
+        $data['people'] = [$person, array_replace($person, ['identity_number' => '00000000001', 'first_name' => 'Otra'])];
+        $data['items'][0]['quantity'] = 2;
+        $order = app(CreateOrder::class)->handle($this->client, $data);
+        $responses = Http::fakeSequence();
+        foreach ($order->people as $index => $person) {
+            $url = '/api/v1/orders/'.$order->public_id.'/people/'.$person->public_id.'/identity-session';
+            $this->postJson($url, ['consent' => true, 'notice_version' => config('identity.notice_version')], $this->headers)->assertStatus(202);
+            $session = $person->identitySession()->firstOrFail();
+            $session->update(['provider_session_id' => (string) Str::uuid(), 'state' => 'awaiting_person']);
+            $responses->push(DiditProviderTest::decision($session));
+            app(ProcessIdentitySession::class)->handle($session->id);
+            $this->assertSame($index === 0 ? 'in_progress' : 'completed', $order->fresh()->status->value);
+            $this->getJson($url.'/result', $this->headers)->assertOk()->assertJsonPath('data.person_id', $person->public_id);
+        }
+        $other = app(CreateNewUser::class)->create(['name' => 'Other', 'email' => 'isolated-partner@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $other->forceFill(['email_verified_at' => now()])->save();
+        app(ManagePartnerAccess::class)->handle($this->admin, $other->account, ['enabled' => true, 'daily_limit' => 20]);
+        $headers = ['Authorization' => 'Bearer '.$other->createToken('Other', ['identity:read'])->plainTextToken];
+        app('auth')->forgetGuards();
+        $this->getJson($url.'/result', $headers)->assertForbidden();
+        $this->assertDatabaseCount('invoices', 0);
+        $this->assertDatabaseCount('order_results', 0);
+    }
+
+    public function test_suspension_during_workflow_preflight_prevents_remote_creation(): void
+    {
+        $this->grant();
+        $session = $this->requestSession();
+        Http::fake(function () use ($session) {
+            $this->grant(false);
+
+            return Http::response(DiditProviderTest::workflow($session));
+        });
+        app(ProcessIdentitySession::class)->handle($session->id);
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn ($request) => $request->method() === 'POST');
+        $this->assertSame('pending', $session->fresh()->state);
+        $this->assertNull($session->fresh()->credit_accepted_at);
+        $this->order->update(['status' => 'cancelled']);
+        $this->grant();
+        $this->getJson($this->url, $this->headers)->assertConflict();
+        $this->getJson($this->url.'/result', $this->headers)->assertConflict();
+    }
 }

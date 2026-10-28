@@ -69,7 +69,7 @@ class OrderController extends Controller
     public function show(Request $request, Order $order)
     {
         Gate::authorize('view', $order);
-        $order->load(['items.service', 'person', 'people.services', 'invoice.payments.recorder', 'account', 'requester', 'assignee', 'attachments.person', 'conversation']);
+        $order->load(['items.service', 'person', 'people.services', 'people.identitySession', 'invoice.payments.recorder', 'account', 'requester', 'assignee', 'attachments.person', 'conversation']);
         $results = ($request->user()->isStaff() || $order->canReleaseResults()) ? $order->results()->when(! $request->user()->isStaff(), fn ($q) => $q->whereNotNull('published_at'))->latest('id')->get() : collect();
 
         return view('portal.orders.show', ['order' => $order, 'verificationStatus' => PersonVerification::evidenceStatus($order), 'results' => $results, 'staff' => $request->user()->isAdmin() ? User::where('is_active', true)->whereIn('role', ['admin', 'collaborator'])->orderBy('name')->get() : collect()]);

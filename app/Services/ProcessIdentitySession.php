@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\CustomerAccount;
 use App\Models\IdentitySession;
+use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 
 class ProcessIdentitySession
@@ -29,6 +31,12 @@ class ProcessIdentitySession
 
                 return;
             }
+            if ($session->access_channel === 'api_credit' && ! CustomerAccount::find($session->order->customer_account_id)?->hasIdentityApiCredit()) {
+                // Preflight made no session POST; a suspended pending reservation can safely wait.
+                IdentitySession::whereKey($id)->update(['state' => 'pending', 'updated_at' => now()]);
+
+                return;
+            }
             try {
                 $body = app(DiditClient::class)->create($session);
                 DB::transaction(function () use ($id, $body) {
@@ -49,8 +57,13 @@ class ProcessIdentitySession
                 return;
             }
         }
-        DB::transaction(function () use ($id) {
-            // Serialize reads so an older HTTP response cannot overwrite a newer decision.
+        DB::transaction(function () use ($id, $session) {
+            // Lock the parent first: under MySQL REPEATABLE READ, two people must not each
+            // finalize against an older snapshot of the other's decision and leave the order stuck.
+            $order = Order::whereKey($session->order_id)->lockForUpdate()->firstOrFail();
+            if ($order->status->value === 'cancelled') {
+                return;
+            }
             $session = IdentitySession::whereKey($id)->lockForUpdate()->firstOrFail();
             if (! $session->provider_session_id) {
                 return;

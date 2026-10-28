@@ -22,7 +22,7 @@
         @switch($identitySession->publicState())
             @case('preparing')<p class="info-strip">Preparando el enlace. Actualice esta página en unos segundos. El worker y el scheduler deben estar activos.</p>@break
             @case('awaiting_person')<p class="info-strip">Captura pendiente. El enlace es privado y corresponde únicamente a esta persona.</p>
-                @if(!auth()->user()->isStaff() && $identitySession->verification_url)<p><a class="button" href="{{ $identitySession->verification_url }}" target="_blank" rel="noopener noreferrer nofollow">Abrir captura segura con Didit ↗</a></p>@endif
+                @if(!auth()->user()->isStaff() && $order->status->value!=='cancelled' && $identitySession->verification_url)<p><a class="button" href="{{ $identitySession->verification_url }}" target="_blank" rel="noopener noreferrer nofollow">Abrir captura segura con Didit ↗</a></p>@endif
                 @break
             @case('received')<p class="info-strip">Procesamiento recibido. La entrega se consulta en Resultados cuando ATD complete el caso, confirme el pago y publique el informe. Este aviso no confirma una aprobación.</p>@break
             @case('attention_required')<p class="alert">No se pudo confirmar la preparación. Contacte con ATD con esta referencia; no cree otra solicitud para reintentar. La conciliación evita sesiones y cobros duplicados.</p>@break
