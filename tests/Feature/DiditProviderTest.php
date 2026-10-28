@@ -43,7 +43,13 @@ class DiditProviderTest extends TestCase
     {
         return ['session_id' => $session->provider_session_id, 'workflow_id' => $session->workflow_id, 'vendor_data' => $session->public_id, 'environment' => 'sandbox', 'status' => $status,
             'id_verifications' => [['status' => 'Approved', 'issuing_state' => 'DOM', 'verification_method' => 'document', 'personal_number' => $session->person->profile['identity_number']]],
-            'liveness_checks' => [['status' => 'Approved']], 'face_matches' => [['status' => 'Approved']]];
+            'liveness_checks' => [['status' => 'Approved', 'method' => 'ACTIVE_3D']], 'face_matches' => [['status' => 'Approved']]];
+    }
+
+    public static function workflow(IdentitySession $session): array
+    {
+        return ['workflow_id' => $session->workflow_id, 'status' => 'published', 'is_archived' => false, 'features' => 'OCR + LIVENESS + FACE_MATCH',
+            'workflow_graph' => ['nodes' => ['life' => ['feature' => 'LIVENESS', 'config' => ['face_liveness_method' => 'ACTIVE_3D']]]]];
     }
 
     private function webhook(array $body, bool $valid = true)
@@ -63,11 +69,11 @@ class DiditProviderTest extends TestCase
     public function test_creation_is_claimed_once_and_timeout_does_not_duplicate_billable_session(): void
     {
         $session = $this->makeIdentitySession();
-        Http::fake(fn () => Http::failedConnection());
+        Http::fake(['*/workflows/*' => Http::response(self::workflow($session)), '*/session/' => Http::failedConnection()]);
         app(ProcessIdentitySession::class)->handle($session->id);
         app(ProcessIdentitySession::class)->handle($session->id);
         $this->assertSame('create_uncertain', $session->fresh()->state);
-        Http::assertSentCount(1);
+        Http::assertSentCount(2);
         $this->assertDatabaseCount('identity_webhook_receipts', 0);
     }
 
@@ -77,12 +83,12 @@ class DiditProviderTest extends TestCase
         $id = (string) Str::uuid();
         $body = self::decision($session, 'Not Started');
         $body['session_id'] = $id;
-        $responses = Http::fakeSequence()->push(['session_id' => $id, 'workflow_id' => $session->workflow_id, 'vendor_data' => $session->public_id, 'url' => 'https://verify.didit.me/session/synthetic'], 201)->push($body);
+        $responses = Http::fakeSequence()->push(self::workflow($session))->push(['session_id' => $id, 'workflow_id' => $session->workflow_id, 'vendor_data' => $session->public_id, 'url' => 'https://verify.didit.me/session/synthetic'], 201)->push($body);
         app(ProcessIdentitySession::class)->handle($session->id);
         $this->assertSame('awaiting_person', $session->fresh()->state);
         $this->assertSame($id, $session->fresh()->provider_session_id);
         Http::assertSent(fn ($request) => $request->url() === 'https://verification.didit.me/v3/session/' && $request['vendor_data'] === $session->public_id && $request['expected_details']['id_country'] === 'DOM');
-        Http::assertSentCount(2);
+        Http::assertSentCount(3);
         $this->assertNull($session->fresh()->decision);
     }
 
@@ -144,5 +150,33 @@ class DiditProviderTest extends TestCase
             $this->assertFalse(DiditClient::safeUrl($url));
         }
         $this->assertTrue(DiditClient::safeUrl('https://verify.didit.me/session/synthetic'));
+    }
+
+    public function test_non_active_workflow_is_stopped_before_session_creation(): void
+    {
+        $session = $this->makeIdentitySession();
+        $workflow = self::workflow($session);
+        $workflow['workflow_graph']['nodes']['life']['config']['face_liveness_method'] = 'PASSIVE';
+        Http::fake(['*' => Http::response($workflow)]);
+        app(ProcessIdentitySession::class)->handle($session->id);
+        $this->assertSame('needs_attention', $session->fresh()->state);
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn ($request) => $request->method() === 'POST');
+    }
+
+    public function test_passive_or_missing_liveness_method_cannot_produce_verified(): void
+    {
+        $session = $this->makeIdentitySession();
+        $session->update(['provider_session_id' => (string) Str::uuid(), 'state' => 'awaiting_person']);
+        $body = self::decision($session);
+        $body['liveness_checks'][0]['method'] = 'PASSIVE';
+        $responses = Http::fakeSequence()->push($body);
+        app(ProcessIdentitySession::class)->handle($session->id);
+        $this->assertSame('inconclusive', $session->fresh()->decision['outcome']);
+        $this->assertSame('active_liveness_required', $session->fresh()->decision['reason']);
+        unset($body['liveness_checks'][0]['method']);
+        $responses->push($body);
+        app(ProcessIdentitySession::class)->handle($session->id);
+        $this->assertSame('inconclusive', $session->fresh()->decision['outcome']);
     }
 }

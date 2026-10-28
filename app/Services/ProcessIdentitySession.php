@@ -19,6 +19,14 @@ class ProcessIdentitySession
                 return;
             }
             try {
+                app(DiditClient::class)->assertActiveWorkflow($session);
+            } catch (\Throwable) {
+                // No session POST has happened: pause safely instead of running another liveness method.
+                IdentitySession::whereKey($id)->update(['state' => 'needs_attention', 'updated_at' => now()]);
+
+                return;
+            }
+            try {
                 $body = app(DiditClient::class)->create($session);
                 DB::transaction(function () use ($id, $body) {
                     $session = IdentitySession::whereKey($id)->lockForUpdate()->firstOrFail();

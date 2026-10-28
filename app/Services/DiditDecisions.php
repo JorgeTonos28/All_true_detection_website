@@ -21,11 +21,13 @@ class DiditDecisions
             $matches = count($ids) === 1 && ($ids[0]['issuing_state'] ?? null) === 'DOM'
                 && ($ids[0]['verification_method'] ?? null) === 'document'
                 && collect(['personal_number', 'document_number'])->contains(fn ($key) => is_string($ids[0][$key] ?? null) && preg_replace('/[^0-9]/', '', $ids[0][$key]) === $number);
-            if ($approved($ids) && $approved($body['liveness_checks'] ?? null) && $approved($body['face_matches'] ?? null) && $number && $matches) {
+            $active = is_array($body['liveness_checks'] ?? null) && count($body['liveness_checks']) > 0
+                && collect($body['liveness_checks'])->every(fn ($check) => is_array($check) && ($check['method'] ?? null) === 'ACTIVE_3D');
+            if ($approved($ids) && $approved($body['liveness_checks'] ?? null) && $active && $approved($body['face_matches'] ?? null) && $number && $matches) {
                 $outcome = 'verified';
                 $reason = 'document_liveness_face_match_passed';
             } else {
-                $reason = 'missing_checks_or_identity_mismatch';
+                $reason = $active ? 'missing_checks_or_identity_mismatch' : 'active_liveness_required';
             }
         } elseif ($body['status'] === 'Declined') {
             $reason = 'provider_declined';

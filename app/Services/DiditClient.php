@@ -42,6 +42,20 @@ class DiditClient
         return $body;
     }
 
+    public function assertActiveWorkflow(IdentitySession $session): void
+    {
+        $workflow = $this->request('GET', '/workflows/'.$session->workflow_id.'/');
+        $features = array_map('trim', explode('+', (string) ($workflow['features'] ?? '')));
+        $liveness = collect(data_get($workflow, 'workflow_graph.nodes', []))->filter(fn ($node) => is_array($node) && ($node['feature'] ?? null) === 'LIVENESS');
+        $active = $liveness->isNotEmpty()
+            ? $liveness->every(fn ($node) => data_get($node, 'config.face_liveness_method') === 'ACTIVE_3D')
+            : empty($workflow['workflow_graph']) && ($workflow['face_liveness_method'] ?? null) === 'ACTIVE_3D' && ($workflow['is_liveness_enabled'] ?? false);
+        if (($workflow['workflow_id'] ?? null) !== $session->workflow_id || ($workflow['status'] ?? null) !== 'published' || ($workflow['is_archived'] ?? true)
+            || ! $active || ! in_array('LIVENESS', $features, true) || ! in_array('FACE_MATCH', $features, true) || ! array_intersect(['OCR', 'ID_VERIFICATION'], $features)) {
+            throw new RuntimeException('Se requiere un workflow publicado con documento, prueba de vida ACTIVE_3D y comparación facial.');
+        }
+    }
+
     public function decision(IdentitySession $session): array
     {
         $body = $this->request('GET', '/session/'.$session->provider_session_id.'/decision/');
