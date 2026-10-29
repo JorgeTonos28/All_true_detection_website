@@ -57,6 +57,8 @@ class IdentitySessionController extends Controller
         return response()->json(['data' => ['id' => $session->public_id, 'order_id' => $order->public_id,
             'person_id' => $record->public_id, 'provider' => 'didit', 'environment' => $session->environment,
             'billing_mode' => 'partner_credit', 'revision' => $session->decision_revision,
+            'verification_kind' => $session->verification_kind, 'document_reverified' => $session->verification_kind === 'initial',
+            'identity_id' => $session->subject?->public_id,
             'outcome' => $session->decision['outcome'], 'reason' => $session->decision['reason'],
             'reviewed_at' => $session->decision['reviewed_at'], 'requires_review' => $session->decision['outcome'] === 'inconclusive']]);
     }
@@ -66,6 +68,7 @@ class IdentitySessionController extends Controller
         return ['id' => $session->public_id, 'order_id' => $order->public_id, 'person_id' => $personId,
             'provider' => 'didit', 'state' => $session->publicState(), 'environment' => $session->environment,
             'billing_mode' => 'partner_credit', 'revision' => $session->decision_revision,
+            'verification_kind' => $session->verification_kind, 'identity_id' => $session->subject?->public_id,
             'verification_url' => $session->state === 'awaiting_person' ? $session->verification_url : null,
             'consented_at' => $session->consented_at->toIso8601String(), 'notice_version' => $session->notice_version,
             'links' => ['self' => url('/api/v1/orders/'.$order->public_id.'/people/'.$personId.'/identity-session'), 'result' => url('/api/v1/orders/'.$order->public_id.'/people/'.$personId.'/identity-session/result')]];

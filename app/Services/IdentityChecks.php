@@ -19,8 +19,10 @@ class IdentityChecks
             return null;
         }
 
-        return ['person_id' => $person->public_id, 'service_code' => 'identity-verification', 'method' => 'didit', 'session_id' => $session->public_id, 'environment' => $session->environment,
-            'outcome' => $session->decision['outcome'], 'notes' => 'Resultado de Didit. Referencia técnica: '.$session->decision['reason'].'. No constituye una decisión de elegibilidad ni garantiza ausencia de fraude.'];
+        $recurring = $session->verification_kind === 'recurring';
+
+        return ($recurring ? ['verification_kind' => 'recurring', 'identity_id' => $session->subject?->public_id, 'document_reverified' => false] : []) + ['person_id' => $person->public_id, 'service_code' => 'identity-verification', 'method' => 'didit', 'session_id' => $session->public_id, 'environment' => $session->environment,
+            'outcome' => $session->decision['outcome'], 'notes' => ($recurring ? 'Autenticación facial recurrente contra referencia aprobada. No incluye nueva validación del documento. ' : 'Resultado de Didit. ').'Referencia técnica: '.$session->decision['reason'].'. No constituye una decisión de elegibilidad ni garantiza ausencia de fraude.'];
     }
 
     public static function prepare(Order $order): void

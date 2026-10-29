@@ -25,6 +25,7 @@ class CreateRecurringOrder
         }
         $data = Validator::make($data, ['consent' => 'required|accepted', 'notice_version' => 'required|in:'.config('identity.reuse_notice_version'),
             'subject' => 'nullable|string|max:200', 'details' => 'nullable|string|max:10000', 'external_reference' => 'nullable|string|max:100',
+            'purpose' => 'nullable|string|min:5|max:1000',
             'portrait_image' => 'prohibited', 'reference_image' => 'prohibited', 'identity_number' => 'prohibited', 'workflow_id' => 'prohibited', 'decision' => 'prohibited'])->validate();
         Validator::make(['key' => $key], ['key' => ['required', 'string', 'min:8', 'max:128', 'regex:/^[A-Za-z0-9._:-]+$/D']])->validate();
         abort_unless(IdentitySettings::mode() === 'didit' && IdentitySettings::reuseReady(), 503);
@@ -35,7 +36,7 @@ class CreateRecurringOrder
             $order = app(CreateOrder::class)->handle($actor, ['subject' => $data['subject'] ?? 'Reverificación de identidad', 'details' => $data['details'] ?? null,
                 'external_reference' => $data['external_reference'] ?? null, 'consent' => true,
                 'items' => [['service_code' => 'identity-verification', 'quantity' => 1]],
-                'people' => [$subject->profile + ['authorization_confirmed' => true, 'service_codes' => ['identity-verification']]]], $key, identitySubject: $subject);
+                'people' => [array_replace($subject->profile, ['purpose' => $data['purpose'] ?? $subject->profile['purpose'], 'authorization_confirmed' => true, 'service_codes' => ['identity-verification']])]], $key, identitySubject: $subject);
             if ($channel === 'api_credit') {
                 app(RequestIdentitySession::class)->handle($actor, $order, $order->people()->firstOrFail(), $data, $channel);
             }

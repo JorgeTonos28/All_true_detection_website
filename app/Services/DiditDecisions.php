@@ -25,7 +25,7 @@ class DiditDecisions
                 && collect($body['liveness_checks'])->every(fn ($check) => is_array($check) && ($check['method'] ?? null) === 'ACTIVE_3D');
             $recurring = $session->verification_kind === 'recurring';
             $proofAt = ($session->decision['outcome'] ?? null) === 'verified' ? $session->decision['reviewed_at'] : now();
-            $reference = $recurring && $session->subject && IdentityReferences::validAt($session->subject, $proofAt)
+            $reference = $recurring && IdentityReferences::boundToSession($session) && IdentityReferences::validAt($session->subject, $proofAt)
                 && empty($body['id_verifications']) && $approved($body['face_matches'] ?? null)
                 && collect($body['face_matches'])->every(fn ($check) => ($check['source_image_session_id'] ?? null) === $session->provider_session_id);
             if ($approved($body['liveness_checks'] ?? null) && $active && $approved($body['face_matches'] ?? null)

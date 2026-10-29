@@ -8,11 +8,16 @@ use App\Http\Controllers\Api\V1\ResultController;
 use App\Http\Controllers\Api\V1\ServiceController;
 use App\Http\Controllers\DiditWebhookController;
 use App\Http\Controllers\IdentitySessionController;
+use App\Http\Controllers\IdentitySubjectController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/providers/didit/webhook', DiditWebhookController::class)->middleware('throttle:300,1')->name('didit.webhook');
 
 Route::prefix('v1')->middleware(['throttle:api-edge', 'auth:sanctum', 'active', 'verified', 'integration', 'throttle:api', 'api-json'])->group(function () {
+    Route::get('/identities', [IdentitySubjectController::class, 'index'])->middleware('integration:identity:read');
+    Route::post('/identities/{identity}/verifications', [IdentitySubjectController::class, 'verify'])->middleware(['integration:identity:verify', 'integration:orders:write', 'throttle:10,1']);
+    Route::post('/identities/{identity}/revoke', [IdentitySubjectController::class, 'revoke'])->middleware('integration:identity:verify');
+    Route::post('/orders/{order}/people/{person}/reusable-identity', [IdentitySubjectController::class, 'enroll'])->middleware(['integration:identity:verify', 'integration:identity:read', 'throttle:10,1']);
     Route::post('/orders/{order}/people/{person}/identity-session', [IdentitySessionController::class, 'store'])->middleware(['integration:identity:verify', 'throttle:10,1']);
     Route::get('/orders/{order}/people/{person}/identity-session', [IdentitySessionController::class, 'show'])->middleware('integration:identity:read');
     Route::get('/orders/{order}/people/{person}/identity-session/result', [IdentitySessionController::class, 'result'])->middleware('integration:identity:read');

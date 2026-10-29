@@ -31,12 +31,17 @@ class EnrollIdentity
         abort_if($channel === 'web' && $source->access_channel !== 'web', 403);
         Validator::make($data, ['consent' => 'required|accepted', 'notice_version' => 'required|in:'.config('identity.reuse_notice_version')])->validate();
         abort_unless(IdentitySettings::reuseReady(), 503);
+        abort_unless($source->provider_session_id && $source->application_id === config('identity.didit.application_id') && $source->environment === config('identity.didit.environment'), 409);
         abort_unless(IdentityReferences::releasedSource($source), 409, 'Primero complete y reciba una verificación documental aprobada.');
         $started = now()->startOfSecond();
         app(ProcessIdentitySession::class)->handle($source->id);
 
-        return DB::transaction(function () use ($actor, $source, $started) {
+        return DB::transaction(function () use ($actor, $source, $started, $channel) {
             Order::whereKey($source->order_id)->lockForUpdate()->firstOrFail();
+            if ($channel === 'api_credit') {
+                IdentityPartnerAccess::authorize($actor, 'identity:verify');
+                IdentityPartnerAccess::authorize($actor, 'identity:read');
+            }
             $source = IdentitySession::whereKey($source->id)->lockForUpdate()->firstOrFail();
             abort_unless(! $source->sync_requested && $source->last_synced_at?->greaterThanOrEqualTo($started), 503, 'No se pudo confirmar la verificación original.');
             abort_unless(IdentityReferences::releasedSource($source), 409);

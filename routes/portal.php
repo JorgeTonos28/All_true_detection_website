@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ApiDocumentationController;
 use App\Http\Controllers\IdentitySessionController;
+use App\Http\Controllers\IdentitySubjectController;
 use App\Http\Controllers\Web\AccountController;
 use App\Http\Controllers\Web\BillingController;
 use App\Http\Controllers\Web\DashboardController;
@@ -35,6 +36,10 @@ Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('porta
         Route::delete('/webhooks/{endpoint}', [SecurityController::class, 'disableWebhook'])->middleware('staff-2fa')->name('webhooks.disable');
     });
     Route::middleware('staff-2fa')->group(function () {
+        Route::get('/identities', [IdentitySubjectController::class, 'index'])->name('identities.index');
+        Route::post('/orders/{order}/people/{person}/reusable-identity', [IdentitySubjectController::class, 'enroll'])->middleware('throttle:10,1')->name('identities.enroll');
+        Route::post('/identities/{identity}/verifications', [IdentitySubjectController::class, 'verify'])->middleware('throttle:10,1')->name('identities.verify');
+        Route::post('/identities/{identity}/revoke', [IdentitySubjectController::class, 'revoke'])->middleware(['password.confirm', 'throttle:10,1'])->name('identities.revoke');
         Route::get('/integrations', [IntegrationController::class, 'index'])->name('integrations');
         Route::get('/integrations/identity', [IdentityPartnerController::class, 'index'])->name('integrations.identity');
         Route::get('/integrations/deliveries/{delivery}', [IntegrationController::class, 'show'])->name('integrations.delivery');

@@ -1,5 +1,7 @@
 @if($person->identity_mode === 'didit')
 @php($identitySession = $person->identitySession)
+@php($recurringIdentity = $person->identity_subject_id !== null)
+@php($captureNotice = config($recurringIdentity ? 'identity.reuse_notice_version' : 'identity.notice_version'))
 <div class="stack">
     <h3>Captura de identidad · Didit</h3>
     @if($creditOrder ?? false)
@@ -10,10 +12,10 @@
     @if(!$identitySession)
         @if(!auth()->user()->isStaff())
         <form method="post" action="{{ route('portal.identity.store',[$order,$person->public_id]) }}" class="stack">@csrf
-            <input type="hidden" name="notice_version" value="{{ config('identity.notice_version') }}">
-            <p class="muted">Didit capturará el documento, rostro y prueba de vida activa 3D, con un reto guiado ante la cámara. No se envían automáticamente a Didit los archivos ya cargados en ATD.</p>
+            <input type="hidden" name="notice_version" value="{{ $captureNotice }}">
+            <p class="muted">{{ $recurringIdentity ? 'Didit hará una captura facial activa 3D nueva y la comparará con la referencia aprobada. No debe subir nuevamente la cédula; esto no vuelve a validar la vigencia del documento.' : 'Didit capturará el documento, rostro y prueba de vida activa 3D, con un reto guiado ante la cámara. No se envían automáticamente a Didit los archivos ya cargados en ATD.' }}</p>
             @if(!$order->hasConfirmedPayment())<p class="info-strip">ATD debe emitir la factura y confirmar su pago total antes de habilitar la captura con Didit, también en pruebas sandbox.</p>@endif
-            <label class="check"><input type="checkbox" name="consent" value="1" required>He informado a la persona y cuento con su autorización para el tratamiento por Didit descrito en el <a href="{{ route('privacy') }}">aviso de privacidad</a>, versión {{ config('identity.notice_version') }}.</label>
+            <label class="check"><input type="checkbox" name="consent" value="1" required>He informado a la persona y cuento con su autorización para el tratamiento por Didit descrito en el <a href="{{ route('privacy') }}">aviso de privacidad</a>, versión {{ $captureNotice }}.</label>
             <div><button @disabled(!\App\Services\IdentitySettings::ready() || !$order->hasConfirmedPayment())>Preparar verificación con Didit</button></div>
         </form>
         @else<p class="muted">El cliente debe confirmar la autorización e iniciar la captura desde su cuenta o integración API.</p>@endif
@@ -31,4 +33,5 @@
     @endif
     @endif
 </div>
+@include('portal.orders.reusable-identity')
 @endif

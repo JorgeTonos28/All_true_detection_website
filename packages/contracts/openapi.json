@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "All True Detection API",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API."
   },
   "servers": [
@@ -16,6 +16,53 @@
     }
   ],
   "paths": {
+    "/identities": {
+      "get": {
+        "operationId": "listReusableIdentities",
+        "description": "Partner autorizado, identity:read. Referencias de la misma cuenta, 20 por página. Nunca devuelve retratos, número completo de cédula ni referencias internas Didit. q filtra por ULID exacto; estado available, expired, revoked o unavailable. No busca identidades de otras cuentas.",
+        "x-required-scopes": ["identity:read"],
+        "parameters": [{ "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1 } }, { "name": "q", "in": "query", "schema": { "type": "string", "maxLength": 26 } }],
+        "responses": {
+          "200": { "description": "Referencias paginadas", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/ReusableIdentity" } }, "meta": { "type": "object" } } } } } },
+          "default": { "description": "401, 403, 422 o 429", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/orders/{order}/people/{person}/reusable-identity": {
+      "post": {
+        "operationId": "enrollReusableIdentity",
+        "x-required-scopes": ["identity:verify", "identity:read"],
+        "description": "Registra una referencia después de una verificación documental Didit initial y verified, confirmada de nuevo por API. Consentimiento adicional obligatorio; no sirve revisión manual, solo presencia o una reautenticación. Fuente web requiere pago/completado/publicación; fuente api_credit requiere aprobación vigente. Una referencia por sesión inicial; repetir no extiende caducidad ni reactiva revocaciones. Vigencia máxima 90 días desde la captura original. No envía fotos ni cambia retención de Didit.",
+        "parameters": [{ "name": "order", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "person", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IdentityReuseConsent" } } } },
+        "responses": {
+          "201": { "description": "Referencia creada o ya existente", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/ReusableIdentity" } } } } } },
+          "default": { "description": "401 sin token; 403 cuenta/scope/rol; 404 inexistente; 409 fuente no apta/no publicada/vencida/revocada; 422 consentimiento; 429 límite; 503 configuración o confirmación remota indisponible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/identities/{identity}/verifications": {
+      "post": {
+        "operationId": "createRecurringIdentityVerification",
+        "x-required-scopes": ["identity:verify", "orders:write"],
+        "description": "Partner aprobado. Crea una orden exclusiva de identidad y sesión recurrente a crédito, sin pedir cédula ni imágenes. ATD usa el perfil cifrado y referencia Didit de su propia cuenta. Requiere Idempotency-Key: repetir mismo cuerpo/clave devuelve la misma orden; conflicto 409. Solo una captura pendiente por identidad; no reintentar con otra clave tras incertidumbre. Devuelve referencias, no perfil. Consultar identity_session_url con identity:read. Exige ACTIVE_3D y FACE_MATCH; no renueva la validación del documento ni los 90 días de referencia.",
+        "parameters": [{ "name": "identity", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/IdentityReuseConsent" }, { "type": "object", "properties": { "subject": { "type": "string", "maxLength": 200 }, "purpose": { "type": "string", "minLength": 5, "maxLength": 1000, "description": "Si se omite se conserva la finalidad original; confirmar que sigue autorizada." }, "details": { "type": "string", "nullable": true, "maxLength": 10000 }, "external_reference": { "type": "string", "nullable": true, "maxLength": 100 } } }] } } } },
+        "responses": {
+          "202": { "description": "Solicitud aceptada/existente", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "object", "properties": { "order_id": { "type": "string" }, "person_id": { "type": "string" }, "identity_id": { "type": "string" }, "verification_kind": { "type": "string", "enum": ["recurring"] }, "identity_session_url": { "type": "string", "format": "uri" } } } } } } } },
+          "default": { "description": "401 sin token; 403 cuenta/permiso; 404 referencia inexistente; 409 referencia no apta/captura pendiente/clave en conflicto; 422 consentimiento/campos prohibidos; 429 cuota; 503 configuración/confirmación remota.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/identities/{identity}/revoke": {
+      "post": {
+        "operationId": "revokeReusableIdentity",
+        "x-required-scopes": ["identity:verify"],
+        "description": "Revoca el uso futuro en ATD, de forma idempotente y auditada. No elimina datos Didit, no cancela enlaces remotos ya entregados ni borra comprobaciones históricas. Una referencia revocada no se reactiva: requiere nueva verificación documental y consentimiento. Para supresión, coordinar el procedimiento de privacidad con ATD.",
+        "parameters": [{ "name": "identity", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "204": { "description": "Referencia revocada" }, "default": { "description": "401, 403, 404 o 429", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } } }
+      }
+    },
     "/orders/{order}/people/{person}/identity-session": {
       "parameters": [
         { "name": "order", "in": "path", "required": true, "schema": { "type": "string" } },
@@ -25,7 +72,7 @@
         "operationId": "requestIdentitySession",
         "description": "Solo partners autorizados a crédito y scope identity:verify. Cuenta activa/verificada y aprobación vigente comprobada en servidor. Requiere solicitud exclusiva de identity-verification, sin factura ni sesiones web, y persona identity_mode=didit. Consentimiento versionado obligatorio. No exige prepago. Una sesión por persona; repetir devuelve la existente sin nueva creación. Asíncrono. No acepta portrait_image, reference_image, workflow_id ni decision. No convierte casos manuales. Cuotas globales y por partner; preflight ACTIVE_3D obligatorio.",
         "x-required-scopes": ["identity:verify"],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["consent", "notice_version"], "properties": { "consent": { "type": "boolean", "enum": [true] }, "notice_version": { "type": "string", "enum": ["didit-2026-10-v1"] } } } } } },
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["consent", "notice_version"], "properties": { "consent": { "type": "boolean", "enum": [true] }, "notice_version": { "type": "string", "enum": ["didit-2026-10-v1", "didit-reuse-2026-10-v1"], "description": "La versión debe corresponder al tipo de verificación fijado en la persona: initial o recurring." } } } } } },
         "responses": {
           "202": { "description": "Sesión aceptada/existente; consultar GET para obtener el enlace.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentitySession" } } } } } },
           "default": { "description": "401 sin token; 403 cuenta no autorizada/otro tenant/scope/rol; 404 persona ajena/manual; 409 cancelada, mezcla de servicios/canales o factura individual; 422 consentimiento/versión/campos prohibidos; 429 cuota; 503 configuración no disponible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
@@ -2648,11 +2695,18 @@
       }
     },
     "schemas": {
+      "IdentityReuseConsent": { "type": "object", "required": ["consent", "notice_version"], "properties": { "consent": { "type": "boolean", "enum": [true] }, "notice_version": { "type": "string", "enum": ["didit-reuse-2026-10-v1"] } } },
+      "ReusableIdentity": { "type": "object", "properties": {
+        "id": { "type": "string" }, "display_name": { "type": "string" }, "identity_number_hint": { "type": "string", "description": "Solo últimos cuatro dígitos." },
+        "environment": { "type": "string", "enum": ["sandbox", "live"] }, "state": { "type": "string", "enum": ["available", "expired", "revoked", "unavailable"] },
+        "expires_at": { "type": "string", "format": "date-time" }, "consented_at": { "type": "string", "format": "date-time" }, "notice_version": { "type": "string" }
+      } },
       "IdentitySession": {
         "type": "object",
         "properties": {
           "id": { "type": "string" }, "order_id": { "type": "string" }, "person_id": { "type": "string" },
           "provider": { "type": "string", "enum": ["didit"] },
+          "verification_kind": { "type": "string", "enum": ["initial", "recurring"] }, "identity_id": { "type": "string", "nullable": true },
           "state": { "type": "string", "enum": ["preparing", "awaiting_person", "processing", "received", "attention_required"] },
           "environment": { "type": "string", "enum": ["sandbox", "live"] },
           "billing_mode": { "type": "string", "enum": ["partner_credit"] }, "revision": { "type": "integer", "minimum": 0 },
@@ -2664,6 +2718,8 @@
       "IdentityTechnicalResult": {
         "type": "object",
         "properties": {
+          "verification_kind": { "type": "string", "enum": ["initial", "recurring"] }, "identity_id": { "type": "string", "nullable": true },
+          "document_reverified": { "type": "boolean", "description": "false en autenticación recurrente: no se ha validado nuevamente la cédula." },
           "id": { "type": "string" }, "order_id": { "type": "string" }, "person_id": { "type": "string" },
           "provider": { "type": "string", "enum": ["didit"] }, "environment": { "type": "string", "enum": ["sandbox", "live"] },
           "billing_mode": { "type": "string", "enum": ["partner_credit"] }, "revision": { "type": "integer", "minimum": 1 },

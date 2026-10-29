@@ -15,7 +15,7 @@ class IdentityReferences
             return false;
         }
         if ($source->access_channel === 'api_credit') {
-            return $source->credit_authorized_at && $source->credit_accepted_at && $source->order->account->hasIdentityApiCredit();
+            return $source->credit_authorized_at && $source->credit_authorized_by && $source->credit_accepted_at;
         }
         $order = $source->order;
         if ($order->status->value !== 'completed' || ! $order->hasConfirmedPayment()) {
@@ -60,7 +60,17 @@ class IdentityReferences
             return true;
         }
 
-        return $session->subject && self::validAt($session->subject, $session->decision['reviewed_at']);
+        return self::boundToSession($session) && self::validAt($session->subject, $session->decision['reviewed_at']);
+    }
+
+    public static function boundToSession(IdentitySession $session): bool
+    {
+        $subject = $session->subject;
+
+        return $subject && $subject->customer_account_id === $session->order->customer_account_id
+            && $session->person->identity_subject_id === $subject->id && $session->person->order_id === $session->order_id
+            && $subject->application_id === $session->application_id && $subject->environment === $session->environment
+            && hash_equals($subject->provider_reference, $session->providerReference());
     }
 
     public static function releasableOrder(Order $order): bool

@@ -98,4 +98,17 @@ class ReusableIdentityTest extends TestCase
         $this->assertNotSame($order->id, $other->id);
         $this->assertCount(0, $case->creates);
     }
+
+    public function test_recurring_result_rejects_a_changed_reference_binding(): void
+    {
+        $this->seed();
+        $case = new ReusableIdentityScenario;
+        $subject = $case->enroll();
+        $order = app(CreateRecurringOrder::class)->handle($case->client, $subject, $case->consent(), 'reference-binding-test', 'api_credit');
+        $session = $order->person->identitySession;
+        app(ProcessIdentitySession::class)->handle($session->id);
+        $this->assertTrue(IdentityReferences::validResult($session->fresh()));
+        $session->update(['provider_reference' => 'different-reference']);
+        $this->assertFalse(IdentityReferences::validResult($session->fresh()));
+    }
 }

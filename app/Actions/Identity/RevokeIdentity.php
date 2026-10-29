@@ -12,7 +12,7 @@ class RevokeIdentity
 {
     public function handle(User $actor, IdentitySubject $subject, bool $api = false): void
     {
-        abort_unless($actor->is_active && $actor->hasVerifiedEmail() && ! $actor->isStaff() && $actor->customer_account_id === $subject->customer_account_id, 403);
+        abort_unless($actor->is_active && $actor->hasVerifiedEmail() && ($actor->isAdmin() || (! $actor->isStaff() && $actor->customer_account_id === $subject->customer_account_id)), 403);
         if ($api) {
             IdentityPartnerAccess::authorize($actor, 'identity:verify');
         }
