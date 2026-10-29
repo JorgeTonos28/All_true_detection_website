@@ -12,11 +12,11 @@ class IdentitySession extends Model
 
     protected $guarded = ['id'];
 
-    protected $hidden = ['verification_url', 'provider_status', 'decision', 'provider_session_id', 'application_id', 'workflow_id'];
+    protected $hidden = ['verification_url', 'provider_status', 'decision', 'provider_session_id', 'application_id', 'workflow_id', 'provider_reference'];
 
     protected function casts(): array
     {
-        return ['verification_url' => 'encrypted', 'provider_status' => 'encrypted', 'decision' => 'encrypted:array', 'sync_requested' => 'boolean', 'consented_at' => 'datetime', 'last_synced_at' => 'datetime', 'credit_authorized_at' => 'datetime', 'credit_accepted_at' => 'datetime', 'decision_revision' => 'integer'];
+        return ['verification_url' => 'encrypted', 'provider_status' => 'encrypted', 'decision' => 'encrypted:array', 'sync_requested' => 'boolean', 'consented_at' => 'datetime', 'last_synced_at' => 'datetime', 'credit_authorized_at' => 'datetime', 'credit_accepted_at' => 'datetime', 'decision_revision' => 'integer', 'provider_completed_at' => 'datetime'];
     }
 
     public function order()
@@ -27,6 +27,21 @@ class IdentitySession extends Model
     public function person()
     {
         return $this->belongsTo(OrderPerson::class, 'order_person_id');
+    }
+
+    public function subject()
+    {
+        return $this->belongsTo(IdentitySubject::class, 'identity_subject_id');
+    }
+
+    public function enrolledSubject()
+    {
+        return $this->hasOne(IdentitySubject::class, 'source_identity_session_id');
+    }
+
+    public function providerReference(): string
+    {
+        return $this->provider_reference ?? $this->public_id;
     }
 
     public function publicState(): string

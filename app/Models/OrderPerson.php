@@ -39,4 +39,9 @@ class OrderPerson extends Model
     {
         return $this->hasOne(IdentitySession::class);
     }
+
+    public function identitySubject()
+    {
+        return $this->belongsTo(IdentitySubject::class);
+    }
 }
