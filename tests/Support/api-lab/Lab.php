@@ -18,10 +18,12 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookEndpoint;
+use App\Services\DiditClient;
 use App\Services\ProcessIdentitySession;
 use App\Support\IntegrationScopes;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -135,6 +137,9 @@ class Lab
 
     public static function operate(array $data): array
     {
+        if (in_array($data['action'], ['provider', 'provider-behavior', 'expire-reference'], true) && getenv('ATD_API_LAB_PROVIDER') === 'didit') {
+            throw new RuntimeException('Las mutaciones sintéticas no se admiten en el piloto externo.');
+        }
         $admin = User::where('email', 'admin@api-lab.test')->firstOrFail();
         $order = isset($data['order_id']) ? Order::where('public_id', $data['order_id'])->firstOrFail() : null;
         switch ($data['action']) {
@@ -194,6 +199,9 @@ class Lab
                 }
                 file_put_contents($path, json_encode($body, JSON_THROW_ON_ERROR), LOCK_EX);
                 break;
+            case 'provider-behavior':
+                file_put_contents(self::$root.'/behavior.json', json_encode(array_intersect_key($data, array_flip(['create_timeout', 'read_failure', 'passive_workflow'])), JSON_THROW_ON_ERROR), LOCK_EX);
+                break;
             case 'sync':
                 foreach ($order->people()->with('identitySession')->get() as $person) {
                     if ($person->identitySession) {
@@ -201,16 +209,40 @@ class Lab
                     }
                 }
                 break;
+            case 'provider-diagnostics':
+                $session = $order->people()->firstOrFail()->identitySession()->firstOrFail();
+                $body = app(DiditClient::class)->decision($session);
+                $expected = $session->person->profile['identity_number'];
+
+                return ['ok' => true, 'status' => $body['status'], 'environment' => $body['environment'],
+                    'document_checks' => array_map(fn ($check) => ['status' => $check['status'] ?? null, 'country' => $check['issuing_state'] ?? null, 'method' => $check['verification_method'] ?? null,
+                        'has_number' => filled($check['personal_number'] ?? null) || filled($check['document_number'] ?? null),
+                        'dom_number_format' => collect(['personal_number', 'document_number'])->contains(fn ($key) => is_string($check[$key] ?? null) && preg_match('/^[0-9]{11}$/D', preg_replace('/[^0-9]/', '', $check[$key]))),
+                        'number_matches_request' => collect(['personal_number', 'document_number'])->contains(fn ($key) => is_string($check[$key] ?? null) && preg_replace('/[^0-9]/', '', $check[$key]) === $expected)], $body['id_verifications'] ?? []),
+                    'liveness_checks' => array_map(fn ($check) => ['status' => $check['status'] ?? null, 'method' => $check['method'] ?? null], $body['liveness_checks'] ?? []),
+                    'face_checks' => array_map(fn ($check) => ['status' => $check['status'] ?? null], $body['face_matches'] ?? [])];
             case 'expire-reference':
                 IdentitySubject::where('public_id', $data['identity_id'])->firstOrFail()->forceFill(['expires_at' => now()->subMinute()])->save();
                 break;
             case 'snapshot':
                 return ['ok' => true, 'orders' => Order::count(), 'sessions' => IdentitySession::count(), 'provider_creates' => count(glob(self::$root.'/provider/*.json')),
-                    'files' => count(Storage::disk('local')->allFiles()), 'webhooks' => WebhookDelivery::get()->map(fn ($d) => ['type' => $d->event_type, 'payload' => $d->payload])->all()];
+                    'files' => count(Storage::disk('local')->allFiles()), 'stored_file_rows' => DB::table('order_attachments')->whereNotNull('file_path')->count() + OrderResult::whereNotNull('file_path')->count(),
+                    'foreign_key_violations' => count(DB::select('PRAGMA foreign_key_check')),
+                    'webhooks' => WebhookDelivery::get()->map(fn ($d) => ['type' => $d->event_type, 'payload' => $d->payload])->all()];
             case 'envelope':
                 $session = $order->people()->firstOrFail()->identitySession()->firstOrFail();
+                $providerId = $session->provider_session_id;
+                if (! $providerId) {
+                    foreach (glob(self::$root.'/provider/*.json') as $path) {
+                        $candidate = json_decode(file_get_contents($path), true, 64, JSON_THROW_ON_ERROR);
+                        if (data_get($candidate, 'metadata.atd_session_id') === $session->public_id) {
+                            $providerId = $candidate['session_id'];
+                            break;
+                        }
+                    }
+                }
 
-                return ['ok' => true, 'body' => ['event_id' => (string) Str::uuid(), 'session_id' => $session->provider_session_id, 'application_id' => $session->application_id, 'environment' => $session->environment,
+                return ['ok' => true, 'body' => ['event_id' => (string) Str::uuid(), 'session_id' => $providerId, 'application_id' => $session->application_id, 'environment' => $session->environment,
                     'workflow_id' => $session->workflow_id, 'vendor_data' => $session->providerReference(), 'metadata' => ['atd_session_id' => $session->public_id], 'webhook_type' => 'status.updated', 'status' => 'Approved', 'timestamp' => now()->timestamp]];
             default:
                 throw new RuntimeException('Acción de laboratorio desconocida.');
@@ -223,12 +255,13 @@ class Lab
     {
         Http::fake(function ($request) {
             $base = 'https://verification.didit.me/v3';
+            $behavior = is_file(self::$root.'/behavior.json') ? json_decode(file_get_contents(self::$root.'/behavior.json'), true, 32, JSON_THROW_ON_ERROR) : [];
             if ($request->method() === 'GET' && str_starts_with($request->url(), $base.'/workflows/')) {
                 $id = basename(rtrim($request->url(), '/'));
                 $recurring = $id === config('identity.didit.authentication_workflow_id');
 
                 return Http::response(['workflow_id' => $id, 'status' => 'published', 'is_archived' => false, 'features' => ($recurring ? '' : 'OCR + ').'LIVENESS + FACE_MATCH',
-                    'workflow_graph' => ['nodes' => ['liveness' => ['feature' => 'LIVENESS', 'config' => ['face_liveness_method' => 'ACTIVE_3D']]]]]);
+                    'workflow_graph' => ['nodes' => ['liveness' => ['feature' => 'LIVENESS', 'config' => ['face_liveness_method' => empty($behavior['passive_workflow']) ? 'ACTIVE_3D' : 'PASSIVE']]]]]);
             }
             if ($request->method() === 'POST' && $request->url() === $base.'/session/') {
                 $session = IdentitySession::where('public_id', $request['metadata']['atd_session_id'])->firstOrFail();
@@ -237,10 +270,16 @@ class Lab
                     'url' => 'https://verify.didit.me/session/api-lab-synthetic', 'id_verifications' => $session->verification_kind === 'initial' ? [['status' => 'Approved', 'issuing_state' => 'DOM', 'verification_method' => 'document', 'personal_number' => $session->person->profile['identity_number']]] : [],
                     'liveness_checks' => [['status' => 'Approved', 'method' => 'ACTIVE_3D']], 'face_matches' => [['status' => 'Approved', 'source_image_session_id' => $id]]];
                 file_put_contents(self::$root.'/provider/'.$id.'.json', json_encode($body, JSON_THROW_ON_ERROR), LOCK_EX);
+                if (! empty($behavior['create_timeout'])) {
+                    throw new ConnectionException('Synthetic accepted request with lost response.');
+                }
 
                 return Http::response($body, 201);
             }
             if ($request->method() === 'GET' && preg_match('~/session/([a-f0-9-]{36})/decision/$~D', $request->url(), $matches)) {
+                if (! empty($behavior['read_failure'])) {
+                    return Http::response([], 503);
+                }
                 $path = self::$root.'/provider/'.$matches[1].'.json';
 
                 return Http::response(is_file($path) ? json_decode(file_get_contents($path), true, 64, JSON_THROW_ON_ERROR) : [], is_file($path) ? 200 : 404);

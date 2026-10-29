@@ -9,9 +9,11 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import socket
 import struct
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -85,6 +87,8 @@ class LabRun:
         self.tokens = {}
         self.ports = []
         self.upload_count = 0
+        self.http_count = 0
+        self.count_lock = threading.Lock()
 
     def control(self, action=None, **data):
         command = ["php", str(SUPPORT / "control.php"), "init" if action is None else "op"]
@@ -125,6 +129,8 @@ class LabRun:
                     time.sleep(.1)
 
     def request(self, name, method, path, *, body=None, raw=None, fields=None, file=None, token="client", headers=None, expect=200, port=None, record=True):
+        with self.count_lock:
+            self.http_count += 1
         header = {"Accept": "application/json"}
         if token:
             header["Authorization"] = "Bearer " + self.tokens.get(token, token)
@@ -192,6 +198,8 @@ class LabRun:
         for query in ["per_page=101", "per_page=-1", "per_page[]=1", "status=invalid", "status[]=submitted"]:
             self.request("invalid listing " + query, "GET", "/api/v1/orders?" + query, expect=422)
         self.request("unknown order", "GET", "/api/v1/orders/01AAAAAAAAAAAAAAAAAAAAAAAA", expect=404)
+        self.request("order listing", "GET", "/api/v1/orders?per_page=1")
+        self.request("invoice listing", "GET", "/api/v1/invoices?status=unpaid", token="invoices:read")
         for key in ["short", "contains spaces", "x" * 129]:
             self.create(["training-equipment"], key=key, expect=422, name="invalid idempotency key")
 
@@ -254,6 +262,9 @@ class LabRun:
             self.check("no unpublished items " + code, pending.get("data") == [])
             self.check("admin publishes " + code, self.control("publish", order_id=order, result_id=rid).get("ok"))
             self.request("published manifest " + code, "GET", root + "/deliveries")
+            if index == 0:
+                self.request("results manifest alias", "GET", root + "/results")
+                self.request("overdue invoice filter", "GET", "/api/v1/invoices?status=overdue", token="invoices:read")
             self.request("published metadata " + code, "GET", root + f"/results/{rid}")
             _, _, binary, headers = self.request("published download " + code, "GET", root + f"/results/{rid}/download")
             self.check("delivery checksum " + code, hashlib.sha256(binary).hexdigest() == headers.get("X-Content-SHA256"))
@@ -385,6 +396,59 @@ class LabRun:
         untrusted, _ = self.create(["identity-verification"], token="untrusted")
         self.request("ordinary account cannot start identity API", "POST", f'/api/v1/orders/{untrusted["id"]}/people/{untrusted["people"][0]["id"]}/identity-session', body=consent, token="untrusted", expect=403)
 
+    def identity_resilience(self):
+        self.control("mode", mode="didit")
+        self.control("clear-cache")
+        consent = {"consent": True, "notice_version": self.manifest["notice"]}
+        reuse = {"consent": True, "notice_version": self.manifest["reuse_notice"]}
+        case, _ = self.create(["identity-verification"])
+        oid, pid = case["id"], case["people"][0]["id"]
+        root = f"/api/v1/orders/{oid}/people/{pid}"
+        before = self.control("snapshot")["provider_creates"]
+        self.control("provider-behavior", create_timeout=True)
+        self.request("lost provider creation response", "POST", root + "/identity-session", body=consent, expect=202)
+        self.request("uncertain creation retry", "POST", root + "/identity-session", body=consent, expect=202)
+        self.check("timeout accepted remotely only once", self.control("snapshot")["provider_creates"] == before + 1)
+        self.control("provider-behavior")
+        envelope = self.control("envelope", order_id=oid)["body"]
+        def callback(name, payload, expect=200):
+            canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+            signature = hmac.new(b"synthetic-api-lab-signature-secret", canonical, hashlib.sha256).hexdigest()
+            return self.request(name, "POST", "/api/providers/didit/webhook", raw=canonical, token=None, expect=expect,
+                                headers={"Content-Type": "application/json", "X-Timestamp": str(int(time.time())), "X-Signature-V2": signature})
+        callback("signed wrong application", {**envelope, "application_id": str(uuid.uuid4())}, 404)
+        callback("signed wrong workflow", {**envelope, "workflow_id": str(uuid.uuid4())}, 404)
+        callback("signed wrong environment", {**envelope, "environment": "live"}, 404)
+        callback("stale signed body with fresh header", {**envelope, "timestamp": int(time.time()) - 3600}, 401)
+        # A signed body claiming Approved must not replace the provider's Not Started.
+        callback("recover timed-out session through signed metadata", envelope)
+        self.request("callback cannot invent result", "GET", root + "/identity-session/result", expect=409)
+        self.check("recovery made no duplicate POST", self.control("snapshot")["provider_creates"] == before + 1)
+        self.control("provider", order_id=oid, status="Approved")
+        self.control("sync", order_id=oid)
+        identity = self.request("register resilient reference", "POST", root + "/reusable-identity", body=reuse, expect=201)[1]["data"]["id"]
+        self.control("provider-behavior", read_failure=True)
+        self.request("cannot reuse cached source during provider outage", "POST", f"/api/v1/identities/{identity}/verifications", body=reuse,
+                     headers={"Idempotency-Key": "outage-reference-001"}, expect=503)
+        self.check("source outage creates no session", self.control("snapshot")["provider_creates"] == before + 1)
+        self.control("provider-behavior")
+        self.control("expire-reference", identity_id=identity)
+        self.request("expired reference needs document", "POST", f"/api/v1/identities/{identity}/verifications", body=reuse,
+                     headers={"Idempotency-Key": "expired-reference-001"}, expect=409)
+        self.control("clear-cache")
+        passive, _ = self.create(["identity-verification"])
+        path = f'/api/v1/orders/{passive["id"]}/people/{passive["people"][0]["id"]}/identity-session'
+        self.control("provider-behavior", passive_workflow=True)
+        self.request("passive workflow creation paused", "POST", path, body=consent, expect=202)
+        self.check("passive preflight sent no POST", self.control("snapshot")["provider_creates"] == before + 1)
+        state = self.request("passive workflow attention state", "GET", path)[1]["data"]["state"]
+        self.check("passive workflow needs attention", state == "attention_required")
+        self.control("provider-behavior")
+        self.control("partner", enabled=True, limit=1)
+        quota, _ = self.create(["identity-verification"])
+        self.request("partner daily quota enforced", "POST", f'/api/v1/orders/{quota["id"]}/people/{quota["people"][0]["id"]}/identity-session', body=consent, expect=429)
+        self.control("partner", enabled=True, limit=100)
+
     def concurrency_and_limits(self):
         self.control("clear-cache")
         key = "race-" + uuid.uuid4().hex
@@ -401,12 +465,21 @@ class LabRun:
         self.check("rate limit blocks 61 and 62", [r[0] for r in replies[60:]] == [429, 429])
         self.check("rate limit has retry-after", "Retry-After" in replies[-1][3])
         self.control("clear-cache")
+        self.control("mode", mode="didit")
+        order, _ = self.create(["identity-verification"])
+        upload_path = f'/api/v1/orders/{order["id"]}/attachments'
+        for index in range(10):
+            self.request("upload quota attempt " + str(index + 1), "POST", upload_path, fields={}, expect=422)
+        self.request("upload quota blocks 11", "POST", upload_path, fields={}, expect=429)
+        self.request("upload quota does not block identity", "POST", f'/api/v1/orders/{order["id"]}/people/{order["people"][0]["id"]}/identity-session',
+                     body={"consent": True, "notice_version": self.manifest["notice"]}, expect=202)
+        self.control("clear-cache")
 
     def run(self, only=None):
-        self.start()
         try:
+            self.start()
             for title, method in [("authentication-contract", self.auth_and_contract), ("all-services", self.catalog_and_services),
-                                  ("files-batches", self.files_and_batches), ("identity", self.identity_flows), ("concurrency-limits", self.concurrency_and_limits)]:
+                                  ("files-batches", self.files_and_batches), ("identity", self.identity_flows), ("identity-resilience", self.identity_resilience), ("concurrency-limits", self.concurrency_and_limits)]:
                 if only and title not in only:
                     continue
                 print("RUN: " + title, flush=True)
@@ -417,6 +490,8 @@ class LabRun:
                     print("Scenario stopped: " + title + " / " + type(error).__name__, flush=True)
                 self.control("clear-cache")
             snapshot = self.control("snapshot")
+            self.check("no orphaned private files after rejected requests", snapshot["files"] == snapshot["stored_file_rows"])
+            self.check("database foreign keys intact", snapshot["foreign_key_violations"] == 0)
             webhook_text = json.dumps(snapshot.get("webhooks", []), ensure_ascii=False)
             self.check("webhooks have no conclusions or capture links", all(value not in webhook_text for value in ["RESERVADO", "00000000000", "verification_url", "verify.didit.me", "identity_number"]))
         finally:
@@ -429,10 +504,20 @@ class LabRun:
                     process.wait()
             for log in self.logs:
                 log.close()
-        report = {"provider": "HTTP fake inside Laravel; actual client-to-ATD loopback HTTP", "database": "isolated SQLite WAL", "checks": len(self.results),
+        spec = json.loads((BASE / "packages/contracts/openapi.json").read_text(encoding="utf-8"))
+        coverage = []
+        for path, operations in spec["paths"].items():
+            for method in operations:
+                if method not in {"get", "post", "put", "patch", "delete"}:
+                    continue
+                pattern = "^/api/v1" + re.sub(r"\{[^}]+\}", "[^/]+", path) + "$"
+                coverage.append({"method": method.upper(), "path": path, "exercised": any(r.get("method") == method.upper() and re.match(pattern, r.get("path", "")) for r in self.results)})
+        if not only:
+            self.check("all OpenAPI operations exercised", all(operation["exercised"] for operation in coverage), missing=[x for x in coverage if not x["exercised"]])
+        report = {"provider": "HTTP fake inside Laravel; actual client-to-ATD loopback HTTP", "database": "isolated SQLite WAL", "http_requests": self.http_count, "operations": coverage, "checks": len(self.results),
                   "passed": sum(r["passed"] for r in self.results), "failed": sum(not r["passed"] for r in self.results), "results": self.results}
         (self.root / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(json.dumps({"checks": report["checks"], "passed": report["passed"], "failed": report["failed"], "report": str(self.root / "report.json")}), flush=True)
+        print(json.dumps({"http_requests": self.http_count, "checks": report["checks"], "passed": report["passed"], "failed": report["failed"], "report": str(self.root / "report.json")}), flush=True)
         return report["failed"] == 0
 
 
@@ -441,6 +526,6 @@ if __name__ == "__main__":
     parser.add_argument("--only", help="Comma-separated scenario groups, for focused regression")
     options = parser.parse_args()
     selected = options.only.split(",") if options.only else None
-    if selected and set(selected) - {"authentication-contract", "all-services", "files-batches", "identity", "concurrency-limits"}:
+    if selected and set(selected) - {"authentication-contract", "all-services", "files-batches", "identity", "identity-resilience", "concurrency-limits"}:
         parser.error("Unknown scenario group")
     raise SystemExit(0 if LabRun().run(selected) else 1)

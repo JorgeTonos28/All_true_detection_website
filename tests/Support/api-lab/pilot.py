@@ -12,9 +12,17 @@ POINTER = BASE / "storage/app/private/api-lab/active-pilot.json"
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["prepare", "status", "recurrent"])
+    parser.add_argument("action", choices=["prepare", "new", "status", "recurrent", "diagnose"])
     args = parser.parse_args()
     existing = json.loads(POINTER.read_text(encoding="utf-8")) if POINTER.exists() else None
+    if args.action == "new":
+        if existing:
+            old_root = Path(existing["root"]).resolve()
+            if old_root.parent != (BASE / "storage/app/private/api-lab").resolve():
+                raise SystemExit("Ruta previa de piloto no valida.")
+            (old_root / "pilot-state.json").write_text(json.dumps(existing), encoding="utf-8")
+        existing = None
+        args.action = "prepare"
     if not existing and args.action != "prepare":
         raise SystemExit("Primero prepare una captura: python tests/Support/api-lab/pilot.py prepare")
     lab = LabRun(provider="didit", root=existing["root"] if existing else None)
@@ -37,6 +45,10 @@ def main():
             state.update(order_id=created["id"], person_id=created["people"][0]["id"])
             POINTER.write_text(json.dumps(state), encoding="utf-8")
         root = f'/api/v1/orders/{state["order_id"]}/people/{state["person_id"]}'
+        if args.action == "diagnose":
+            diagnostics = lab.control("provider-diagnostics", order_id=state["order_id"])
+            print(json.dumps(diagnostics))
+            return 0 if diagnostics.get("ok") else 1
         consent = {"consent": True, "notice_version": lab.manifest["notice"]}
         reuse = {"consent": True, "notice_version": lab.manifest["reuse_notice"]}
         if args.action == "prepare":

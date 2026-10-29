@@ -16,7 +16,8 @@ La carpeta privada conserva `report.json`, fixtures y logs para reproducir los h
 - `all-services`: los doce servicios del catálogo; creación/idempotencia, evidencia, mensajes, aislamiento, cotización, factura, abono parcial, entrega privada, pago completo, publicación y descarga con SHA-256. Operaciones administrativas se ejecutan mediante las acciones compartidas en CLI, porque no existe API administrativa para confirmar pagos/publicar; los clientes continúan usando sus endpoints HTTP reales.
 - `files-batches`: título + exequátur + identidad por varias personas, categorías obligatorias, referencias cruzadas, duplicados, documentos adulterados, macros, formatos prohibidos, tamaño, dimensiones y previsualización privada.
 - `identity`: captura inicial, consentimiento, scopes, eventos firmados/falsos/repetidos, resultado técnico a crédito, referencia reutilizable, reverificación, suspensión, revocación y corrección de fuente. Se fuerzan rechazo, revisión, vida pasiva, comprobaciones ausentes y cédula distinta.
-- `concurrency-limits`: ocho reintentos concurrentes de la misma solicitud sobre dos procesos y la misma DB; una sola orden. Sesenta lecturas por minuto permitidas y bloqueo 429 con Retry-After después del límite.
+- `identity-resilience`: timeout después de aceptar remotamente la creación, recuperación firmada sin repetir POST, eventos con aplicación/workflow/entorno incorrectos, replay con timestamp antiguo, caída del proveedor al reutilizar, caducidad de referencia, preflight pasivo y cuota diaria.
+- `concurrency-limits`: ocho reintentos concurrentes de la misma solicitud sobre dos procesos y la misma DB; una sola orden. Sesenta lecturas por minuto permitidas y bloqueo 429 con Retry-After después del límite. La carga undécima se bloquea, pero deja disponible la cuota independiente de identidad.
 
 Para repetir grupos concretos:
 
@@ -25,6 +26,8 @@ python tests/Support/api-lab/run.py --only files-batches,identity
 ```
 
 Los lotes de validación reinician únicamente la caché del laboratorio entre grupos, para que una cuota agotada no oculte la regla que se pretende probar. El grupo de límites mantiene los contadores y comprueba expresamente su bloqueo. El informe diferencia llamadas HTTP y comprobaciones sobre sus respuestas; estos números no son usuarios concurrentes ni un benchmark de producción.
+
+La ejecución completa compara también las operaciones ejercitadas con todas las rutas del OpenAPI actual. El informe contiene nombres, códigos, tiempos e identificadores sintéticos, sin tokens ni enlaces de captura. Los grupos seleccionados no exigen cobertura de las operaciones ajenas a su alcance.
 
 ## Captura externa desde el celular
 
@@ -49,3 +52,5 @@ python tests/Support/api-lab/pilot.py recurrent
 ```
 
 No se crea la sesión recurrente si la inicial no está `verified`; el mock documental puede devolver una cédula diferente de la DOM ficticia solicitada. Ese caso queda no concluyente sin alterar controles. El enlace y los resultados se guardan únicamente en el laboratorio privado; `active-pilot.json` apunta a ese entorno y permite retomar el ensayo. No borrar ese archivo ni repetir con otra clave ante un POST incierto: conciliar la sesión existente.
+
+`python tests/Support/api-lab/pilot.py diagnose` muestra únicamente estados de comprobaciones, método activo, país del documento e indicadores booleanos de formato/coincidencia; no imprime números de cédula, imágenes, puntuaciones biométricas ni respuesta bruta. Si se necesita **otra** captura inicial independiente, ejecutar explícitamente `python tests/Support/api-lab/pilot.py new`: conserva el estado previo en su carpeta privada y prepara otra base/sesión de Sandbox. No usar `new` para resolver una creación incierta o eludir límites. En el selector de Didit se pueden ensayar aprobación, rechazo y revisión; los resultados de Sandbox son simulados y no miden precisión o detección real de impostores.
