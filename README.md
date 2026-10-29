@@ -77,6 +77,8 @@ En producción, configurar `DOCUMENT_SCAN_BINARY` con la ruta de `clamdscan` o `
 
 ## API y eventos
 
+El [laboratorio HTTP](docs/api-testing.md) permite probar todos los servicios con documentos ficticios en una base y almacenamiento separados: `python tests/Support/api-lab/run.py`. Incluye permisos, pagos/entregas, varios solicitantes, identidad inicial/recurrente, concurrencia y límites; no consume Didit real. El piloto móvil separado `python tests/Support/api-lab/pilot.py prepare` sí prepara un enlace de **Sandbox** usando la clave privada local, para que el titular haga su captura; consultar después con `status`. Los tokens, bases y enlaces se conservan bajo storage privado, fuera de Git.
+
 Endpoints `/api/v1`, tokens por permisos, expiración, revocación, aislamiento por cuenta, idempotencia de creación y errores JSON con request ID. Ver [integración API](docs/api.md) y [OpenAPI](packages/contracts/openapi.json).
 
 Documentación pública en `/desarrolladores/api`, enlazada desde el footer, con guía, búsqueda de operaciones, esquemas y descarga pública de `/desarrolladores/openapi.json`. El contenido se genera desde la guía y el contrato del repositorio; no requiere cuenta ni expone credenciales.

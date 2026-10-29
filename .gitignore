@@ -13,6 +13,7 @@
 /.idea
 /.nova
 /.phpunit.cache
+__pycache__/
 /.vscode
 /.zed
 /auth.json
