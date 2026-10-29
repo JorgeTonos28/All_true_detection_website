@@ -4,11 +4,13 @@ namespace App\Actions\Orders;
 
 use App\Enums\Role;
 use App\Models\Conversation;
+use App\Models\IdentitySubject;
 use App\Models\Order;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\Audit;
 use App\Services\DocumentBudget;
+use App\Services\IdentityReferences;
 use App\Services\IdentitySettings;
 use App\Services\OrderEvents;
 use App\Support\PersonVerification;
@@ -19,7 +21,7 @@ use Illuminate\Validation\ValidationException;
 
 class CreateOrder
 {
-    public function handle(User $actor, array $data, ?string $key = null, array $files = [], array $evidence = [], bool $requireEvidence = false, array $personEvidence = []): Order
+    public function handle(User $actor, array $data, ?string $key = null, array $files = [], array $evidence = [], bool $requireEvidence = false, array $personEvidence = [], ?IdentitySubject $identitySubject = null): Order
     {
         abort_unless($actor->is_active && $actor->hasVerifiedEmail() && $actor->role === Role::Client && $actor->customer_account_id, 403);
         $profile = isset($data['person']) ? PersonVerification::profile($data) : null;
@@ -54,12 +56,17 @@ class CreateOrder
         unset($metadata);
         $retained = false;
         try {
-            [$order, $retained] = DB::transaction(function () use ($actor, $data, $key, $staged, $profile, $people, $requireEvidence) {
+            [$order, $retained] = DB::transaction(function () use ($actor, $data, $key, $staged, $profile, $people, $requireEvidence, $identitySubject) {
                 $actor = User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
                 abort_unless($actor->is_active && $actor->hasVerifiedEmail() && $actor->role === Role::Client && $actor->customer_account_id, 403);
                 $canonical = ['subject' => $data['subject'], 'details' => $data['details'] ?? null, 'external_reference' => $data['external_reference'] ?? null, 'consent' => true,
                     'items' => array_map(fn ($item) => ['service_code' => $item['service_code'], 'quantity' => (int) $item['quantity']], $data['items'])];
                 usort($canonical['items'], fn ($a, $b) => strcmp($a['service_code'], $b['service_code']));
+                if ($identitySubject) {
+                    abort_unless($identitySubject->customer_account_id === $actor->customer_account_id && IdentityReferences::usable($identitySubject), 409);
+                    abort_unless(count($people) === 1 && count($data['items']) === 1 && $data['items'][0]['service_code'] === 'identity-verification', 422);
+                    $canonical['identity_subject_id'] = $identitySubject->public_id;
+                }
                 if ($profile) {
                     $canonical['person'] = Arr::sortRecursive($profile);
                 }
@@ -121,6 +128,9 @@ class CreateOrder
                     $records[0]->services()->attach(array_map(fn ($code) => $services[$code]->id, PersonVerification::selected($data['items'])));
                 }
                 foreach ($records as $record) {
+                    if ($identitySubject) {
+                        $record->forceFill(['identity_subject_id' => $identitySubject->id, 'identity_mode' => 'didit'])->save();
+                    }
                     if (IdentitySettings::mode() === 'didit' && $record->services()->where('code', 'identity-verification')->exists()) {
                         $record->update(['identity_mode' => 'didit']);
                     }

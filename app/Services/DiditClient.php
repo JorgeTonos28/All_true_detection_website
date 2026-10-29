@@ -30,12 +30,17 @@ class DiditClient
     public function create(IdentitySession $session): array
     {
         $profile = $session->person->profile;
-        $body = $this->request('POST', '/session/', [
-            'workflow_id' => $session->workflow_id, 'vendor_data' => $session->public_id,
+        $payload = [
+            'workflow_id' => $session->workflow_id, 'vendor_data' => $session->providerReference(),
+            'metadata' => ['atd_session_id' => $session->public_id],
             'callback' => route('identity.return'), 'language' => 'es',
-            'expected_details' => array_filter(['first_name' => $profile['first_name'], 'last_name' => $profile['last_name'], 'date_of_birth' => $profile['birth_date'] ?? null, 'id_country' => 'DOM', 'expected_document_types' => ['ID']], fn ($v) => $v !== null),
-        ]);
-        if (! Str::isUuid($body['session_id'] ?? '') || ($body['workflow_id'] ?? null) !== $session->workflow_id || ($body['vendor_data'] ?? null) !== $session->public_id || ! self::safeUrl($body['url'] ?? null)) {
+        ];
+        if ($session->verification_kind !== 'recurring') {
+            $payload['expected_details'] = array_filter(['first_name' => $profile['first_name'], 'last_name' => $profile['last_name'], 'date_of_birth' => $profile['birth_date'] ?? null, 'id_country' => 'DOM', 'expected_document_types' => ['ID']], fn ($v) => $v !== null);
+        }
+        $body = $this->request('POST', '/session/', $payload);
+        if (! Str::isUuid($body['session_id'] ?? '') || ($body['workflow_id'] ?? null) !== $session->workflow_id || ($body['vendor_data'] ?? null) !== $session->providerReference() || ! self::safeUrl($body['url'] ?? null)
+            || ($session->verification_kind === 'recurring' && data_get($body, 'metadata.atd_session_id') !== $session->public_id)) {
             throw new RuntimeException('Respuesta de creación de identidad no válida.');
         }
 
@@ -50,8 +55,12 @@ class DiditClient
         $active = $liveness->isNotEmpty()
             ? $liveness->every(fn ($node) => data_get($node, 'config.face_liveness_method') === 'ACTIVE_3D')
             : empty($workflow['workflow_graph']) && ($workflow['face_liveness_method'] ?? null) === 'ACTIVE_3D' && ($workflow['is_liveness_enabled'] ?? false);
+        $hasDocument = (bool) array_intersect(['OCR', 'ID_VERIFICATION'], $features);
+        $kindMatches = $session->verification_kind === 'recurring'
+            ? ! $hasDocument && (! empty($workflow['workflow_graph']) || ($workflow['workflow_type'] ?? null) === 'biometric_authentication')
+            : $hasDocument;
         if (($workflow['workflow_id'] ?? null) !== $session->workflow_id || ($workflow['status'] ?? null) !== 'published' || ($workflow['is_archived'] ?? true)
-            || ! $active || ! in_array('LIVENESS', $features, true) || ! in_array('FACE_MATCH', $features, true) || ! array_intersect(['OCR', 'ID_VERIFICATION'], $features)) {
+            || ! $active || ! in_array('LIVENESS', $features, true) || ! in_array('FACE_MATCH', $features, true) || ! $kindMatches) {
             throw new RuntimeException('Se requiere un workflow publicado con documento, prueba de vida ACTIVE_3D y comparación facial.');
         }
     }
@@ -59,7 +68,8 @@ class DiditClient
     public function decision(IdentitySession $session): array
     {
         $body = $this->request('GET', '/session/'.$session->provider_session_id.'/decision/');
-        if (($body['session_id'] ?? null) !== $session->provider_session_id || ($body['workflow_id'] ?? null) !== $session->workflow_id || ($body['vendor_data'] ?? null) !== $session->public_id || ($body['environment'] ?? null) !== $session->environment || ! in_array($body['status'] ?? null, self::STATUSES, true)) {
+        if (($body['session_id'] ?? null) !== $session->provider_session_id || ($body['workflow_id'] ?? null) !== $session->workflow_id || ($body['vendor_data'] ?? null) !== $session->providerReference() || ($body['environment'] ?? null) !== $session->environment || ! in_array($body['status'] ?? null, self::STATUSES, true)
+            || ($session->verification_kind === 'recurring' && data_get($body, 'metadata.atd_session_id') !== $session->public_id)) {
             throw new RuntimeException('La decisión no corresponde a la sesión de identidad.');
         }
 

@@ -36,6 +36,14 @@ class UpdateOrder
                 if ($data['status'] === 'cancelled') {
                     Gate::forUser($actor)->authorize('administer', $order);
                     abort_if($order->invoice()->exists(), 409, 'Una orden facturada no puede cancelarse.');
+                    foreach ($order->people()->with('identitySession')->get() as $person) {
+                        $session = $person->identitySession;
+                        if ($session) {
+                            // Only unclaimed, never-sent work can be closed without provider confirmation.
+                            $session->newQuery()->whereKey($session->id)->where('state', 'pending')->whereNull('provider_session_id')
+                                ->update(['state' => 'cancelled_before_capture', 'provider_completed_at' => now(), 'updated_at' => now()]);
+                        }
+                    }
                 }
                 if (in_array($data['status'], ['reviewing', 'in_progress', 'completed'], true)) {
                     PersonVerification::requireEvidence($order);

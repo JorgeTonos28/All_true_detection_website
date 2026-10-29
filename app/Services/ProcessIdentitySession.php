@@ -12,7 +12,7 @@ class ProcessIdentitySession
     public function handle(int $id): void
     {
         $session = IdentitySession::find($id);
-        if (! $session || ! IdentitySettings::ready() || $session->application_id !== config('identity.didit.application_id') || $session->environment !== config('identity.didit.environment') || $session->order->status->value === 'cancelled') {
+        if (! $session || ! IdentitySettings::ready() || $session->application_id !== config('identity.didit.application_id') || $session->environment !== config('identity.didit.environment') || ($session->order->status->value === 'cancelled' && ! $session->provider_session_id)) {
             return;
         }
         if ($session->state === 'pending') {
@@ -21,6 +21,18 @@ class ProcessIdentitySession
             }
             if ($session->access_channel === 'api_credit' && ! $session->order->account->hasIdentityApiCredit()) {
                 return;
+            }
+            if ($session->verification_kind === 'recurring') {
+                if (! IdentitySettings::reuseReady() || ! $session->subject || ! IdentityReferences::usable($session->subject)) {
+                    $session->update(['state' => 'needs_attention']);
+
+                    return;
+                }
+                try {
+                    IdentityReferences::refreshSource($session->subject);
+                } catch (\Throwable) {
+                    return; // No creation POST yet: reconciliation can retry a reference read safely.
+                }
             }
             $claimed = IdentitySession::whereKey($id)->where('state', 'pending')->update(['state' => 'creating', 'updated_at' => now()]);
             if (! $claimed) {
@@ -37,6 +49,11 @@ class ProcessIdentitySession
             if ($session->access_channel === 'api_credit' && ! CustomerAccount::find($session->order->customer_account_id)?->hasIdentityApiCredit()) {
                 // Preflight made no session POST; a suspended pending reservation can safely wait.
                 IdentitySession::whereKey($id)->update(['state' => 'pending', 'updated_at' => now()]);
+
+                return;
+            }
+            if (Order::whereKey($session->order_id)->where('status', 'cancelled')->exists()) {
+                IdentitySession::whereKey($id)->whereNull('provider_session_id')->update(['state' => 'cancelled_before_capture', 'provider_completed_at' => now(), 'updated_at' => now()]);
 
                 return;
             }
@@ -64,9 +81,6 @@ class ProcessIdentitySession
             // Lock the parent first: under MySQL REPEATABLE READ, two people must not each
             // finalize against an older snapshot of the other's decision and leave the order stuck.
             $order = Order::whereKey($session->order_id)->lockForUpdate()->firstOrFail();
-            if ($order->status->value === 'cancelled') {
-                return;
-            }
             $session = IdentitySession::whereKey($id)->lockForUpdate()->firstOrFail();
             if (! $session->provider_session_id) {
                 return;
@@ -87,6 +101,8 @@ class ProcessIdentitySession
             $state = $decision ? 'received' : (in_array($body['status'], ['Not Started', 'Resubmitted'], true) ? 'awaiting_person' : 'processing');
             $url = $body['url'] ?? $body['session_url'] ?? null;
             $session->fill(['provider_status' => $body['status'], 'decision' => $decision, 'state' => $state, 'sync_requested' => false, 'last_synced_at' => now()]);
+            $session->provider_completed_at = in_array($body['status'], ['Approved', 'Declined', 'Expired', 'Abandoned', 'Kyc Expired'], true)
+                ? ($session->provider_completed_at ?? now()) : null;
             if ($session->access_channel === 'api_credit' && ! $session->credit_accepted_at) {
                 $session->credit_accepted_at = now();
             }

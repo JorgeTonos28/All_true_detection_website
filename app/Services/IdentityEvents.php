@@ -17,6 +17,9 @@ class IdentityEvents
             return;
         }
         $order = Order::whereKey($session->order_id)->lockForUpdate()->firstOrFail();
+        if ($order->status === OrderStatus::Cancelled) {
+            return;
+        }
         $people = $order->people()->with('identitySession')->get();
         $complete = $people->isNotEmpty() && $people->every(fn ($person) => $person->identitySession?->access_channel === 'api_credit' && $person->identitySession->decision !== null);
         if ($order->status !== OrderStatus::Cancelled) {

@@ -22,6 +22,13 @@ class IdentitySettings
         return (Setting::values()['identity_verification_mode'] ?? 'manual') === 'didit' && self::ready() ? 'didit' : 'manual';
     }
 
+    public static function reuseReady(): bool
+    {
+        return self::ready() && (bool) config('identity.didit.reuse_privacy_approved')
+            && Str::isUuid(config('identity.didit.authentication_workflow_id') ?? '')
+            && config('identity.didit.authentication_workflow_id') !== config('identity.didit.workflow_id');
+    }
+
     public static function description(): string
     {
         return self::mode() === 'didit'

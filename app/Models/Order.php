@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\OrderStatus;
 use App\Models\Concerns\HasPublicId;
+use App\Services\IdentityReferences;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
@@ -89,7 +90,7 @@ class Order extends Model
 
     public function canReleaseResults(): bool
     {
-        return $this->status === OrderStatus::Completed && $this->hasConfirmedPayment();
+        return $this->status === OrderStatus::Completed && $this->hasConfirmedPayment() && IdentityReferences::releasableOrder($this);
     }
 
     public function hasConfirmedPayment(): bool

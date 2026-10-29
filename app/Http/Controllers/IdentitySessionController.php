@@ -6,6 +6,7 @@ use App\Actions\Orders\RequestIdentitySession;
 use App\Models\Order;
 use App\Services\Audit;
 use App\Services\IdentityPartnerAccess;
+use App\Services\IdentityReferences;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -50,6 +51,7 @@ class IdentitySessionController extends Controller
         abort_unless($session->access_channel === 'api_credit' && $session->credit_authorized_at && $session->credit_authorized_by, 403);
         abort_if(app()->isProduction() && $session->environment !== 'live', 409, 'Un resultado sandbox no es una verificación de producción.');
         abort_unless($session->credit_accepted_at && $session->decision, 409, 'El resultado técnico aún no está disponible.');
+        abort_unless(IdentityReferences::validResult($session), 409, 'La referencia original ha cambiado; el resultado requiere revisión.');
         Audit::record($request->user(), 'identity.result_read', $session);
 
         return response()->json(['data' => ['id' => $session->public_id, 'order_id' => $order->public_id,
