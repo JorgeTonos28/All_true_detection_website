@@ -15,7 +15,9 @@
 @if($admin)<td>{{ $identity->account->name }}</td>@endif
 <td><span class="badge">{{ $identity->environment==='sandbox' ? 'Sandbox · simulación' : 'Live' }}</span></td>
 <td><span class="badge {{ $available ? 'status-completed' : '' }}">{{ $identity->revoked_at ? 'Revocada' : ($identity->expires_at->isPast() ? 'Vencida' : ($available ? 'Disponible' : 'Revisión necesaria')) }}</span><small>Hasta {{ $identity->expires_at->format('d/m/Y H:i') }} UTC</small></td>
-<td><details><summary>Ver opciones</summary><div class="stack">
+<td><button type="button" class="secondary" data-identity-open="identity-{{ $identity->id }}" aria-haspopup="dialog" aria-controls="identity-{{ $identity->id }}">Gestionar</button>
+<dialog class="portal-dialog" id="identity-{{ $identity->id }}" aria-labelledby="identity-title-{{ $identity->id }}"><div class="dialog-heading"><div><p class="eyebrow">REFERENCIA CONSENTIDA</p><h2 id="identity-title-{{ $identity->id }}">{{ $profile['first_name'] }} {{ $profile['last_name'] }}</h2></div><button type="button" class="secondary" data-identity-close>Cerrar</button></div><div class="stack">
+<p class="muted">Cédula ••••{{ substr($profile['identity_number'],-4) }} · {{ $identity->environment }}<br>Vigencia hasta {{ $identity->expires_at->format('d/m/Y H:i') }} UTC</p>
 @unless($admin)
 <p>La solicitud web genera su propia cotización y requiere pago antes de habilitar el enlace Didit. Puede existir solo una captura pendiente por referencia.</p>
 <form method="post" action="{{ route('portal.identities.verify',$identity) }}" class="stack">@csrf
@@ -27,7 +29,8 @@
 @endunless
 <a href="{{ route('portal.orders.show',$identity->sourceSession->order) }}">Ver expediente original →</a>
 @if(!$identity->revoked_at)<form method="post" action="{{ route('portal.identities.revoke',$identity) }}">@csrf<p class="muted">Revocar impide nuevas capturas en ATD. No elimina datos de Didit ni revoca enlaces ya entregados. Para supresión, contacte con ATD.</p><button class="secondary">Revocar referencia</button></form>@endif
-</div></details></td></tr>
+</div></dialog></td></tr>
 @empty<tr><td colspan="{{ $admin ? 5 : 4 }}">No hay referencias registradas. Tras recibir una verificación documental aprobada, abra su expediente y autorice expresamente su reutilización. Las revisiones manuales no sirven como referencia biométrica.</td></tr>@endforelse
 </tbody></table></div>{{ $subjects->links('portal.pagination') }}</section>
 @endsection
+@push('scripts')<script src="{{ asset('assets/js/reusable-identities.js') }}" defer></script>@endpush
