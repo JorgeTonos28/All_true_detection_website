@@ -35,6 +35,10 @@ class DiditClient
             'metadata' => ['atd_session_id' => $session->public_id],
             'callback' => route('identity.return'), 'language' => 'es',
         ];
+        // The provider rejects this field on live keys, before creating a paid/live session.
+        if ($session->environment === 'sandbox') {
+            $payload['sandbox_scenario'] = 'approve';
+        }
         if ($session->verification_kind !== 'recurring') {
             $payload['expected_details'] = array_filter(['first_name' => $profile['first_name'], 'last_name' => $profile['last_name'], 'date_of_birth' => $profile['birth_date'] ?? null, 'id_country' => 'DOM', 'expected_document_types' => ['ID']], fn ($v) => $v !== null);
         }

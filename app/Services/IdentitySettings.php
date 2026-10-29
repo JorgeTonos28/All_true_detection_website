@@ -11,7 +11,9 @@ class IdentitySettings
     {
         $config = config('identity.didit');
 
-        return filled($config['api_key']) && is_string($config['webhook_secret']) && strlen($config['webhook_secret']) >= 16
+        $signedWebhook = is_string($config['webhook_secret']) && strlen($config['webhook_secret']) >= 16;
+
+        return filled($config['api_key']) && ($signedWebhook || self::localPolling())
             && Str::isUuid($config['application_id'] ?? '') && Str::isUuid($config['workflow_id'] ?? '')
             && $config['privacy_approved'] && in_array($config['environment'], ['sandbox', 'live'], true)
             && (! app()->isProduction() || ($config['environment'] === 'live' && $config['production_approved']));
@@ -20,6 +22,11 @@ class IdentitySettings
     public static function mode(): string
     {
         return (Setting::values()['identity_verification_mode'] ?? 'manual') === 'didit' && self::ready() ? 'didit' : 'manual';
+    }
+
+    public static function localPolling(): bool
+    {
+        return app()->environment('local') && config('identity.didit.environment') === 'sandbox' && (bool) config('identity.didit.local_polling');
     }
 
     public static function reuseReady(): bool

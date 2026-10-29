@@ -8,7 +8,7 @@ ATD eligió Didit. Se implementa **sesión API v3 + captura alojada + webhook**,
 - [Iframe](https://docs.didit.me/integration/web-sdks/incontext-iframe) o [SDK JavaScript](https://docs.didit.me/integration/web-sdks/javascript-sdk): el cliente integra esa sesión en su app. Debe gestionar HTTPS, cámara, CSP y mensajes de ventana; el servidor confirma la decisión. ATD no incrusta un iframe ni abre permisos globales de cámara.
 - APIs independientes de [documento](https://docs.didit.me/standalone-apis/id-verification), [vida pasiva](https://docs.didit.me/standalone-apis/passive-liveness) y comparación facial: permiten servidor a servidor con imágenes de una UI propia. Exigen asegurar captura, coordinar comprobaciones y manejar sus fallos. No se implementan en esta fase ni equivalen al desafío activo 3D del workflow inspeccionado.
 
-El conector autorizado permitió inspeccionar aplicaciones/workflows sin modificarlos ni crear sesiones. El workflow publicado consultado incluía OCR, vida **ACTIVE_3D** y comparación facial, con documentos DOM. ATD verifica esa configuración antes de cada creación y exige el mismo método en las comprobaciones para declarar éxito: no basta con que el estado global diga Approved. La clave runtime necesita leer el workflow además de crear/consultar sesiones. Un fallo de preflight pausa sin POST, no usa vida pasiva como alternativa. El conector sirve para gestión: **no entrega a Laravel las claves secretas** ni forma parte del runtime desplegado.
+El conector permitió publicar, con autorización, dos workflows nuevos de pruebas en «All true detection (Sandbox)»: inicial con documento DOM + **ACTIVE_3D** + Face Match, recurrente con ACTIVE_3D + Face Match sin documento. No se modificaron los workflows anteriores ni se crearon sesiones/capturas. ATD verifica esa configuración antes de cada creación y exige comprobaciones activas confirmadas para declarar éxito: no basta Approved. La clave runtime necesita leer el workflow además de crear/consultar sesiones. Un fallo de preflight pausa sin POST. El conector **no entrega a Laravel las claves secretas** ni forma parte del runtime desplegado.
 
 ## Modo y expedientes existentes
 
@@ -53,13 +53,19 @@ Cada sesión guarda canal inmutable, aprobación snapshot, fecha única de acept
 
 No se inventaron tarifas, impuestos, fechas de corte o saldo financiero. La emisión/cobro de factura consolidada queda pendiente de definir el acuerdo comercial. Las órdenes a crédito no admiten factura individual para evitar doble cobro. No hay pasarela automática ni se registran como pagadas para saltar las reglas de otros servicios.
 
-## Uso recurrente: recomendación, no implementación actual
+## Uso recurrente implementado — contrato 1.6.0
 
 [Create Session de Didit](https://docs.didit.me/sessions-api/create-session) documenta Biometric Authentication: puede usar una referencia facial de un usuario previamente aprobado, o `portrait_image` para determinados workflows. `expected_details` son valores de contraste, no una cédula preenviada ni una orden para omitir documento. Reenviar cualquier foto elegida por el consumidor no ofrece una vinculación fiable a la identidad inicial.
 
-Recomendación: primera verificación completa documento + ACTIVE_3D + Face Match; posteriores reautenticaciones con vida activa y comparación contra la referencia **aprobada** del mismo sujeto, sin documento cada vez. Un identificador opaco estable y aislado por partner vincularía ese sujeto con Didit; ATD hoy usa la referencia de cada sesión y aún no tiene ese registro reutilizable. Renovación del documento, discrepancias, caducidad y riesgo requieren reverificación completa. Reautenticar no valida otra vez la vigencia del documento.
+La primera verificación requiere documento + ACTIVE_3D + Face Match y cédula DOM coincidente. Después de recibirla, el cliente autoriza expresamente su reutilización desde el expediente web o `POST /orders/{order}/people/{person}/reusable-identity`. Una fuente web necesita pago/completado/publicación; por API se exige partner vigente y `identity:verify` + `identity:read`. Se confirma nuevamente la fuente por GET al proveedor antes de registrar o usar la referencia. No sirve una revisión manual, solo presencia, una sesión rechazada ni una reverificación para renovar el ancla.
 
-Antes de implementar: workflow de autenticación independiente, soporte ACTIVE_3D comprobado en ese workflow, vinculación inicial, protección contra sustitución de retrato, consentimiento específico, retención/supresión y aislamiento. No se ha activado reutilización de rostros ni almacenamiento biométrico adicional en ATD; la API actual rechaza campos de retrato/referencia/workflow/decisión arbitrarios y cada captura sigue pidiendo documento.
+Didit conserva el documento y la referencia facial según la retención de su aplicación; resuelve el rostro aprobado del usuario enlazado por `vendor_data`. ATD guarda una referencia opaca por cuenta, fuente, aplicación y entorno; perfil básico cifrado (incluida la cédula escrita), consentimiento y caducidad. No descarga ese retrato, vídeo ni documento Didit. Los adjuntos que un cliente haya cargado antes en ATD son archivos privados independientes. No se activó conservación adicional de plantillas tras borrar imágenes ni se cambió retención en Didit. Los 90 días son una **vigencia de uso en ATD**, no una promesa de borrado del proveedor: ver [retención](https://docs.didit.me/console/data-retention).
+
+La pantalla «Identidades reutilizables» permite consultar referencias, solicitar nueva captura y revocar el uso futuro. La API ofrece GET `/identities`, POST `/identities/{identity}/verifications` y POST `/identities/{identity}/revoke`; contrato/ejemplos en [API](api.md). Cada solicitud genera una orden/persona nueva con el perfil snapshot y consentimiento para esa finalidad. API mantiene crédito únicamente para partners autorizados; web requiere nueva factura pagada y publicación. Una referencia ya registrada por API puede usarse en una nueva orden web pagada; esto no hace visible en web la conclusión original exclusiva de crédito. Suspender el acceso API bloquea sus endpoints actuales, sin convertir esa suspensión en revocación de una referencia ya consentida.
+
+La vigencia se cuenta desde la captura inicial (`consented_at + 90 días`), nunca desde el registro ni desde la última selfie. Vencida/revocada/sin fuente aprobada exige nueva verificación completa. Revocar en ATD no elimina medios de Didit ni cancela enlaces ya entregados; coordinar supresión remota de forma autorizada. No invalida una comprobación histórica hecha cuando la referencia era válida; una corrección adversa de la fuente sí bloquea la conclusión dependiente. `document_reverified=false` distingue la autenticación recurrente de una nueva validación documental.
+
+ATD envía al workflow recurrente el `vendor_data` opaco de la fuente y un `metadata.atd_session_id` único, nunca cédula, archivos o `portrait_image`. Rechaza sustitución de referencia/decisión/workflow por el consumidor. Didit deduplica creaciones pendientes por workflow + vendor; ATD admite una sola captura remota pendiente por referencia, incluso si se canceló la orden pero la creación quedó incierta. La metadata del POST, GET y callback debe corresponder al intento local. Solo terminalidad confirmada o cancelación antes del POST libera la reserva. Consulta de fuente fallida bloquea el uso sin crear otra sesión.
 
 ## Activación
 
@@ -70,8 +76,11 @@ DIDIT_API_KEY=
 DIDIT_WEBHOOK_SECRET=
 DIDIT_APPLICATION_ID=
 DIDIT_WORKFLOW_ID=
+DIDIT_AUTHENTICATION_WORKFLOW_ID=
 DIDIT_ENVIRONMENT=sandbox
 DIDIT_PRIVACY_APPROVED=false
+DIDIT_REUSE_PRIVACY_APPROVED=false
+DIDIT_LOCAL_POLLING=false
 DIDIT_PRODUCTION_APPROVED=false
 DIDIT_DAILY_SESSION_LIMIT=200
 DIDIT_ACCOUNT_DAILY_SESSION_LIMIT=20
@@ -79,7 +88,7 @@ DIDIT_ACCOUNT_DAILY_SESSION_LIMIT=20
 
 1. Elegir aplicación por su entorno real, no por nombre. Claves separadas sandbox/live y permisos mínimos de sesiones/workflows necesarios. Una clave live puede facturar incluso desde local.
 2. Publicar/seleccionar workflow KYC con documento, **ACTIVE_3D** y comparación facial. Probar cédula DOM específica, idioma, calidad, accesibilidad y el campo `liveness_checks[].method` del informe. La clave debe leer `/v3/workflows/{id}/`; si no tiene permiso el preflight bloquea la captura. Autorizar los campos mínimos para vincular identidad; sin ellos ATD no declara verified. No usar un UniLink genérico para sustituir sesiones locales.
-3. Crear destino HTTPS de la aplicación a `/api/providers/didit/webhook`, eventos `status.updated` y `data.updated`, versión v3. Usar el secreto de ese destino, distinto de la API key. En local se necesita túnel HTTPS de pruebas elegido por operaciones o conciliación por API: Didit no alcanza 127.0.0.1. Esta tarea no creó túneles ni modificó destinos.
+3. Producción: destino HTTPS a `/api/providers/didit/webhook`, eventos `status.updated` y `data.updated`, versión v3. Secreto del destino, distinto de API key. Local: `DIDIT_LOCAL_POLLING=true` permite consultar por API sin túnel ni secreto webhook **solo APP_ENV=local + sandbox**. No acepta callbacks sin firma; fuera de esa combinación vuelve a exigir secreto. Scheduler cada 30 s, activas elegibles tras 20 s; recibidas siguen reconfirmándose tras 24 h. Esta tarea no creó túneles ni modificó destinos.
 4. Revisar condiciones para verificar clientes, privacidad/DPA, ubicación, subencargados, conservación/supresión y preferencias de entrenamiento. El aviso aprobado no acredita revisión contractual/legal. `DIDIT_PRIVACY_APPROVED=true` solo tras completar esta revisión y definir evidencia del consentimiento en la app integradora.
 5. Respaldar DB/APP_KEY, aplicar migraciones aditivas, limpiar/cachear configuración y reiniciar workers. Cola/scheduler supervisados; en local `composer run dev` reúne los procesos en una terminal.
 6. Probar sandbox completo: callback, firma, duplicados, discrepancias, errores y recuperación. Approved simulado sin comprobaciones produce inconclusive deliberadamente. Mocks locales no confirman una llamada real a Didit.
@@ -105,6 +114,35 @@ php artisan portal:reconcile-identity
 
 Apagar el switch afecta casos nuevos, no cancela capturas iniciadas. Ante incidente, operaciones puede pausar procesamiento/configuración preservando recibos y conciliación. No hay botón para borrar/reintentar, ni supresión automática en Didit: requiere procedimiento autorizado con el proveedor.
 
+## Pruebas locales preparadas
+
+Aplicación seleccionada por el usuario: `145cffa4-94fe-4494-8442-872e7f63c928` («All true detection (Sandbox)»). Workflows publicados y releídos con el conector:
+
+| Uso | Workflow |
+| --- | --- |
+| Inicial · OCR DOM → ACTIVE_3D → Face Match | `b80f4753-2dbc-46f3-b207-227e19ff735b` |
+| Recurrente · ACTIVE_3D → Face Match | `ffa07f01-d206-494d-be95-9c5dd8fa86aa` |
+
+Sin búsqueda facial 1:N ni grabación de audio adicional. No se cambió la retención. El conector actual no expuso el campo de modo real de la aplicación ni claves sin ocultar: confirmar **modo Sandbox** en consola y usar su clave con lectura de workflows y creación/lectura de sesiones. No basta con el nombre. ATD manda `sandbox_scenario=approve` en sesiones sandbox; Didit lo rechaza en una aplicación live antes de crear. El selector alojado permite ensayar otros escenarios.
+
+El `.env` local tiene los IDs anteriores, polling y avisos autorizados; aprobación de producción permanece false. Solo falta introducir la clave en `DIDIT_API_KEY`, nunca en chat/Git. Las aprobaciones locales corresponden al ensayo y al aviso autorizado, no acreditan revisión contractual para producción. Después ejecutar cada comando en su propio bloque:
+
+```bat
+php artisan config:clear
+```
+
+```bat
+php artisan portal:identity-status --check-provider
+```
+
+```bat
+composer run dev
+```
+
+El diagnóstico hace solo GET de ambos workflows y no muestra secretos ni crea sesiones. Tras confirmarlo, activar Didit en Mi negocio. Crear verificación inicial ficticia, cotizar/registrar pago ficticio, iniciar captura y esperar conciliación; completar/publicar el informe, autorizar la referencia y crear otra solicitud desde Identidades reutilizables. Cotizar/pagar esa nueva orden habilita su captura sin documento. Para API, autorizar la cuenta partner y emitir scopes mínimos; el resultado técnico se devuelve automáticamente al finalizar.
+
+**Límite pendiente de validar con credenciales:** [Sandbox simula los datos extraídos](https://docs.didit.me/integration/sandbox-testing), aunque la captura activa se realiza y sus medios se conservan. Usar documentos de muestra, nunca cédulas reales. El mock genérico puede no devolver una cédula DOM de once dígitos coincidente: ATD mantendrá `inconclusive` y no permitirá registrar referencia. No se debilita ese control para lograr una demo. Las pruebas automatizadas con respuestas sintéticas vinculadas cubren el recorrido completo; una prueba de captura Sandbox todavía debe confirmar ese dato y los campos de referencia/metadata con Didit. Simulación no prueba precisión biométrica real.
+
 ## Validación y límites
 
-Pruebas HTTP simuladas y QA visual aislado: [evidencias](qa/didit.md). No se transmitieron biometría/documentos ni crearon sesiones reales. No se usaron claves runtime reales, modificaron workflows ni desplegó producción. La instalación local conserva manual hasta completar configuración y prueba integral con Didit.
+Pruebas HTTP simuladas y QA visual aislado: [evidencias anteriores](qa/didit.md) y [reutilización](qa/reusable-identity.md). No se transmitieron documentos/biometría ni crearon sesiones. Se publicaron solo los dos workflows nuevos autorizados, sin despliegue. La instalación local conserva manual hasta completar la clave y activar el switch.

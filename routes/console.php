@@ -1,12 +1,14 @@
 <?php
 
 use App\Models\ApiRequestLog;
+use App\Services\IdentitySettings;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('portal:dispatch-webhooks')->everyMinute()->withoutOverlapping();
-Schedule::command('portal:reconcile-identity')->everyMinute()->withoutOverlapping();
+$identitySchedule = Schedule::command('portal:reconcile-identity')->withoutOverlapping();
+IdentitySettings::localPolling() ? $identitySchedule->everyThirtySeconds() : $identitySchedule->everyMinute();
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
 Schedule::call(fn () => ApiRequestLog::where('created_at', '<', now()->subDays(30))->delete())->daily()->name('api-metrics-retention')->withoutOverlapping();
 
