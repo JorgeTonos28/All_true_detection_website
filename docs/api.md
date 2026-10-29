@@ -8,6 +8,8 @@ Base de producción: `https://SU_DOMINIO/api/v1`. Base local predeterminada: `ht
 
 La versión de protocolo está en `/v1`; el contrato OpenAPI 3.0.3 describe rutas, parámetros y esquemas. Los identificadores de negocio son ULID opacos, nunca credenciales. Fechas de API en ISO 8601 UTC y vencimientos como `YYYY-MM-DD`. Dinero en unidades menores enteras: `1050` equivale a `10.50` de la moneda indicada. No use flotantes para conciliar importes.
 
+El límite general es de 60 peticiones/minuto por usuario y 600/minuto por IP antes de autenticar. Además, las cargas de documentos admiten 10 intentos/minuto y las operaciones costosas de identidad (iniciar sesión, registrar referencia o crear reverificación) comparten otra cuota de 10 intentos/minuto por usuario. Estos dos contadores son independientes; usan el mismo usuario aunque se rote el token. Los intentos con validación fallida también cuentan. Los cupos diarios de sesiones Didit por cuenta/global siguen aplicándose aparte. Ante 429 respete `Retry-After`; no cree otra clave idempotente para evadir el bloqueo.
+
 ## Autenticación y permisos
 
 Cree un usuario cliente, confirme su email e ingrese al portal. En Integraciones API puede emitir tokens temporales de 1 a 90 días (opción predeterminada), o elegir explícitamente un token persistente para una automatización servidor a servidor. Este último tiene `expires_at=null`, no caduca por fecha y no necesita renovación automática. No se amplía la vigencia de tokens existentes. Todos mantienen scopes mínimos y revocación inmediata; se exige confirmación reciente de identidad al emitir o revocar. Cada usuario admite hasta 10 tokens; el token completo se muestra una sola vez y el servidor conserva su hash.

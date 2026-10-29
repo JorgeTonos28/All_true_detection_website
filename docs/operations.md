@@ -2,6 +2,8 @@
 
 ## Preparar entorno
 
+La regresión HTTP reproducible está en [laboratorio de API](api-testing.md). Corre en servidores loopback, SQLite y almacenamiento privados separados; el piloto de celular usa otra DB y la clave Didit Sandbox local. En contrato 1.6.1 las cuotas de 10 cargas/minuto y 10 operaciones costosas de identidad/minuto tienen contadores independientes por usuario; se conserva el máximo general de 60 peticiones/minuto. No aumentar límites para ocultar 429: distinguir cuota técnica, cupo diario de partner y fallo de validación; respetar Retry-After.
+
 PHP 8.3+ con PDO MySQL/SQLite, mbstring, OpenSSL, cURL, fileinfo y XML; GD para validación de imágenes. El lock de Composer se resuelve contra PHP 8.3 para evitar dependencias que solo funcionen en el PHP de desarrollo. MySQL 8+ o SQLite; la suite de CI cubre ambos motores. Los assets del portal son estáticos y están en Git.
 
 Antes de actualizar, crear y verificar un respaldo de base de datos, `storage/app/private`, logos, configuración privada y APP_KEY. Conservar APP_KEY: cifra mensajes, descripción de expedientes, resultados, secretos de webhooks y trabajos de autenticación en cola. Una clave distinta impide recuperar los datos. El almacenamiento privado y sus respaldos deben tener acceso restringido y cifrado de disco/servicio de almacenamiento; no colocarlos bajo el document root.

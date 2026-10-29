@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "All True Detection API",
-    "version": "1.6.0",
-    "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API."
+    "version": "1.6.1",
+    "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API. Límite general 60/min por usuario y 600/min por IP; cargas 10/min e identidad costosa 10/min en contadores independientes por usuario. Los fallos de validación cuentan. Respetar Retry-After en 429; cuotas diarias Didit adicionales."
   },
   "servers": [
     {

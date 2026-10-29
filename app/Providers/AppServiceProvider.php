@@ -59,6 +59,8 @@ class AppServiceProvider extends ServiceProvider
         }
         RateLimiter::for('api', fn (Request $r) => Limit::perMinute(60)->by((string) ($r->user()?->id ?? $r->ip())));
         RateLimiter::for('api-edge', fn (Request $r) => Limit::perMinute(600)->by($r->ip()));
+        RateLimiter::for('api-documents', fn (Request $r) => Limit::perMinute(10)->by((string) $r->user()->id));
+        RateLimiter::for('api-identity', fn (Request $r) => Limit::perMinute(10)->by((string) $r->user()->id));
         RateLimiter::for('contact', fn (Request $r) => Limit::perHour(5)->by($r->ip()));
         Event::listen(Verified::class, function (Verified $event): void {
             if ($event->user->customer_account_id) {
