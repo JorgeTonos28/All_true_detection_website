@@ -37,7 +37,7 @@
         "x-required-scopes": ["identity:read"],
         "responses": {
           "200": { "description": "Estado operativo y enlace privado cuando se requiere participación.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentitySession" } } } } } },
-          "default": { "description": "401, 403, 404 o 429.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "default": { "description": "401, 403, 404, 409 cancelada o 429.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
