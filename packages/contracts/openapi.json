@@ -2719,7 +2719,7 @@
         "type": "object",
         "properties": {
           "verification_kind": { "type": "string", "enum": ["initial", "recurring"] }, "identity_id": { "type": "string", "nullable": true },
-          "document_reverified": { "type": "boolean", "description": "false en autenticación recurrente: no se ha validado nuevamente la cédula." },
+          "document_reverified": { "type": "boolean", "description": "Indica el alcance del flujo, no éxito documental: true en flujo inicial con comprobación de documento; false en autenticación recurrente sin nueva cédula. Consultar outcome/reason para saber la conclusión." },
           "id": { "type": "string" }, "order_id": { "type": "string" }, "person_id": { "type": "string" },
           "provider": { "type": "string", "enum": ["didit"] }, "environment": { "type": "string", "enum": ["sandbox", "live"] },
           "billing_mode": { "type": "string", "enum": ["partner_credit"] }, "revision": { "type": "integer", "minimum": 1 },
