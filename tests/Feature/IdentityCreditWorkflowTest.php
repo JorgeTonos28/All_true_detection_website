@@ -8,6 +8,7 @@ use App\Actions\Identity\ManagePartnerAccess;
 use App\Actions\Orders\CreateOrder;
 use App\Actions\Orders\RequestIdentitySession;
 use App\Enums\Role;
+use App\Jobs\ProcessDiditSession;
 use App\Models\IdentitySession;
 use App\Models\Order;
 use App\Models\Setting;
@@ -245,5 +246,26 @@ class IdentityCreditWorkflowTest extends TestCase
         $this->grant();
         $this->getJson($this->url, $this->headers)->assertConflict();
         $this->getJson($this->url.'/result', $this->headers)->assertConflict();
+    }
+
+    public function test_suspended_reservations_do_not_starve_reconciliation_of_accepted_sessions(): void
+    {
+        $this->grant();
+        $pending = $this->requestSession();
+        $order = app(CreateOrder::class)->handle($this->client, PersonVerificationWorkflowTest::data(['identity-verification']));
+        $url = '/api/v1/orders/'.$order->public_id.'/people/'.$order->person->public_id.'/identity-session';
+        $this->postJson($url, ['consent' => true, 'notice_version' => config('identity.notice_version')], $this->headers)->assertStatus(202);
+        $accepted = $order->person->identitySession()->firstOrFail();
+        $accepted->update(['provider_session_id' => (string) Str::uuid(), 'state' => 'awaiting_person', 'sync_requested' => true]);
+        $this->grant(false);
+        Queue::fake();
+        $this->artisan('portal:reconcile-identity')->assertSuccessful();
+        Queue::assertPushed(ProcessDiditSession::class, fn ($job) => $job->sessionId === $accepted->id);
+        Queue::assertNotPushed(ProcessDiditSession::class, fn ($job) => $job->sessionId === $pending->id);
+        $this->grant();
+        Queue::fake();
+        $this->artisan('portal:reconcile-identity')->assertSuccessful();
+        Queue::assertPushed(ProcessDiditSession::class, 2);
+        Http::assertNothingSent();
     }
 }

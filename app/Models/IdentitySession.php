@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasPublicId;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class IdentitySession extends Model
@@ -37,5 +38,14 @@ class IdentitySession extends Model
             'create_uncertain', 'needs_attention' => 'attention_required',
             default => 'processing',
         };
+    }
+
+    public function scopeEligiblePending(Builder $query): Builder
+    {
+        // Coarse queue admission only; the action/worker recheck the full payment/grant rules.
+        return $query->where('state', 'pending')->where(fn ($q) => $q
+            ->where(fn ($q) => $q->where('access_channel', 'web')->whereHas('order.invoice', fn ($q) => $q->where('status', 'paid')->where('total', '>', 0)))
+            ->orWhere(fn ($q) => $q->where('access_channel', 'api_credit')->whereHas('order.account', fn ($q) => $q
+                ->where('identity_api_enabled', true)->whereNotNull('identity_api_approved_by')->whereNotNull('identity_api_approved_at'))));
     }
 }
