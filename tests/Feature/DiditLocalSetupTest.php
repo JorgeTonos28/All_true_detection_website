@@ -63,8 +63,15 @@ class DiditLocalSetupTest extends TestCase
         Http::fake(fn ($request) => Http::response(['session_id' => '44444444-4444-4444-8444-444444444444', 'workflow_id' => $session->workflow_id, 'vendor_data' => 'synthetic', 'url' => 'https://verify.didit.me/session/synthetic']));
         app(DiditClient::class)->create($session);
         Http::assertSent(fn ($request) => $request['sandbox_scenario'] === 'approve');
+        $this->assertArrayHasKey('callback', Http::recorded()->last()[0]->data());
+        $this->app->instance('env', 'local');
+        config(['identity.didit.local_polling' => true]);
+        app(DiditClient::class)->create($session);
+        $this->assertArrayNotHasKey('callback', Http::recorded()->last()[0]->data());
         $session->environment = 'live';
+        config(['identity.didit.environment' => 'live']);
         app(DiditClient::class)->create($session);
         $this->assertArrayNotHasKey('sandbox_scenario', Http::recorded()->last()[0]->data());
+        $this->assertArrayHasKey('callback', Http::recorded()->last()[0]->data());
     }
 }

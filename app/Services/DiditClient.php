@@ -33,8 +33,13 @@ class DiditClient
         $payload = [
             'workflow_id' => $session->workflow_id, 'vendor_data' => $session->providerReference(),
             'metadata' => ['atd_session_id' => $session->public_id],
-            'callback' => route('identity.return'), 'language' => 'es',
+            'language' => 'es',
         ];
+        // A phone cannot return to the developer's loopback address. Local polling
+        // already confirms the result server-to-server; keep Didit's completion screen.
+        if (! IdentitySettings::localPolling()) {
+            $payload['callback'] = route('identity.return');
+        }
         // The provider rejects this field on live keys, before creating a paid/live session.
         if ($session->environment === 'sandbox') {
             $payload['sandbox_scenario'] = 'approve';

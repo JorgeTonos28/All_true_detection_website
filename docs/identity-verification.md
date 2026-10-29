@@ -141,6 +141,8 @@ composer run dev
 
 El diagnóstico hace solo GET de ambos workflows y no muestra secretos ni crea sesiones. Tras confirmarlo, activar Didit en Mi negocio. Crear verificación inicial ficticia, cotizar/registrar pago ficticio, iniciar captura y esperar conciliación; completar/publicar el informe, autorizar la referencia y crear otra solicitud desde Identidades reutilizables. Cotizar/pagar esa nueva orden habilita su captura sin documento. Para API, autorizar la cuenta partner y emitir scopes mínimos; el resultado técnico se devuelve automáticamente al finalizar.
 
+El enlace de captura es HTTPS de Didit y puede abrirse directamente en un celular sin publicar Laravel en Internet. En modo polling local se omite el callback al localhost del desarrollador: Didit conserva su pantalla final, y ATD confirma por API desde la computadora. Producción mantiene su callback normal. Los enlaces son privados y caducan con la sesión; no incluirlos en Git, reportes públicos, logs o capturas de QA.
+
 **Límite pendiente de validar con credenciales:** [Sandbox simula los datos extraídos](https://docs.didit.me/integration/sandbox-testing), aunque la captura activa se realiza y sus medios se conservan. Usar documentos de muestra, nunca cédulas reales. El mock genérico puede no devolver una cédula DOM de once dígitos coincidente: ATD mantendrá `inconclusive` y no permitirá registrar referencia. No se debilita ese control para lograr una demo. Las pruebas automatizadas con respuestas sintéticas vinculadas cubren el recorrido completo; una prueba de captura Sandbox todavía debe confirmar ese dato y los campos de referencia/metadata con Didit. Simulación no prueba precisión biométrica real.
 
 ## Validación y límites
