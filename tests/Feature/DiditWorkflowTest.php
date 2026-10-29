@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Tests\Support\IdentityWebPayment;
 use Tests\TestCase;
 
 class DiditWorkflowTest extends TestCase
@@ -58,6 +59,8 @@ class DiditWorkflowTest extends TestCase
         $url = '/api/v1/orders/'.$order->public_id.'/people/'.$order->person->public_id.'/identity-session';
         $consent = ['consent' => true, 'notice_version' => config('identity.notice_version')];
         $action = app(RequestIdentitySession::class);
+        $admin = User::factory()->create(['role' => Role::Admin]);
+        IdentityWebPayment::settle($order, $admin);
         $first = $action->handle($client, $order, $order->person, $consent);
         $this->assertSame($first->id, $action->handle($client, $order, $order->person, $consent)->id);
         $this->assertDatabaseCount('identity_sessions', 1);
@@ -75,11 +78,8 @@ class DiditWorkflowTest extends TestCase
         $this->assertSame('received', $session->fresh()->publicState());
         $this->getJson('/api/v1/orders/'.$order->public_id, $headers)->assertOk()->assertDontSee('verified')->assertDontSee('Approved');
         $this->getJson('/api/v1/orders/'.$order->public_id.'/results', $headers)->assertConflict();
-        $admin = User::factory()->create(['role' => Role::Admin]);
-        $invoice = app(IssueInvoice::class)->handle($admin, $order, ['prices' => [$order->items->first()->id => 100]]);
         app(UpdateOrder::class)->handle($admin, $order, ['status' => 'in_progress']);
         app(UpdateOrder::class)->handle($admin, $order, ['status' => 'completed']);
-        app(RecordPayment::class)->handle($admin, $invoice, ['amount' => 100, 'method' => 'cash', 'reference' => 'SYNTHETIC-DIDIT']);
         $this->getJson('/api/v1/orders/'.$order->public_id.'/results', $headers)->assertOk()->assertJsonCount(0, 'data');
         $this->app->detectEnvironment(fn () => 'production');
         try {
@@ -123,6 +123,7 @@ class DiditWorkflowTest extends TestCase
         $this->bootDidit();
         $client = $this->client('tamper@example.test');
         $order = app(CreateOrder::class)->handle($client, PersonVerificationWorkflowTest::data(['identity-verification']));
+        IdentityWebPayment::settle($order);
         app(RequestIdentitySession::class)->handle($client, $order, $order->person, ['consent' => true, 'notice_version' => config('identity.notice_version')]);
         $session = IdentitySession::firstOrFail();
         $session->update(['provider_session_id' => (string) Str::uuid(), 'state' => 'awaiting_person']);
@@ -140,6 +141,8 @@ class DiditWorkflowTest extends TestCase
         $data = PersonVerificationWorkflowTest::data(['identity-verification']);
         $first = app(CreateOrder::class)->handle($client, $data);
         $second = app(CreateOrder::class)->handle($client, $data);
+        IdentityWebPayment::settle($first);
+        IdentityWebPayment::settle($second);
         config(['identity.account_daily_session_limit' => 1]);
         $consent = ['consent' => true, 'notice_version' => config('identity.notice_version')];
         $action = app(RequestIdentitySession::class);

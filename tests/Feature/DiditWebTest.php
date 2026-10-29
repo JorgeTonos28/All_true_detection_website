@@ -11,6 +11,7 @@ use App\Services\IdentitySettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
+use Tests\Support\IdentityWebPayment;
 use Tests\TestCase;
 
 class DiditWebTest extends TestCase
@@ -54,6 +55,8 @@ class DiditWebTest extends TestCase
         $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Preparar verificación con Didit')->assertDontSee('Abrir captura segura');
         $url = '/portal/orders/'.$order->public_id.'/people/'.$order->person->public_id.'/identity-session';
         $this->post($url, [])->assertSessionHasErrors(['consent', 'notice_version']);
+        $this->postJson($url, ['consent' => 1, 'notice_version' => config('identity.notice_version')])->assertConflict();
+        IdentityWebPayment::settle($order);
         $this->post($url, ['consent' => 1, 'notice_version' => config('identity.notice_version')])->assertSessionHasNoErrors()->assertRedirect();
         $this->assertDatabaseCount('identity_sessions', 1);
         $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Preparando el enlace')->assertDontSee('Approved');

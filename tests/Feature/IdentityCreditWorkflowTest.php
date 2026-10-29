@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Tests\Support\IdentityWebPayment;
 use Tests\TestCase;
 
 class IdentityCreditWorkflowTest extends TestCase
@@ -187,6 +188,7 @@ class IdentityCreditWorkflowTest extends TestCase
         $consent = ['consent' => true, 'notice_version' => config('identity.notice_version')];
         $mixed = app(CreateOrder::class)->handle($this->client, PersonVerificationWorkflowTest::data(['identity-verification', 'exequatur']));
         $this->postJson('/api/v1/orders/'.$mixed->public_id.'/people/'.$mixed->person->public_id.'/identity-session', $consent, $this->headers)->assertConflict();
+        IdentityWebPayment::settle($this->order);
         app(RequestIdentitySession::class)->handle($this->client, $this->order, $this->order->person, $consent);
         $this->postJson($this->url, $consent, $this->headers)->assertConflict();
         $this->getJson($this->url, $this->headers)->assertForbidden();

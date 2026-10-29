@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Auth\CreateNewUser;
 use App\Actions\Orders\CreateOrder;
 use App\Models\IdentitySession;
+use App\Models\Setting;
 use App\Services\DiditClient;
 use App\Services\DiditSignature;
 use App\Services\ProcessIdentitySession;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Tests\Support\IdentityWebPayment;
 use Tests\TestCase;
 
 class DiditProviderTest extends TestCase
@@ -32,9 +34,11 @@ class DiditProviderTest extends TestCase
         Http::preventStrayRequests();
         self::configure();
         $this->seed();
+        Setting::put('identity_verification_mode', 'didit');
         $client = app(CreateNewUser::class)->create(['name' => 'Synthetic', 'email' => 'didit@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
         $order = app(CreateOrder::class)->handle($client, PersonVerificationWorkflowTest::data(['identity-verification']));
+        IdentityWebPayment::settle($order);
 
         return IdentitySession::create(['order_id' => $order->id, 'order_person_id' => $order->person->id, 'application_id' => config('identity.didit.application_id'), 'workflow_id' => config('identity.didit.workflow_id'), 'environment' => 'sandbox', 'state' => 'pending', 'consented_at' => now(), 'notice_version' => config('identity.notice_version')]);
     }
@@ -133,7 +137,10 @@ class DiditProviderTest extends TestCase
         app(ProcessIdentitySession::class)->handle($session->id);
         $this->assertSame('verified', $session->fresh()->decision['outcome']);
         $this->assertStringNotContainsString('secret-document', json_encode($session->fresh()->decision));
-        $this->assertDatabaseCount('order_results', 0);
+        $this->assertDatabaseCount('order_results', 1);
+        $result = $session->order->results()->firstOrFail();
+        $this->assertNull($result->published_at);
+        $this->assertStringNotContainsString('secret-document', json_encode($result->verification_findings));
         $body['id_verifications'][0]['personal_number'] = '99999999999';
         $responses->push($body);
         app(ProcessIdentitySession::class)->handle($session->id);

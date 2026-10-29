@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Tests\Support\IdentityWebPayment;
 
 require __DIR__.'/../../vendor/autoload.php';
 $app = require __DIR__.'/../../bootstrap/app.php';
@@ -40,5 +41,7 @@ if (in_array('--credit', $argv, true)) {
     app(ManagePartnerAccess::class)->handle($admin, $client->account, ['enabled' => true, 'daily_limit' => 40]);
     IdentitySession::firstOrFail()->update(['access_channel' => 'api_credit', 'credit_authorized_by' => $admin->id, 'credit_authorized_at' => now(), 'credit_accepted_at' => now(), 'state' => 'received', 'decision_revision' => 1,
         'decision' => ['method' => 'didit', 'outcome' => 'verified', 'reason' => 'synthetic-preview-only', 'reviewed_at' => now()->toIso8601String()]]);
+} else {
+    IdentityWebPayment::settle($order, $admin);
 }
 echo json_encode(['database' => $path, 'admin' => $admin->email, 'client' => $client->email, 'password' => $password, 'order_id' => $order->public_id], JSON_THROW_ON_ERROR).PHP_EOL;

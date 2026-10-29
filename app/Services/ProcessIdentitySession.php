@@ -16,6 +16,9 @@ class ProcessIdentitySession
             return;
         }
         if ($session->state === 'pending') {
+            if ($session->access_channel === 'web' && ! $session->order->hasConfirmedPayment()) {
+                return;
+            }
             if ($session->access_channel === 'api_credit' && ! $session->order->account->hasIdentityApiCredit()) {
                 return;
             }
