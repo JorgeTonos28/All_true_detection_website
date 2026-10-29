@@ -7,6 +7,7 @@ use App\Actions\Identity\EnrollIdentity;
 use App\Actions\Identity\RevokeIdentity;
 use App\Actions\Orders\RequestIdentitySession;
 use App\Actions\Orders\UpdateOrder;
+use App\Services\DiditClient;
 use App\Services\IdentityReferences;
 use App\Services\ProcessIdentitySession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -110,5 +111,20 @@ class ReusableIdentityTest extends TestCase
         $this->assertTrue(IdentityReferences::validResult($session->fresh()));
         $session->update(['provider_reference' => 'different-reference']);
         $this->assertFalse(IdentityReferences::validResult($session->fresh()));
+    }
+
+    public function test_withdrawal_during_preflight_prevents_remote_creation(): void
+    {
+        $this->seed();
+        $case = new ReusableIdentityScenario;
+        $subject = $case->enroll();
+        $order = app(CreateRecurringOrder::class)->handle($case->client, $subject, $case->consent(), 'withdrawal-during-preflight', 'api_credit');
+        $client = \Mockery::mock(DiditClient::class)->makePartial();
+        $client->shouldReceive('assertActiveWorkflow')->once()->andReturnUsing(fn () => $subject->forceFill(['revoked_at' => now()])->save());
+        $client->shouldNotReceive('create');
+        $this->app->instance(DiditClient::class, $client);
+        app(ProcessIdentitySession::class)->handle($order->person->identitySession->id);
+        $this->assertSame('needs_attention', $order->person->identitySession->fresh()->state);
+        $this->assertCount(0, $case->creates);
     }
 }

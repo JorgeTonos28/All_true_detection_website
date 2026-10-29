@@ -44,6 +44,9 @@ class ReusableIdentityApiWebTest extends TestCase
         $case->bodies[$case->source->provider_session_id]['status'] = 'Declined';
         app(ProcessIdentitySession::class)->handle($case->source->id);
         $this->getJson($resultUrl, $headers)->assertConflict();
+        $this->assertTrue($session->fresh()->sync_requested);
+        app(ProcessIdentitySession::class)->handle($session->id);
+        $this->getJson($resultUrl, $headers)->assertOk()->assertJsonPath('data.outcome', 'inconclusive')->assertJsonPath('data.revision', 2);
         $this->assertDatabaseCount('identity_subjects', 1);
         $this->assertDatabaseCount('invoices', 0);
     }

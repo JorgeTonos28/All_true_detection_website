@@ -57,6 +57,14 @@ class ProcessIdentitySession
 
                 return;
             }
+            if ($session->verification_kind === 'recurring') {
+                $session->refresh();
+                if (! IdentityReferences::boundToSession($session) || ! IdentityReferences::usable($session->subject)) {
+                    $session->update(['state' => 'needs_attention', 'provider_completed_at' => now()]);
+
+                    return; // Reference withdrawn/expired during preflight: no creation POST was sent.
+                }
+            }
             try {
                 $body = app(DiditClient::class)->create($session);
                 DB::transaction(function () use ($id, $body) {
@@ -119,6 +127,11 @@ class ProcessIdentitySession
                 Audit::record(null, 'identity.decision_received', $session);
                 $session->increment('decision_revision');
                 IdentityEvents::record($session);
+                if ($session->verification_kind === 'initial' && ($subject = $session->enrolledSubject()->first())) {
+                    // GET blocks obsolete dependent conclusions immediately; the scheduler also
+                    // refreshes their revisions and sends metadata-only correction events.
+                    $subject->sessions()->whereNotNull('provider_session_id')->update(['sync_requested' => true]);
+                }
             }
             if ($session->access_channel !== 'api_credit') {
                 IdentityChecks::prepare($session->order);
