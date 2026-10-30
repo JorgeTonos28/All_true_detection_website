@@ -212,6 +212,8 @@ La respuesta es 202, con `billing_mode=partner_credit`, entorno y revisión. Con
 
 Estados públicos: `preparing`, `awaiting_person`, `processing`, `received`, `attention_required`. `received` solo significa que ATD obtuvo una conclusión; no revela si fue aprobada. Los casos con comprobaciones insuficientes, cédula diferente, vencimiento o revisión pueden ser no concluyentes. Un fallo incierto al crear la sesión necesita conciliación operativa, no repetir con nuevos identificadores. Consulte cada 10–30 segundos durante la captura, con backoff; se aplican los límites compartidos de la API.
 
+Un rechazo de creación del proveedor también se muestra como `attention_required`; no es un rechazo de identidad de la persona. Repetir la llamada ATD devuelve la reserva existente y no reintenta el POST remoto. ATD distingue operativamente rechazos explícitos de respuestas perdidas o inciertas. Puede recuperar una sesión existente por lectura vinculada; una búsqueda vacía no autoriza automáticamente otra creación. Contacte con operaciones y conserve los identificadores originales.
+
 ### Conclusión técnica automática y correcciones
 
 ATD verifica callbacks Didit y reconcilia por API en segundo plano. No acepte decisiones de parámetros URL, navegador o cuerpos enviados por usuarios. Reciba `identity.verification.updated` y consulte `GET /orders/{order}/people/{person}/identity-session/result` con `identity:read`, o siga consultando con backoff. No requiere factura pagada ni publicación manual: es una excepción exclusiva de las sesiones `api_credit` y partners aprobados **en el momento de consultar**. No se devuelve desde el portal web ni desde `/results` o `/deliveries`.

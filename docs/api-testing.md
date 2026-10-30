@@ -104,6 +104,14 @@ Pedirá `AUTORIZO LIVE`, nombre, apellidos, cédula dominicana y dirección. Los
 
 El runner fija Live y polling solo en sus procesos locales; producción ignora la excepción de polling y sigue exigiendo webhook firmado y aprobación de producción. Persiste la clave de idempotencia antes del primer POST. Confirma sesión/workflow/referencia/entorno por GET antes de entregar el enlace. Si esa confirmación falla, conserva el intento para conciliación: no volver a crear con otra clave. `diagnose` muestra entorno esperado/observado y vinculación, sin enlace, decisión bruta o datos personales. El móvil abre solo el HTTPS de Didit y no necesita acceso al localhost.
 
+**Saldo y respuesta de creación:** antes de una captura Live con ACTIVE_3D comprobar Billing en Didit: esta comprobación no pertenece al cupo gratuito de vida pasiva. Una clave que lee workflows correctamente no demuestra saldo suficiente. El preflight de este runner no consulta Billing ni promete que se pueda crear una sesión. [Crédito y funciones de pago](https://help.didit.me/billing-credits/not-enough-credits).
+
+El segundo intento del titular, ya con la clave Live correcta, quedó `create_uncertain` sin ID remoto. La búsqueda por su referencia no encontró sesión; el saldo observado era US$0.00 y el workflow tenía ACTIVE_3D, sin white label. La respuesta HTTP original se había descartado: no se inventa que fue un 402 ni se modifica el intento para hacerlo pasar por un rechazo confirmado. El titular indicó que agregaría saldo más adelante. El intento y sus datos cifrados se conservan; no ejecutar `new` ni volver a introducirlos.
+
+`status` intenta conciliar una creación incierta **solo mediante GET**: exige una sesión remota única con workflow, entorno, referencia y metadata ATD coincidentes. La búsqueda no encontrada, ambigua o sin autorización conserva el bloqueo. La conciliación no reenvía POST, no crea otra orden y no necesita nuevos datos personales. Un operador debe resolver el intento antes de autorizar cualquier nueva creación; agregar saldo por sí solo no reinicia la reserva.
+
+Los fallos nuevos conservan únicamente HTTP status, código técnico de una lista fija y si el rechazo de creación fue explícito, en auditoría privada. No guardan cuerpos de error, cabeceras, tokens o evidencia. Un 4xx explícito de la lista admitida queda `provider_rejected`; transportes, respuestas inválidas, 429 y 5xx continúan inciertos. Incluso un 502 cuyo cuerpo mencione crédito no autoriza reintentar. Ambos casos se exponen públicamente como `attention_required`, sin errores internos del proveedor.
+
 **Recuperación del intento mal dirigido:** el primer comando Live del titular creó una sesión Sandbox, `Not Started`, porque aún usaba la clave original. Se conservan su DB y recibo; no se etiqueta como Live ni se presenta su enlace para documento real. Con `DIDIT_LIVE_*` ya preparado, ejecutar una sola vez:
 
 ```bat
