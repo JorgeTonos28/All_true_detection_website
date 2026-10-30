@@ -35,7 +35,7 @@ class IdentityReferences
         }
         $source = $subject->sourceSession()->with('order.account')->first();
 
-        return $source && $source->order->customer_account_id === $subject->customer_account_id
+        return $source && ! $source->sync_requested && $source->order->customer_account_id === $subject->customer_account_id
             && $source->application_id === $subject->application_id && $source->environment === $subject->environment
             && hash_equals($subject->provider_reference, $source->providerReference()) && self::releasedSource($source);
     }
@@ -56,6 +56,9 @@ class IdentityReferences
 
     public static function validResult(IdentitySession $session): bool
     {
+        if ($session->sync_requested) {
+            return false;
+        }
         if ($session->verification_kind !== 'recurring' || ($session->decision['outcome'] ?? null) !== 'verified') {
             return true;
         }
@@ -75,7 +78,7 @@ class IdentityReferences
 
     public static function releasableOrder(Order $order): bool
     {
-        return ! IdentitySession::where('order_id', $order->id)->where('verification_kind', 'recurring')->with('subject')->get()
+        return ! IdentitySession::where('order_id', $order->id)->with('subject')->get()
             ->contains(fn ($session) => ! self::validResult($session));
     }
 }

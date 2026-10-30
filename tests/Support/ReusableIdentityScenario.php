@@ -41,6 +41,8 @@ class ReusableIdentityScenario
 
     public array $creates = [];
 
+    public bool $readFailure = false;
+
     public function __construct(public string $channel = 'api_credit')
     {
         Notification::fake();
@@ -72,6 +74,10 @@ class ReusableIdentityScenario
             }
             foreach ($this->bodies as $id => $body) {
                 if (str_ends_with($request->url(), '/session/'.$id.'/decision/')) {
+                    if ($this->readFailure) {
+                        return Http::response([], 503);
+                    }
+
                     return Http::response($body);
                 }
             }

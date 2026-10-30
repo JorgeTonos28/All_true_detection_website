@@ -35,6 +35,8 @@ Los permisos de identidad no se emiten para cuentas sin aprobación y no sustitu
 
 En la vinculación documental solo se normalizan los guiones de una cédula con formato válido; letras, signos o puntuación arbitraria no se descartan para fabricar una coincidencia.
 
+Si hay una actualización del proveedor pendiente de confirmar, ATD retiene la conclusión anterior: el resultado técnico responde 409 hasta reconciliar. Esto se aplica también a resultados recurrentes dependientes y a entregas web publicadas con identidad. Una caída al consultar Didit no permite seguir entregando una aprobación conocida como pendiente de reconfirmación; tampoco reescribe una comprobación histórica como una captura nueva.
+
 Guardar el token en un gestor de secretos del backend. No colocarlo en JavaScript público, repositorios, logs o herramientas de analítica. Una integración servidor a servidor no necesita CORS. Para un consumidor de navegador, ATD debe autorizar orígenes exactos; no se habilitan cookies ni comodines de origen. Se recomienda un backend propio para no exponer credenciales a los usuarios del navegador.
 
 ## Crear una solicitud

@@ -93,6 +93,13 @@ class ProcessIdentitySession
             if (! $session->provider_session_id) {
                 return;
             }
+            if ($session->verification_kind === 'recurring' && $session->subject?->sourceSession?->sync_requested) {
+                // Hold the previous dated conclusion while the source update is unknown;
+                // a transport outage must not rewrite it as a new verification attempt.
+                $session->update(['sync_requested' => true]);
+
+                return;
+            }
             try {
                 $body = app(DiditClient::class)->decision($session);
             } catch (\Throwable) {
