@@ -10,6 +10,7 @@ use App\Actions\Orders\PublishResult;
 use App\Actions\Orders\StoreResult;
 use App\Actions\Orders\UpdateOrder;
 use App\Enums\Role;
+use App\Models\AuditEvent;
 use App\Models\IdentitySession;
 use App\Models\IdentitySubject;
 use App\Models\Order;
@@ -171,7 +172,12 @@ class Lab
                     'application_id' => env('DIDIT_LIVE_APPLICATION_ID')];
             case 'provider-binding':
                 $session = $order->people()->firstOrFail()->identitySession()->firstOrFail();
-                abort_unless($session->provider_session_id, 409);
+                if (! $session->provider_session_id) {
+                    $failure = AuditEvent::where('action', 'identity.creation_failed')->where('subject_type', $session->getTable())->where('subject_id', (string) $session->id)->latest('id')->first()?->metadata ?? [];
+
+                    return ['ok' => false, 'reason' => 'creation_not_confirmed', 'local_state' => $session->state, 'has_provider_session' => false,
+                        'expected_environment' => $session->environment, 'failure_code' => $failure['failure_code'] ?? 'not_recorded', 'http_status' => $failure['http_status'] ?? null];
+                }
 
                 return app(DiditClient::class)->bindingStatus($session);
             case 'mode':
@@ -262,6 +268,9 @@ class Lab
             case 'sync':
                 foreach ($order->people()->with('identitySession')->get() as $person) {
                     if ($person->identitySession) {
+                        if ($person->identitySession->state === 'create_uncertain') {
+                            app(ProcessIdentitySession::class)->recoverCreation($person->identitySession->id);
+                        }
                         app(ProcessIdentitySession::class)->handle($person->identitySession->id);
                     }
                 }

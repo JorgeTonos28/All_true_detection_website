@@ -159,6 +159,16 @@ class DiditProviderTest extends TestCase
         Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
     }
 
+    public function test_operator_command_does_not_recreate_an_absent_remote_session(): void
+    {
+        $session = $this->makeIdentitySession();
+        $session->update(['state' => 'create_uncertain']);
+        Http::fake(fn () => Http::response(['count' => 0, 'results' => [], 'next' => null]));
+        $this->artisan('portal:reconcile-identity', ['--recover-creation' => $session->public_id])->expectsOutputToContain('No se pudo confirmar')->assertFailed();
+        $this->assertSame('create_uncertain', $session->fresh()->state);
+        Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
+    }
+
     public function test_recovery_rejects_a_candidate_with_different_local_metadata(): void
     {
         $session = $this->makeIdentitySession();

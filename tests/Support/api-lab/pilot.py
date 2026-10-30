@@ -44,6 +44,11 @@ def recover_misdirected_live(existing):
 
 def confirm_live_binding(lab, order_id):
     binding = lab.control("provider-binding", order_id=order_id)
+    if binding.get("reason") == "creation_not_confirmed":
+        if binding.get("failure_code") == "insufficient_credits":
+            raise RuntimeError("Didit rechazo o no confirmo la creacion por saldo insuficiente. Avisar a operaciones; no ejecutar new ni repetir datos.")
+        raise RuntimeError("La creacion no esta confirmada: " + str(binding.get("local_state", "sin confirmar"))
+                           + ". No es una confirmacion de entorno. Se requiere conciliacion; no ejecutar new ni repetir datos.")
     if not binding.get("ok") or binding.get("environment") != "live":
         actual = binding.get("environment") if binding.get("binding_matches") else "sin confirmar"
         raise RuntimeError("Didit informa entorno " + str(actual) + "; se esperaba live. Enlace retenido; no repita con otra clave.")

@@ -36,6 +36,14 @@ class PilotRecoveryTests(unittest.TestCase):
         good = FakeLab({"ok": True, **self.binding, "environment": "live"})
         self.assertEqual("live", confirm_live_binding(good, "synthetic-order")["environment"])
 
+    def test_missing_create_receipt_is_not_reported_as_an_environment_mismatch(self):
+        class FakeLab:
+            def control(self, action, **data):
+                return {"ok": False, "reason": "creation_not_confirmed", "local_state": "create_uncertain", "failure_code": "not_recorded"}
+
+        with self.assertRaisesRegex(RuntimeError, "creacion no esta confirmada: create_uncertain"):
+            confirm_live_binding(FakeLab(), "synthetic-order")
+
 
 if __name__ == "__main__":
     unittest.main()
