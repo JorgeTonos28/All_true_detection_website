@@ -9,6 +9,37 @@ use Illuminate\Support\Facades\DB;
 
 class ProcessIdentitySession
 {
+    /** Explicit operational reconciliation; never retries a creation POST. */
+    public function recoverCreation(int $id): bool
+    {
+        $session = IdentitySession::find($id);
+        if (! $session || ! IdentitySettings::ready() || $session->state !== 'create_uncertain' || $session->provider_session_id
+            || $session->application_id !== config('identity.didit.application_id') || $session->environment !== config('identity.didit.environment')) {
+            return false;
+        }
+        try {
+            $receipt = app(DiditClient::class)->findCreatedSession($session);
+        } catch (\Throwable) {
+            return false;
+        }
+        if (! $receipt) {
+            return false;
+        }
+
+        return DB::transaction(function () use ($id, $receipt) {
+            $session = IdentitySession::whereKey($id)->lockForUpdate()->firstOrFail();
+            if ($session->state !== 'create_uncertain' || $session->provider_session_id) {
+                return false;
+            }
+            $session->update(['provider_session_id' => $receipt['session_id'], 'verification_url' => $receipt['url'],
+                'state' => 'awaiting_person', 'sync_requested' => true,
+                'credit_accepted_at' => $session->access_channel === 'api_credit' ? ($session->credit_accepted_at ?? now()) : null]);
+            Audit::record(null, 'identity.creation_recovered', $session);
+
+            return true;
+        }, 3);
+    }
+
     public function handle(int $id): void
     {
         $session = IdentitySession::find($id);

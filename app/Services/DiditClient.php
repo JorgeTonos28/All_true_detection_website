@@ -66,10 +66,35 @@ class DiditClient
         $body = $this->request('POST', '/session/', $payload);
         if (! Str::isUuid($body['session_id'] ?? '') || ($body['workflow_id'] ?? null) !== $session->workflow_id || ($body['vendor_data'] ?? null) !== $session->providerReference() || ! self::safeUrl($body['url'] ?? null)
             || ($session->verification_kind === 'recurring' && data_get($body, 'metadata.atd_session_id') !== $session->public_id)) {
-            throw new RuntimeException('Respuesta de creación de identidad no válida.');
+            throw new DiditRequestFailure(null, 'invalid_creation_response');
         }
 
         return $body;
+    }
+
+    /** Reconcile a lost create response by exact server-owned reference, without a POST. */
+    public function findCreatedSession(IdentitySession $session): ?array
+    {
+        $list = $this->request('GET', '/sessions/?'.http_build_query(['vendor_data' => $session->providerReference(), 'workflow_id' => $session->workflow_id, 'limit' => 2]));
+        if (($list['count'] ?? null) === 0 && ($list['results'] ?? null) === [] && empty($list['next'])) {
+            return null;
+        }
+        if (($list['count'] ?? null) !== 1 || ! is_array($list['results'] ?? null) || count($list['results']) !== 1 || ! empty($list['next'])) {
+            throw new RuntimeException('La creación requiere conciliación operativa.');
+        }
+        $candidate = clone $session;
+        $id = $list['results'][0]['session_id'] ?? null;
+        if (! is_string($id) || ! Str::isUuid($id)) {
+            throw new RuntimeException('Referencia remota no válida.');
+        }
+        $candidate->provider_session_id = $id;
+        $body = $this->decision($candidate);
+        $url = $body['url'] ?? $body['session_url'] ?? null;
+        if (data_get($body, 'metadata.atd_session_id') !== $session->public_id || ! self::safeUrl($url)) {
+            throw new RuntimeException('La creación encontrada no corresponde al intento local.');
+        }
+
+        return ['session_id' => $id, 'url' => $url];
     }
 
     public function assertActiveWorkflow(IdentitySession $session): void

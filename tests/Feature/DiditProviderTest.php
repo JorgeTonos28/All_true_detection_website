@@ -124,6 +124,68 @@ class DiditProviderTest extends TestCase
         $this->assertNull($session->fresh()->decision);
     }
 
+    public function test_lost_create_response_is_recovered_by_reads_without_another_creation(): void
+    {
+        $session = $this->makeIdentitySession();
+        $id = (string) Str::uuid();
+        $session->update(['state' => 'create_uncertain']);
+        $body = self::decision($session, 'Not Started');
+        $body['session_id'] = $id;
+        $body['metadata'] = ['atd_session_id' => $session->public_id];
+        $body['session_url'] = 'https://verify.didit.me/session/recovered-synthetic';
+        Http::fake(['*/sessions/*' => Http::response(['count' => 1, 'results' => [['session_id' => $id]], 'next' => null]), '*/decision/' => Http::response($body)]);
+        $processor = app(ProcessIdentitySession::class);
+        $this->assertTrue($processor->recoverCreation($session->id));
+        $processor->handle($session->id);
+        $this->assertSame($id, $session->fresh()->provider_session_id);
+        $this->assertSame('awaiting_person', $session->fresh()->state);
+        $this->assertNotNull($session->fresh()->last_synced_at);
+        $this->assertFalse($processor->recoverCreation($session->id));
+        $this->assertDatabaseCount('identity_sessions', 1);
+        Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
+    }
+
+    public function test_absent_remote_session_does_not_authorize_an_automatic_create_retry(): void
+    {
+        $session = $this->makeIdentitySession();
+        $session->update(['state' => 'create_uncertain']);
+        Http::fake(fn () => Http::response(['count' => 0, 'results' => [], 'next' => null]));
+        $processor = app(ProcessIdentitySession::class);
+        $this->assertFalse($processor->recoverCreation($session->id));
+        $processor->handle($session->id);
+        $this->assertSame('create_uncertain', $session->fresh()->state);
+        $this->assertNull($session->fresh()->provider_session_id);
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
+    }
+
+    public function test_recovery_rejects_a_candidate_with_different_local_metadata(): void
+    {
+        $session = $this->makeIdentitySession();
+        $id = (string) Str::uuid();
+        $session->update(['state' => 'create_uncertain']);
+        $body = self::decision($session, 'Not Started');
+        $body['session_id'] = $id;
+        $body['metadata'] = ['atd_session_id' => (string) Str::ulid()];
+        $body['session_url'] = 'https://verify.didit.me/session/foreign-synthetic';
+        Http::fake(['*/sessions/*' => Http::response(['count' => 1, 'results' => [['session_id' => $id]], 'next' => null]), '*/decision/' => Http::response($body)]);
+        $this->assertFalse(app(ProcessIdentitySession::class)->recoverCreation($session->id));
+        $this->assertSame('create_uncertain', $session->fresh()->state);
+        $this->assertNull($session->fresh()->provider_session_id);
+        Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
+    }
+
+    public function test_multiple_remote_candidates_are_not_imported(): void
+    {
+        $session = $this->makeIdentitySession();
+        $session->update(['state' => 'create_uncertain']);
+        Http::fake(fn () => Http::response(['count' => 2, 'results' => [['session_id' => (string) Str::uuid()], ['session_id' => (string) Str::uuid()]], 'next' => null]));
+        $this->assertFalse(app(ProcessIdentitySession::class)->recoverCreation($session->id));
+        $this->assertNull($session->fresh()->provider_session_id);
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
+    }
+
     public function test_environment_mismatch_is_diagnosable_without_exposing_or_accepting_provider_evidence(): void
     {
         $session = $this->makeIdentitySession();
