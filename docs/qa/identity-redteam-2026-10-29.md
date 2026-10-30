@@ -44,8 +44,24 @@ El titular autorizó usar la misma aplicación fuera de modo prueba y asumir el 
 
 El preflight de los dos workflows pasó con lecturas de servidor. **Al cierre de esta ronda no hay solicitudes ni sesiones Live creadas en la campaña.** No se cambió el modo de la aplicación por el agente, no se compraron créditos ni se modificaron workflows/destinos/retención. El usuario debe confirmar el modo Live en consola y ejecutar `python tests/Support/api-lab/pilot.py prepare --live` en su terminal privada. No enviar cédula, dirección, fotos o claves por chat.
 
+### Seguimiento: intento del titular y separación de aplicaciones
+
+Tras ese cierre, el titular ejecutó `prepare --live`. Didit aceptó una sesión `Not Started`, pero la clasificó como `sandbox`; ATD esperaba `live` y retuvo su enlace. El conector confirmó la misma clasificación. No se alteró ese entorno ni se forzó una aprobación. Las sesiones Sandbox no facturan créditos según la documentación del proveedor; no se afirma que una marca local de aceptación equivalga a un cargo Live.
+
+Se identificaron dos aplicaciones distintas: «All true detection (Sandbox)», usada por la clave anterior, y «My Application», donde otra sesión existente confirma `environment=live`. Cambiar la vista de la consola no cambia la clave runtime. La recomendación anterior de quitar el modo de prueba de la misma aplicación fue incompleta y se corrigió con [el modelo oficial](https://help.didit.me/account-organization/organizations-and-applications).
+
+Se crearon y releyeron dos workflows nuevos publicados, no predeterminados, en «My Application»: `aa2b516d-9563-46f9-adb9-0d484ca6cfaf` inicial DOM → ACTIVE_3D → Face Match y `02d83807-8d18-4e64-af3d-e28e47581713` recurrente ACTIVE_3D → Face Match. Sin búsqueda 1:N, audio ni otros módulos. No se modificaron workflows anteriores, destinos o retención; no se creó ninguna captura al configurarlos.
+
+El titular aportó la clave Live directamente en `.env` como `DIDIT_LIVE_API_KEY`; se añadieron los tres IDs no secretos. El preflight aislado de ambos workflows pasó con esa clave y comprobó **cero órdenes/cero sesiones**. Las credenciales normales permanecen separadas. El marcador conserva el perfil para consultar el intento anterior con su clave original.
+
+El diagnóstico ahora distingue entorno esperado/observado sin exportar el cuerpo de decisión, URL o evidencia. La recuperación `new --live` exige que el intento anterior esté vinculado, confirmado Sandbox y `Not Started`, sin captura recurrente; el perfil destino debe estar completo y pertenecer a otra aplicación. Las regresiones rechazan estado iniciado, resultado final, entorno Live, vinculación incierta, perfil incompleto y la misma aplicación. No se admite repetir a ciegas un posible cargo Live.
+
+Las dos capturas Live y la reverificación externa continúan pendientes de que el titular ejecute el comando y complete los enlaces en su celular. No se ejecutó la cámara ni se descargaron medios del proveedor.
+
+La validación posterior pasó **165 pruebas Laravel y 2.032 aserciones**, más las dos regresiones Python de recuperación (`python -m unittest discover -s tests/Support/api-lab -p test_pilot.py`). Sintaxis Python, Pint y diff correctos. El diagnóstico real del intento devuelve vinculación confirmada, esperado Live, observado Sandbox y `Not Started`, sin revelar enlace ni perfil personal.
+
 Para cerrar: confirmar una sesión inicial Live con cédula coincidente, obtener `verified`, registrar referencia consentida y completar otro enlace con ACTIVE_3D + Face Match sin nueva cédula. La segunda conclusión debe indicar `verified`, `verification_kind=recurring` y `document_reverified=false`. Ante rechazo, revisión o fallo se analiza ese resultado; no se lo sobreescribe para aprobar la prueba. [Procedimiento y límites](../api-testing.md#piloto-live-controlado).
 
 Los precios dependen de la cuenta, comprobaciones y reintentos aplicables. La página pública consultada anuncia una tabla efectiva el 1 de noviembre de 2026; no se presenta esa tabla futura como precio vigente el 29 de octubre. El piloto no compra saldo ni configura recarga automática. [Precios Didit](https://docs.didit.me/getting-started/pricing).
 
-No se descargaron documentos, retratos o vídeos del proveedor para esta QA. Los diagnósticos imprimen solo estados y booleanos. No se expuso Laravel a Internet ni se desplegó producción. El negocio habitual continúa manual y su `.env` no se modificó. El `package-lock.json` ajeno a este trabajo se conserva sin editar ni incluir en commits.
+No se descargaron documentos, retratos o vídeos del proveedor para esta QA. Los diagnósticos imprimen solo estados, entorno y booleanos. No se expuso Laravel a Internet ni se desplegó producción. El negocio habitual continúa manual; su `.env` recibió únicamente el grupo separado del piloto Live, conservando sus credenciales originales y sin aprobación productiva. El `package-lock.json` ajeno a este trabajo se conserva sin editar ni incluir en commits.
