@@ -32,7 +32,7 @@ class IdentityPartnerController extends Controller
             ->when($account, fn ($q) => $q->whereHas('order', fn ($q) => $q->where('customer_account_id', $account->id)))
             ->where(fn ($q) => $q->where(fn ($q) => $q->where('credit_accepted_at', '>=', $from)->where('credit_accepted_at', '<', $to))
                 ->orWhere(fn ($q) => $q->whereNull('credit_accepted_at')->where('created_at', '>=', $from)->where('created_at', '<', $to)));
-        $metrics = (clone $query)->selectRaw("COUNT(*) as reserved, SUM(CASE WHEN credit_accepted_at IS NOT NULL THEN 1 ELSE 0 END) as accepted, SUM(CASE WHEN state = 'received' THEN 1 ELSE 0 END) as concluded, SUM(CASE WHEN state IN ('create_uncertain', 'needs_attention') THEN 1 ELSE 0 END) as attention")->first();
+        $metrics = (clone $query)->selectRaw("COUNT(*) as reserved, SUM(CASE WHEN credit_accepted_at IS NOT NULL THEN 1 ELSE 0 END) as accepted, SUM(CASE WHEN state = 'received' THEN 1 ELSE 0 END) as concluded, SUM(CASE WHEN state IN ('create_uncertain', 'provider_rejected', 'needs_attention') THEN 1 ELSE 0 END) as attention")->first();
         $sessions = $query->with('order.account')->latest('id')->paginate(25, ['*'], 'sessions_page')->withQueryString();
         $accounts = $admin ? CustomerAccount::query()->when(filled($data['q'] ?? null), fn ($q) => $q->where(fn ($q) => $q->where('name', 'like', '%'.$data['q'].'%')->orWhere('public_id', $data['q'])))
             ->orderByDesc('identity_api_enabled')->orderBy('name')->paginate(15, ['*'], 'accounts_page')->withQueryString() : null;
