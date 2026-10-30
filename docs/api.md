@@ -33,6 +33,8 @@ Los permisos de identidad no se emiten para cuentas sin aprobación y no sustitu
 
 `identity:verify` permite iniciar o repetir una operación, pero no exportar su enlace privado: sin `identity:read`, incluso el POST devuelve `verification_url=null`. La consulta del enlace necesita siempre ese permiso de lectura.
 
+En la vinculación documental solo se normalizan los guiones de una cédula con formato válido; letras, signos o puntuación arbitraria no se descartan para fabricar una coincidencia.
+
 Guardar el token en un gestor de secretos del backend. No colocarlo en JavaScript público, repositorios, logs o herramientas de analítica. Una integración servidor a servidor no necesita CORS. Para un consumidor de navegador, ATD debe autorizar orígenes exactos; no se habilitan cookies ni comodines de origen. Se recomienda un backend propio para no exponer credenciales a los usuarios del navegador.
 
 ## Crear una solicitud

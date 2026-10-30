@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\IdentitySession;
+use App\Support\IdentityNumber;
 
 class DiditDecisions
 {
@@ -20,7 +21,7 @@ class DiditDecisions
             $number = $session->person->profile['identity_number'] ?? '';
             $matches = count($ids) === 1 && ($ids[0]['issuing_state'] ?? null) === 'DOM'
                 && ($ids[0]['verification_method'] ?? null) === 'document'
-                && collect(['personal_number', 'document_number'])->contains(fn ($key) => is_string($ids[0][$key] ?? null) && preg_replace('/[^0-9]/', '', $ids[0][$key]) === $number);
+                && collect(['personal_number', 'document_number'])->contains(fn ($key) => IdentityNumber::matches($ids[0][$key] ?? null, $number));
             $active = is_array($body['liveness_checks'] ?? null) && count($body['liveness_checks']) > 0
                 && collect($body['liveness_checks'])->every(fn ($check) => is_array($check) && ($check['method'] ?? null) === 'ACTIVE_3D');
             $recurring = $session->verification_kind === 'recurring';

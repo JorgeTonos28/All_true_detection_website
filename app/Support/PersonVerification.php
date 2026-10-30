@@ -46,7 +46,7 @@ class PersonVerification
             'person.first_name' => ['required', 'string', 'max:100'],
             'person.last_name' => ['required', 'string', 'max:100'],
             // Format only. This does NOT assert authenticity or registry validity.
-            'person.identity_number' => [$identity ? 'required' : 'prohibited', 'string', 'regex:/^[0-9]{3}-?[0-9]{7}-?[0-9]$/D'],
+            'person.identity_number' => [$identity ? 'required' : 'prohibited', 'string', 'regex:'.IdentityNumber::PATTERN],
             'person.address' => [$address ? 'required' : 'nullable', 'string', 'max:1000'],
             'person.birth_date' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
             'person.phone' => ['nullable', 'string', 'max:40'],
