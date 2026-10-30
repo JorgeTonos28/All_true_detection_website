@@ -31,6 +31,8 @@ Envíe `Authorization: Bearer TOKEN` en cada llamada. No se aceptan tokens en la
 
 Los permisos de identidad no se emiten para cuentas sin aprobación y no sustituyen la comprobación de autorización por cuenta en cada llamada. Un token anterior con `orders:write` ya no autoriza estos endpoints: tras la aprobación, emita uno con los permisos específicos. Suspender el acceso bloquea también los tokens existentes. Los usuarios de una cuenta comercial comparten su autorización y cupo; no se concede acceso global al registrarse.
 
+`identity:verify` permite iniciar o repetir una operación, pero no exportar su enlace privado: sin `identity:read`, incluso el POST devuelve `verification_url=null`. La consulta del enlace necesita siempre ese permiso de lectura.
+
 Guardar el token en un gestor de secretos del backend. No colocarlo en JavaScript público, repositorios, logs o herramientas de analítica. Una integración servidor a servidor no necesita CORS. Para un consumidor de navegador, ATD debe autorizar orígenes exactos; no se habilitan cookies ni comodines de origen. Se recomienda un backend propio para no exponer credenciales a los usuarios del navegador.
 
 ## Crear una solicitud

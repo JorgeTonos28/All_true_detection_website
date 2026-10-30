@@ -25,7 +25,7 @@ class IdentitySessionController extends Controller
             return back()->with('status', 'Verificación preparada. El enlace aparecerá aquí cuando el proveedor confirme la sesión; puede actualizar esta página.');
         }
 
-        return response()->json(['data' => $this->data($order, $record->public_id, $session)], 202);
+        return response()->json(['data' => $this->data($order, $record->public_id, $session, $request->user()->tokenCan('identity:read'))], 202);
     }
 
     public function show(Request $request, Order $order, string $person)
@@ -38,7 +38,7 @@ class IdentitySessionController extends Controller
         $session = $record->identitySession()->firstOrFail();
         abort_unless($session->access_channel === 'api_credit', 403);
 
-        return response()->json(['data' => $this->data($order, $record->public_id, $session)]);
+        return response()->json(['data' => $this->data($order, $record->public_id, $session, true)]);
     }
 
     public function result(Request $request, Order $order, string $person)
@@ -63,13 +63,13 @@ class IdentitySessionController extends Controller
             'reviewed_at' => $session->decision['reviewed_at'], 'requires_review' => $session->decision['outcome'] === 'inconclusive']]);
     }
 
-    private function data($order, $personId, $session): array
+    private function data($order, $personId, $session, bool $canReadCapture): array
     {
         return ['id' => $session->public_id, 'order_id' => $order->public_id, 'person_id' => $personId,
             'provider' => 'didit', 'state' => $session->publicState(), 'environment' => $session->environment,
             'billing_mode' => 'partner_credit', 'revision' => $session->decision_revision,
             'verification_kind' => $session->verification_kind, 'identity_id' => $session->subject?->public_id,
-            'verification_url' => $session->state === 'awaiting_person' ? $session->verification_url : null,
+            'verification_url' => $canReadCapture && $session->state === 'awaiting_person' ? $session->verification_url : null,
             'consented_at' => $session->consented_at->toIso8601String(), 'notice_version' => $session->notice_version,
             'links' => ['self' => url('/api/v1/orders/'.$order->public_id.'/people/'.$personId.'/identity-session'), 'result' => url('/api/v1/orders/'.$order->public_id.'/people/'.$personId.'/identity-session/result')]];
     }
