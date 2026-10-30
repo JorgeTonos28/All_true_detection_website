@@ -10,6 +10,8 @@ return [
         'authentication_workflow_id' => env('DIDIT_AUTHENTICATION_WORKFLOW_ID'),
         'reuse_privacy_approved' => (bool) env('DIDIT_REUSE_PRIVACY_APPROVED', false),
         'local_polling' => (bool) env('DIDIT_LOCAL_POLLING', false),
+        'local_live_testing' => (bool) env('DIDIT_LOCAL_LIVE_TESTING', false),
+        'sandbox_scenario' => env('DIDIT_SANDBOX_SCENARIO', 'approve'),
         'environment' => env('DIDIT_ENVIRONMENT', 'sandbox'),
         'production_approved' => (bool) env('DIDIT_PRODUCTION_APPROVED', false),
         'privacy_approved' => (bool) env('DIDIT_PRIVACY_APPROVED', false),

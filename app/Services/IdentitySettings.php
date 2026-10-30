@@ -26,7 +26,13 @@ class IdentitySettings
 
     public static function localPolling(): bool
     {
-        return app()->environment('local') && config('identity.didit.environment') === 'sandbox' && (bool) config('identity.didit.local_polling');
+        return app()->environment('local') && (bool) config('identity.didit.local_polling')
+            && (config('identity.didit.environment') === 'sandbox' || self::localLiveTesting());
+    }
+
+    public static function localLiveTesting(): bool
+    {
+        return app()->environment('local') && config('identity.didit.environment') === 'live' && (bool) config('identity.didit.local_live_testing');
     }
 
     public static function reuseReady(): bool

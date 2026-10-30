@@ -42,7 +42,11 @@ class DiditClient
         }
         // The provider rejects this field on live keys, before creating a paid/live session.
         if ($session->environment === 'sandbox') {
-            $payload['sandbox_scenario'] = 'approve';
+            $scenario = config('identity.didit.sandbox_scenario', 'approve');
+            if (! in_array($scenario, ['approve', 'decline_document_expired', 'decline_face_match_low_similarity', 'review_face_match_borderline'], true)) {
+                throw new RuntimeException('Escenario Sandbox no permitido.');
+            }
+            $payload['sandbox_scenario'] = $scenario;
         }
         if ($session->verification_kind !== 'recurring') {
             $payload['expected_details'] = array_filter(['first_name' => $profile['first_name'], 'last_name' => $profile['last_name'], 'date_of_birth' => $profile['birth_date'] ?? null, 'id_country' => 'DOM', 'expected_document_types' => ['ID']], fn ($v) => $v !== null);
@@ -68,6 +72,12 @@ class DiditClient
         $kindMatches = $session->verification_kind === 'recurring'
             ? ! $hasDocument && (! empty($workflow['workflow_graph']) || ($workflow['workflow_type'] ?? null) === 'biometric_authentication')
             : $hasDocument;
+        if (IdentitySettings::localLiveTesting()) {
+            $allowed = $session->verification_kind === 'recurring' ? ['LIVENESS', 'FACE_MATCH'] : ['OCR', 'ID_VERIFICATION', 'LIVENESS', 'FACE_MATCH'];
+            if (array_diff($features, $allowed) || $liveness->contains(fn ($node) => (bool) data_get($node, 'config.face_search_enabled', false))) {
+                throw new RuntimeException('El piloto Live solo admite documento, vida activa y comparación facial 1:1.');
+            }
+        }
         if (($workflow['workflow_id'] ?? null) !== $session->workflow_id || ($workflow['status'] ?? null) !== 'published' || ($workflow['is_archived'] ?? true)
             || ! $active || ! in_array('LIVENESS', $features, true) || ! in_array('FACE_MATCH', $features, true) || ! $kindMatches) {
             throw new RuntimeException('Se requiere un workflow publicado con documento, prueba de vida ACTIVE_3D y comparación facial.');

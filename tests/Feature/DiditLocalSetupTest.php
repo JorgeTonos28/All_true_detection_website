@@ -33,7 +33,7 @@ class DiditLocalSetupTest extends TestCase
         $this->assertDatabaseCount('identity_sessions', 0);
     }
 
-    public function test_unsigned_webhook_remains_closed_and_polling_is_local_sandbox_only(): void
+    public function test_unsigned_webhook_remains_closed_and_live_polling_needs_explicit_local_opt_in(): void
     {
         DiditProviderTest::configure();
         config(['identity.didit.local_polling' => true, 'identity.didit.webhook_secret' => null]);
@@ -51,6 +51,12 @@ class DiditLocalSetupTest extends TestCase
         $this->app->instance('env', 'local');
         config(['identity.didit.environment' => 'live']);
         $this->assertFalse(IdentitySettings::ready());
+        config(['identity.didit.local_live_testing' => true]);
+        $this->assertTrue(IdentitySettings::ready());
+        $this->app->instance('env', 'production');
+        config(['identity.didit.production_approved' => true]);
+        $this->assertFalse(IdentitySettings::ready());
+        $this->assertFalse(IdentitySettings::localPolling());
     }
 
     public function test_sandbox_creates_carry_provider_guard_but_live_creates_do_not(): void
@@ -64,6 +70,9 @@ class DiditLocalSetupTest extends TestCase
         app(DiditClient::class)->create($session);
         Http::assertSent(fn ($request) => $request['sandbox_scenario'] === 'approve');
         $this->assertArrayHasKey('callback', Http::recorded()->last()[0]->data());
+        config(['identity.didit.sandbox_scenario' => 'decline_document_expired']);
+        app(DiditClient::class)->create($session);
+        $this->assertSame('decline_document_expired', Http::recorded()->last()[0]->data()['sandbox_scenario']);
         $this->app->instance('env', 'local');
         config(['identity.didit.local_polling' => true]);
         app(DiditClient::class)->create($session);
@@ -73,5 +82,27 @@ class DiditLocalSetupTest extends TestCase
         app(DiditClient::class)->create($session);
         $this->assertArrayNotHasKey('sandbox_scenario', Http::recorded()->last()[0]->data());
         $this->assertArrayHasKey('callback', Http::recorded()->last()[0]->data());
+    }
+
+    public function test_live_pilot_rejects_extra_provider_features_before_any_creation(): void
+    {
+        DiditProviderTest::configure();
+        $this->app->instance('env', 'local');
+        config(['identity.didit.environment' => 'live', 'identity.didit.local_live_testing' => true]);
+        Http::preventStrayRequests();
+        foreach (['AML', 'FACE_SEARCH'] as $extra) {
+            Http::fake(fn () => Http::response([
+                'workflow_id' => config('identity.didit.workflow_id'), 'status' => 'published', 'is_archived' => false,
+                'features' => 'OCR + LIVENESS + FACE_MATCH + '.$extra,
+                'workflow_graph' => ['nodes' => ['liveness' => ['feature' => 'LIVENESS', 'config' => ['face_liveness_method' => 'ACTIVE_3D']]]],
+            ]));
+            try {
+                app(DiditClient::class)->assertActiveWorkflow(new IdentitySession(['workflow_id' => config('identity.didit.workflow_id')]));
+                $this->fail('El piloto no puede activar comprobaciones adicionales.');
+            } catch (\RuntimeException $error) {
+                $this->assertStringContainsString('solo admite', $error->getMessage());
+            }
+            Http::assertNotSent(fn ($request) => $request->method() !== 'GET');
+        }
     }
 }
