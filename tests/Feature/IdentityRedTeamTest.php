@@ -54,4 +54,16 @@ class IdentityRedTeamTest extends TestCase
         app(ProcessIdentitySession::class)->handle($case->source->id);
         $this->assertTrue($case->order->fresh()->canReleaseResults());
     }
+
+    public function test_capture_link_is_withheld_until_a_bound_provider_read_confirms_it(): void
+    {
+        $this->seed();
+        $case = new ReusableIdentityScenario;
+        $case->source->update(['state' => 'awaiting_person', 'verification_url' => 'https://verify.didit.me/session/unconfirmed-synthetic', 'last_synced_at' => null, 'sync_requested' => true]);
+        $path = '/api/v1/orders/'.$case->order->public_id.'/people/'.$case->order->person->public_id.'/identity-session';
+        $headers = ['Authorization' => 'Bearer '.$case->token];
+        $this->getJson($path, $headers)->assertOk()->assertJsonPath('data.verification_url', null);
+        $case->source->update(['last_synced_at' => now(), 'sync_requested' => false]);
+        $this->getJson($path, $headers)->assertOk()->assertJsonPath('data.verification_url', 'https://verify.didit.me/session/unconfirmed-synthetic');
+    }
 }

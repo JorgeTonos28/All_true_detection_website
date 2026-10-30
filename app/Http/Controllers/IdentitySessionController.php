@@ -69,7 +69,7 @@ class IdentitySessionController extends Controller
             'provider' => 'didit', 'state' => $session->publicState(), 'environment' => $session->environment,
             'billing_mode' => 'partner_credit', 'revision' => $session->decision_revision,
             'verification_kind' => $session->verification_kind, 'identity_id' => $session->subject?->public_id,
-            'verification_url' => $canReadCapture && $session->state === 'awaiting_person' ? $session->verification_url : null,
+            'verification_url' => $canReadCapture && $session->state === 'awaiting_person' && $session->last_synced_at && ! $session->sync_requested ? $session->verification_url : null,
             'consented_at' => $session->consented_at->toIso8601String(), 'notice_version' => $session->notice_version,
             'links' => ['self' => url('/api/v1/orders/'.$order->public_id.'/people/'.$personId.'/identity-session'), 'result' => url('/api/v1/orders/'.$order->public_id.'/people/'.$personId.'/identity-session/result')]];
     }
