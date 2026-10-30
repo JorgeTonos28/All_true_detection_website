@@ -78,6 +78,13 @@ class ProcessIdentitySession
                         'credit_accepted_at' => $session->access_channel === 'api_credit' ? ($session->credit_accepted_at ?? now()) : null]);
                     Audit::record(null, 'identity.session_created', $session);
                 });
+            } catch (DiditRequestFailure $error) {
+                $updated = IdentitySession::whereKey($id)->whereNull('provider_session_id')->update(['state' => $error->creationRejected ? 'provider_rejected' : 'create_uncertain', 'updated_at' => now()]);
+                if ($updated) {
+                    Audit::record(null, 'identity.creation_failed', $session, ['http_status' => $error->httpStatus, 'failure_code' => $error->reason, 'definitely_rejected' => $error->creationRejected]);
+                }
+
+                return;
             } catch (\Throwable) {
                 // The provider might have accepted a timed-out POST. Do not risk duplicate billing.
                 IdentitySession::whereKey($id)->whereNull('provider_session_id')->update(['state' => 'create_uncertain', 'updated_at' => now()]);

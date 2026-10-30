@@ -17,13 +17,25 @@ class DiditClient
             // Fixed origin; no redirects, automatic POST retries or provider exception bodies in logs.
             $response = Http::baseUrl('https://verification.didit.me/v3')->withHeaders(['x-api-key' => config('identity.didit.api_key')])
                 ->acceptJson()->asJson()->connectTimeout(3)->timeout(12)->withoutRedirecting()->send($method, $path, $data ? ['json' => $data] : []);
-            if (! $response->successful() || strlen($response->body()) > 2097152 || ! is_array($body = $response->json())) {
-                throw new RuntimeException;
+            if (strlen($response->body()) > 2097152 || ! is_array($body = $response->json())) {
+                throw new DiditRequestFailure($response->status(), 'invalid_response');
+            }
+            if (! $response->successful()) {
+                $status = $response->status();
+                $insufficient = in_array('insufficient_credits', [$body['code'] ?? null, data_get($body, 'error.code'), $body['error'] ?? null], true)
+                    || in_array($body['detail'] ?? null, ["You don't have enough credits to perform this request", "You don't have enough credits to perform this request."], true);
+                $reason = $insufficient || $status === 402 ? 'insufficient_credits' : match ($status) {
+                    400, 422 => 'invalid_request', 401 => 'authentication_failed', 403 => 'permission_denied', 404 => 'not_found',
+                    429 => 'rate_limited', default => 'provider_unavailable',
+                };
+                throw new DiditRequestFailure($status, $reason, $method === 'POST' && in_array($status, [400, 401, 402, 403, 404, 422], true) && ! isset($body['session_id']));
             }
 
             return $body;
+        } catch (DiditRequestFailure $error) {
+            throw $error;
         } catch (\Throwable) {
-            throw new RuntimeException('No se pudo confirmar la operación con el proveedor de identidad.');
+            throw new DiditRequestFailure(null, 'transport_error');
         }
     }
 

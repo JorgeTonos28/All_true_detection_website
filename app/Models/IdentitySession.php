@@ -50,7 +50,7 @@ class IdentitySession extends Model
             'pending', 'creating' => 'preparing',
             'awaiting_person' => 'awaiting_person',
             'received' => 'received',
-            'create_uncertain', 'needs_attention' => 'attention_required',
+            'create_uncertain', 'provider_rejected', 'needs_attention' => 'attention_required',
             default => 'processing',
         };
     }

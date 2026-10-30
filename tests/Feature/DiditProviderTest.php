@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Auth\CreateNewUser;
 use App\Actions\Orders\CreateOrder;
+use App\Models\AuditEvent;
 use App\Models\IdentitySession;
 use App\Models\Setting;
 use App\Services\DiditClient;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\IdentityWebPayment;
 use Tests\TestCase;
 
@@ -79,6 +81,32 @@ class DiditProviderTest extends TestCase
         $this->assertSame('create_uncertain', $session->fresh()->state);
         Http::assertSentCount(2);
         $this->assertDatabaseCount('identity_webhook_receipts', 0);
+    }
+
+    public static function creationFailures(): array
+    {
+        return [
+            'credits' => [402, ['code' => 'insufficient_credits'], 'provider_rejected', 'insufficient_credits', true],
+            'validation' => [422, ['detail' => 'invalid'], 'provider_rejected', 'invalid_request', true],
+            'upstream credits error stays uncertain' => [502, ['code' => 'insufficient_credits'], 'create_uncertain', 'insufficient_credits', false],
+            'rate limit stays uncertain' => [429, ['code' => 'rate_limited'], 'create_uncertain', 'rate_limited', false],
+        ];
+    }
+
+    #[DataProvider('creationFailures')]
+    public function test_creation_failures_keep_only_safe_diagnostics_and_never_retry_automatically(int $status, array $body, string $state, string $reason, bool $rejected): void
+    {
+        $session = $this->makeIdentitySession();
+        Http::fake(['*/workflows/*' => Http::response(self::workflow($session)), '*/session/' => Http::response($body + ['private_data' => 'synthetic-sensitive-content'], $status)]);
+        app(ProcessIdentitySession::class)->handle($session->id);
+        app(ProcessIdentitySession::class)->handle($session->id);
+        $this->assertSame($state, $session->fresh()->state);
+        $this->assertSame('attention_required', $session->fresh()->publicState());
+        $this->assertNull($session->fresh()->provider_session_id);
+        Http::assertSentCount(2);
+        $event = AuditEvent::where('action', 'identity.creation_failed')->sole();
+        $this->assertSame(['http_status' => $status, 'failure_code' => $reason, 'definitely_rejected' => $rejected], $event->metadata);
+        $this->assertStringNotContainsString('synthetic-sensitive-content', json_encode($event));
     }
 
     public function test_successful_create_and_reconciliation_use_only_the_fixed_server_api(): void
