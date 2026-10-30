@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "All True Detection API",
-    "version": "1.6.1",
+    "version": "1.6.2",
     "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API. Límite general 60/min por usuario y 600/min por IP; cargas 10/min e identidad costosa 10/min en contadores independientes por usuario. Los fallos de validación cuentan. Respetar Retry-After en 429; cuotas diarias Didit adicionales."
   },
   "servers": [
@@ -74,7 +74,7 @@
         "x-required-scopes": ["identity:verify"],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["consent", "notice_version"], "properties": { "consent": { "type": "boolean", "enum": [true] }, "notice_version": { "type": "string", "enum": ["didit-2026-10-v1", "didit-reuse-2026-10-v1"], "description": "La versión debe corresponder al tipo de verificación fijado en la persona: initial o recurring." } } } } } },
         "responses": {
-          "202": { "description": "Sesión aceptada/existente; consultar GET para obtener el enlace.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentitySession" } } } } } },
+          "202": { "description": "Sesión aceptada/existente. Enlace nulo sin identity:read o sin lectura vinculada y confirmada del proveedor; consultar GET.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentitySession" } } } } } },
           "default": { "description": "401 sin token; 403 cuenta no autorizada/otro tenant/scope/rol; 404 persona ajena/manual; 409 cancelada, mezcla de servicios/canales o factura individual; 422 consentimiento/versión/campos prohibidos; 429 cuota; 503 configuración no disponible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
@@ -99,7 +99,7 @@
         "description": "Excepción de crédito exclusiva para partner autorizado actualmente, misma cuenta y sesión api_credit. Resultado Didit confirmado automáticamente en servidor, sin prepago ni publicación manual. Nunca entrega documentos, fotos, biometría o informe bruto. No es una decisión de elegibilidad ni garantía de ausencia de fraude. No válido como identidad real si environment=sandbox. Revocar autorización bloquea incluso tokens existentes. Conserve la revisión mayor; una corrección puede cambiar o retirar una conclusión previa.",
         "responses": {
           "200": { "description": "Conclusión técnica privada", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentityTechnicalResult" } } } } } },
-          "default": { "description": "401 sin token; 403 sin aprobación/scope/tenant o sesión web; 404 inexistente; 409 pendiente o sandbox en producción; 429 cuota.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "default": { "description": "401 sin token; 403 sin aprobación/scope/tenant o sesión web; 404 inexistente; 409 pendiente, actualización del proveedor sin confirmar (también de la fuente recurrente) o sandbox en producción; 429 cuota.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
@@ -2710,7 +2710,7 @@
           "state": { "type": "string", "enum": ["preparing", "awaiting_person", "processing", "received", "attention_required"] },
           "environment": { "type": "string", "enum": ["sandbox", "live"] },
           "billing_mode": { "type": "string", "enum": ["partner_credit"] }, "revision": { "type": "integer", "minimum": 0 },
-          "verification_url": { "type": "string", "format": "uri", "nullable": true, "description": "Enlace secreto Didit, solo awaiting_person. No enviarlo por logs, correo ni webhooks; no exponer Bearer ATD al navegador." },
+          "verification_url": { "type": "string", "format": "uri", "nullable": true, "description": "Enlace secreto Didit, solo awaiting_person con identity:read y lectura vinculada confirmada, sin actualización pendiente. También exige identity:read al repetir POST. Puede permanecer nulo tras crear. No enviarlo por logs, correo ni webhooks; no exponer Bearer ATD al navegador." },
           "consented_at": { "type": "string", "format": "date-time" }, "notice_version": { "type": "string" },
           "links": { "type": "object", "properties": { "self": { "type": "string" }, "result": { "type": "string" } } }
         }

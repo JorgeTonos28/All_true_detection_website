@@ -8,6 +8,8 @@ Base de producción: `https://SU_DOMINIO/api/v1`. Base local predeterminada: `ht
 
 La versión de protocolo está en `/v1`; el contrato OpenAPI 3.0.3 describe rutas, parámetros y esquemas. Los identificadores de negocio son ULID opacos, nunca credenciales. Fechas de API en ISO 8601 UTC y vencimientos como `YYYY-MM-DD`. Dinero en unidades menores enteras: `1050` equivale a `10.50` de la moneda indicada. No use flotantes para conciliar importes.
 
+Contrato **1.6.2**: el enlace de captura requiere `identity:read` incluso al repetir POST y una consulta vinculada confirmada al proveedor. Una actualización de identidad pendiente de confirmar retiene el resultado anterior (409), también en las verificaciones recurrentes dependientes. No cambian rutas ni cuerpos de solicitud.
+
 El límite general es de 60 peticiones/minuto por usuario y 600/minuto por IP antes de autenticar. Además, las cargas de documentos admiten 10 intentos/minuto y las operaciones costosas de identidad (iniciar sesión, registrar referencia o crear reverificación) comparten otra cuota de 10 intentos/minuto por usuario. Estos dos contadores son independientes; usan el mismo usuario aunque se rote el token. Los intentos con validación fallida también cuentan. Los cupos diarios de sesiones Didit por cuenta/global siguen aplicándose aparte. Ante 429 respete `Retry-After`; no cree otra clave idempotente para evadir el bloqueo.
 
 ## Autenticación y permisos
