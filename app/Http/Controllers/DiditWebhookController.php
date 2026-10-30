@@ -15,7 +15,7 @@ class DiditWebhookController extends Controller
     {
         $body = DiditSignature::verify($request);
         Validator::make($body, ['event_id' => 'required|uuid', 'session_id' => 'required|uuid', 'application_id' => 'required|uuid', 'workflow_id' => 'nullable|uuid', 'environment' => 'required|in:sandbox,live', 'vendor_data' => 'required|string|max:100', 'webhook_type' => 'required|in:status.updated,data.updated', 'metadata.atd_session_id' => 'sometimes|ulid'])->validate();
-        $session = DB::transaction(function () use ($body) {
+        [$session, $receivedNewEvent] = DB::transaction(function () use ($body) {
             $session = IdentitySession::where('provider_session_id', $body['session_id'])->lockForUpdate()->first()
                 ?? IdentitySession::where('public_id', data_get($body, 'metadata.atd_session_id', $body['vendor_data']))->lockForUpdate()->first();
             // Unknown sessions and other apps must never be imported just because a webhook is signed.
@@ -28,15 +28,17 @@ class DiditWebhookController extends Controller
             if ($existing) {
                 abort_unless($existing->identity_session_id === $session->id && hash_equals($existing->fingerprint, $fingerprint), 409);
 
-                return $session;
+                return [$session, false];
             }
             DB::table('identity_webhook_receipts')->insert(['event_id' => $body['event_id'], 'identity_session_id' => $session->id, 'fingerprint' => $fingerprint, 'created_at' => now()]);
             $session->update(['provider_session_id' => $body['session_id'], 'sync_requested' => true]);
 
             // Only the minimal receipt is stored. Decisions and URLs are re-fetched with our server key.
-            return $session;
+            return [$session, true];
         });
-        ProcessDiditSession::dispatch($session->id)->afterCommit();
+        if ($receivedNewEvent) {
+            ProcessDiditSession::dispatch($session->id)->afterCommit();
+        }
 
         return response()->json(['received' => true]);
     }
