@@ -87,12 +87,32 @@ class DiditClient
     public function decision(IdentitySession $session): array
     {
         $body = $this->request('GET', '/session/'.$session->provider_session_id.'/decision/');
-        if (($body['session_id'] ?? null) !== $session->provider_session_id || ($body['workflow_id'] ?? null) !== $session->workflow_id || ($body['vendor_data'] ?? null) !== $session->providerReference() || ($body['environment'] ?? null) !== $session->environment || ! in_array($body['status'] ?? null, self::STATUSES, true)
-            || ($session->verification_kind === 'recurring' && data_get($body, 'metadata.atd_session_id') !== $session->public_id)) {
+        if (! $this->matchesBinding($session, $body) || ($body['environment'] ?? null) !== $session->environment) {
             throw new RuntimeException('La decisión no corresponde a la sesión de identidad.');
         }
 
         return $body;
+    }
+
+    /** Operational metadata only. This never exports a decision, image or capture URL. */
+    public function bindingStatus(IdentitySession $session): array
+    {
+        $body = $this->request('GET', '/session/'.$session->provider_session_id.'/decision/');
+        $bound = $this->matchesBinding($session, $body);
+        $environment = in_array($body['environment'] ?? null, ['sandbox', 'live'], true) ? $body['environment'] : null;
+
+        return ['ok' => $bound && $environment === $session->environment, 'binding_matches' => $bound,
+            'expected_environment' => $session->environment, 'environment' => $bound ? $environment : null,
+            'status' => $bound ? $body['status'] : null, 'application_id' => $session->application_id];
+    }
+
+    private function matchesBinding(IdentitySession $session, array $body): bool
+    {
+        return ($body['session_id'] ?? null) === $session->provider_session_id
+            && ($body['workflow_id'] ?? null) === $session->workflow_id
+            && ($body['vendor_data'] ?? null) === $session->providerReference()
+            && in_array($body['status'] ?? null, self::STATUSES, true)
+            && ($session->verification_kind !== 'recurring' || data_get($body, 'metadata.atd_session_id') === $session->public_id);
     }
 
     public static function safeUrl(mixed $url): bool

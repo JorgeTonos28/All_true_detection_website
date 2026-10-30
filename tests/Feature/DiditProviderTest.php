@@ -96,6 +96,25 @@ class DiditProviderTest extends TestCase
         $this->assertNull($session->fresh()->decision);
     }
 
+    public function test_environment_mismatch_is_diagnosable_without_exposing_or_accepting_provider_evidence(): void
+    {
+        $session = $this->makeIdentitySession();
+        $session->update(['provider_session_id' => (string) Str::uuid(), 'environment' => 'live']);
+        $body = self::decision($session, 'Not Started');
+        $body['session_url'] = 'https://verify.didit.me/session/private-synthetic-url';
+        $body['private_evidence'] = 'synthetic-sensitive-evidence';
+        Http::fake(fn () => Http::response($body));
+        $status = app(DiditClient::class)->bindingStatus($session);
+        $this->assertFalse($status['ok']);
+        $this->assertTrue($status['binding_matches']);
+        $this->assertSame('sandbox', $status['environment']);
+        $this->assertSame('live', $status['expected_environment']);
+        $this->assertStringNotContainsString('private-synthetic-url', json_encode($status));
+        $this->assertStringNotContainsString('synthetic-sensitive-evidence', json_encode($status));
+        $this->expectException(\RuntimeException::class);
+        app(DiditClient::class)->decision($session);
+    }
+
     public function test_signed_webhook_recovers_uncertain_creation_without_importing_decisions(): void
     {
         $session = $this->makeIdentitySession();
