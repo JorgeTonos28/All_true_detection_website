@@ -143,6 +143,6 @@ class ProcessIdentitySession
             if ($session->access_channel !== 'api_credit') {
                 IdentityChecks::prepare($session->order);
             }
-        });
+        }, 3);
     }
 }
