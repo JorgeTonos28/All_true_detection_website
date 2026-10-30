@@ -73,9 +73,20 @@ El catálogo de muestras consultado solo ofrece Brasil, España, Argentina y Pol
 
 ## Piloto Live controlado
 
-El titular autorizó una campaña limitada para resolver el flujo dominicano real: una verificación inicial y una recurrente. Cambiar la aplicación de Didit de prueba a Live es una acción del titular en consola; el nombre de la aplicación no confirma su modo. La clave permanece en `.env`, nunca en argumentos, chat o Git. La campaña se ejecuta con la API HTTP de ATD y un partner ficticio aprobado, en otra DB privada. No habilita el switch del negocio habitual ni cambia su `.env`.
+El titular autorizó una campaña limitada para resolver el flujo dominicano real: una verificación inicial y una recurrente. **Live y Sandbox son aplicaciones separadas**, con sus propias claves y workflows; cambiar la vista de la consola no sustituye las credenciales runtime. Se confirmó una sesión Live en «My Application» (`9ad42942-de19-482a-b1c4-7044b1956038`). «All true detection (Sandbox)» siguió devolviendo `environment=sandbox` después del cambio de vista comunicado por el titular. [Modelo oficial de entornos](https://docs.didit.me/integration/sandbox-testing#how-to-switch-between-live-and-sandbox).
 
-Preflight sin crear solicitudes ni sesiones:
+La clave permanece en `.env`, nunca en argumentos, chat o Git. El piloto Live usa exclusivamente este grupo privado; la aplicación habitual conserva `DIDIT_API_KEY` y sus IDs originales:
+
+```dotenv
+DIDIT_LIVE_API_KEY=CLAVE_PRIVADA_DE_MY_APPLICATION
+DIDIT_LIVE_APPLICATION_ID=9ad42942-de19-482a-b1c4-7044b1956038
+DIDIT_LIVE_WORKFLOW_ID=aa2b516d-9563-46f9-adb9-0d484ca6cfaf
+DIDIT_LIVE_AUTHENTICATION_WORKFLOW_ID=02d83807-8d18-4e64-af3d-e28e47581713
+```
+
+Los dos workflows nuevos se publicaron y releyeron: inicial DOM → ACTIVE_3D → Face Match, recurrente ACTIVE_3D → Face Match. No son predeterminados ni modifican los anteriores; no se crearon capturas al configurarlos. La campaña usa HTTP de ATD y un partner ficticio aprobado, en otra DB privada. No habilita el switch del negocio habitual. Cada laboratorio fija su perfil de credenciales en el marcador para que una nueva clave Live no cambie la interpretación de intentos anteriores.
+
+Preflight sin crear solicitudes ni sesiones, para una campaña nueva (una existente conserva su perfil):
 
 ```bat
 python tests/Support/api-lab/pilot.py check --live
@@ -83,7 +94,7 @@ python tests/Support/api-lab/pilot.py check --live
 
 Solo lee la configuración de ambos workflows; `provider_environment_confirmed=false` es esperado porque todavía no existe sesión cuya respuesta confirme Live. Rechaza comprobaciones adicionales a documento, vida activa y comparación facial 1:1. No verifica saldo ni congela la tarifa. Didit puede cobrar según comprobaciones y reintentos; consultar el precio aplicable en la cuenta, sin asumir que una sesión equivale a un importe fijo. El laboratorio limita a dos reservas diarias y no compra créditos ni activa recarga automática.
 
-Tras confirmar el modo Live en consola, ejecutar en una terminal normal de la carpeta del proyecto:
+Con la clave de la aplicación Live y los tres IDs configurados, ejecutar en una terminal normal de la carpeta del proyecto:
 
 ```bat
 python tests/Support/api-lab/pilot.py prepare --live
@@ -91,8 +102,16 @@ python tests/Support/api-lab/pilot.py prepare --live
 
 Pedirá `AUTORIZO LIVE`, nombre, apellidos, cédula dominicana y dirección. Los campos personales se leen de forma oculta; es normal no ver caracteres mientras se escribe. Se requiere documento real del titular y autorización de captura/retención por Didit, además de la reutilización operativa de 90 días en ATD. Una terminal sin entrada privada compatible cancela antes de crear. No compartir esos datos por chat. Los 90 días no son una política automática de borrado de Didit.
 
-El runner fija Live y polling solo en sus procesos locales; producción ignora la excepción de polling y sigue exigiendo webhook firmado y aprobación de producción. Persiste la clave de idempotencia antes del primer POST. Confirma sesión/workflow/referencia/entorno por GET antes de entregar el enlace. Si esa confirmación falla, conserva el intento para conciliación: no volver a crear con otra clave. El móvil abre solo el HTTPS de Didit y no necesita acceso al localhost.
+El runner fija Live y polling solo en sus procesos locales; producción ignora la excepción de polling y sigue exigiendo webhook firmado y aprobación de producción. Persiste la clave de idempotencia antes del primer POST. Confirma sesión/workflow/referencia/entorno por GET antes de entregar el enlace. Si esa confirmación falla, conserva el intento para conciliación: no volver a crear con otra clave. `diagnose` muestra entorno esperado/observado y vinculación, sin enlace, decisión bruta o datos personales. El móvil abre solo el HTTPS de Didit y no necesita acceso al localhost.
+
+**Recuperación del intento mal dirigido:** el primer comando Live del titular creó una sesión Sandbox, `Not Started`, porque aún usaba la clave original. Se conservan su DB y recibo; no se etiqueta como Live ni se presenta su enlace para documento real. Con `DIDIT_LIVE_*` ya preparado, ejecutar una sola vez:
+
+```bat
+python tests/Support/api-lab/pilot.py new --live
+```
+
+Antes de permitirlo, el helper consulta el intento anterior y exige vinculación confirmada, entorno real Sandbox, estado `Not Started`, ninguna captura recurrente y una aplicación diferente con perfil Live completo. Archiva el estado anterior y prepara otra DB; vuelve a pedir consentimiento y datos ocultos. Una sesión Live, iniciada, sin confirmar o de la misma aplicación bloquea la recuperación: no permite crear a ciegas ni repetir un cargo incierto. Los reintentos del nuevo intento mantienen su propia clave idempotente. No se cambia el entorno de una sesión existente.
 
 Después de capturar documento y rostro, ejecutar `python tests/Support/api-lab/pilot.py status`. Solo cuando la conclusión inicial sea `verified`, ejecutar `python tests/Support/api-lab/pilot.py recurrent`: registra la referencia consentida y crea **otro** enlace para ACTIVE_3D + Face Match sin nueva cédula. Completarlo en el celular y consultar `status` otra vez. La segunda conclusión debe ser `verified`, `verification_kind=recurring` y `document_reverified=false` para cerrar ese recorrido externo. No se presupone que una prueba adversa vaya a aprobarse; ante rechazo/revisión se conserva y analiza el resultado.
 
-Los comandos posteriores retoman el entorno de la campaña guardada; no hace falta repetir `--live`. Si el token ficticio existente venció, el helper local renueva únicamente sus mismos permisos tras comprobar cuenta/partner; no resucita tokens revocados ni partners suspendidos. `new` no crea otra inicial Live sobre una campaña que ya tiene solicitud. Los procesos se detienen al terminar cada comando: no hay que abrir tres terminales ni publicar un túnel.
+Los comandos posteriores retoman el entorno y perfil de la campaña guardada; no hace falta repetir `--live`. Si el token ficticio existente venció, el helper local renueva únicamente sus mismos permisos tras comprobar cuenta/partner; no resucita tokens revocados ni partners suspendidos. `new` no crea otra inicial Live sobre una campaña ya creada, salvo la recuperación comprobada descrita arriba. Los procesos se detienen al terminar cada comando: no hay que abrir tres terminales ni publicar un túnel.

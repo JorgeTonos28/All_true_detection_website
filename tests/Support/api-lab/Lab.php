@@ -55,7 +55,9 @@ class Lab
             }
             mkdir($root, 0700);
             $realm = getenv('ATD_API_LAB_PROVIDER') === 'didit' && getenv('ATD_API_LAB_LIVE_CONFIRMED') === '1' && getenv('DIDIT_ENVIRONMENT') === 'live' ? 'live' : 'sandbox';
-            file_put_contents($root.'/marker.json', json_encode(['version' => 1, 'environment' => $realm, 'key' => 'base64:'.base64_encode(random_bytes(32))], JSON_THROW_ON_ERROR));
+            file_put_contents($root.'/marker.json', json_encode(['version' => 1, 'environment' => $realm,
+                'credential_profile' => $realm === 'live' && getenv('ATD_API_LAB_LIVE_PROFILE') === '1' ? 'live' : 'default',
+                'key' => 'base64:'.base64_encode(random_bytes(32))], JSON_THROW_ON_ERROR));
         }
         $resolved = is_string($root) ? realpath($root) : false;
         if (! $resolved || ! is_dir($parent) || strtolower(dirname($resolved)) !== strtolower(realpath($parent)) || ! is_file($resolved.'/marker.json')) {
@@ -99,6 +101,15 @@ class Lab
         $app->make(Kernel::class)->bootstrap();
         config(['cache.stores.file.path' => $resolved.'/framework/cache/data', 'cache.stores.file.lock_path' => $resolved.'/framework/cache/data',
             'session.cookie' => 'atd_api_lab', 'portal.document_scan_binary' => null, 'logging.channels.single.path' => $resolved.'/logs/lab.log']);
+        if (! $mock && $live && ($marker['credential_profile'] ?? 'default') === 'live') {
+            foreach (['api_key', 'application_id', 'workflow_id', 'authentication_workflow_id'] as $key) {
+                $value = env('DIDIT_LIVE_'.strtoupper($key));
+                if (! filled($value)) {
+                    throw new RuntimeException('Falta configuración privada del perfil Live del piloto.');
+                }
+                config(['identity.didit.'.$key => $value]);
+            }
+        }
         if (DB::connection()->getDatabaseName() !== $resolved.'/lab.sqlite' || config('mail.default') !== 'array' || ! $app->environment('local')) {
             throw new RuntimeException('Falló el aislamiento.');
         }
@@ -154,6 +165,15 @@ class Lab
         $admin = User::where('email', 'admin@api-lab.test')->firstOrFail();
         $order = isset($data['order_id']) ? Order::where('public_id', $data['order_id'])->firstOrFail() : null;
         switch ($data['action']) {
+            case 'live-profile':
+                return ['ok' => filled(env('DIDIT_LIVE_API_KEY')) && Str::isUuid(env('DIDIT_LIVE_APPLICATION_ID'))
+                    && Str::isUuid(env('DIDIT_LIVE_WORKFLOW_ID')) && Str::isUuid(env('DIDIT_LIVE_AUTHENTICATION_WORKFLOW_ID')),
+                    'application_id' => env('DIDIT_LIVE_APPLICATION_ID')];
+            case 'provider-binding':
+                $session = $order->people()->firstOrFail()->identitySession()->firstOrFail();
+                abort_unless($session->provider_session_id, 409);
+
+                return app(DiditClient::class)->bindingStatus($session);
             case 'mode':
                 Setting::put('identity_verification_mode', $data['mode'] === 'didit' ? 'didit' : 'manual');
                 break;

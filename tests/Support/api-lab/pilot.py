@@ -13,6 +13,43 @@ from run import BASE, LabRun, order_payload
 POINTER = BASE / "storage/app/private/api-lab/active-pilot.json"
 
 
+def archive_state(state):
+    root = Path(state["root"]).resolve()
+    if root.parent != (BASE / "storage/app/private/api-lab").resolve():
+        raise RuntimeError("Ruta previa de piloto no valida.")
+    (root / "pilot-state.json").write_text(json.dumps(state), encoding="utf-8")
+
+
+def can_replace_misdirected_live(binding, profile):
+    return (binding.get("binding_matches") is True and binding.get("expected_environment") == "live"
+            and binding.get("environment") == "sandbox" and binding.get("status") == "Not Started"
+            and profile.get("ok") is True and bool(profile.get("application_id"))
+            and profile["application_id"] != binding.get("application_id"))
+
+
+def recover_misdirected_live(existing):
+    if existing.get("recurring"):
+        raise RuntimeError("La campaña ya tiene captura recurrente; no se crea otra inicial.")
+    previous = LabRun(provider="didit", root=existing["root"])
+    previous.env.update(DIDIT_ENVIRONMENT="live", ATD_API_LAB_LIVE_CONFIRMED="1")
+    binding = previous.control("provider-binding", order_id=existing["order_id"])
+    profile = previous.control("live-profile")
+    if not profile.get("ok"):
+        raise RuntimeError("Falta el perfil DIDIT_LIVE_* completo en .env. No se crea otra sesion.")
+    if not can_replace_misdirected_live(binding, profile):
+        raise RuntimeError("No se autoriza otra inicial: se requiere intento Sandbox confirmado, sin iniciar, y una aplicacion Live diferente.")
+    archive_state({**existing, "provider_environment": "sandbox", "archive_reason": "confirmed_environment_mismatch_before_capture"})
+    print("Intento Sandbox no iniciado archivado. Se usara la aplicacion separada del perfil DIDIT_LIVE_*.")
+
+
+def confirm_live_binding(lab, order_id):
+    binding = lab.control("provider-binding", order_id=order_id)
+    if not binding.get("ok") or binding.get("environment") != "live":
+        actual = binding.get("environment") if binding.get("binding_matches") else "sin confirmar"
+        raise RuntimeError("Didit informa entorno " + str(actual) + "; se esperaba live. Enlace retenido; no repita con otra clave.")
+    return binding
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["prepare", "new", "check", "status", "recurrent", "diagnose"])
@@ -23,22 +60,19 @@ def main():
     if args.live and args.scenario:
         raise SystemExit("Live no acepta escenarios simulados.")
     if args.live and existing and existing.get("environment", "sandbox") != "live":
-        old_root = Path(existing["root"]).resolve()
-        if old_root.parent != (BASE / "storage/app/private/api-lab").resolve():
-            raise SystemExit("Ruta previa de piloto no valida.")
-        (old_root / "pilot-state.json").write_text(json.dumps(existing), encoding="utf-8")
+        archive_state(existing)
         existing = None
     if args.action == "new":
         if existing and existing.get("environment") == "live":
             if existing.get("order_id"):
-                raise SystemExit("Ya hay una campaña Live. Use status/recurrent para no crear otro cargo inicial.")
+                if not args.live:
+                    raise SystemExit("Ya hay una campaña Live. Use status/recurrent; la recuperacion de entorno requiere new --live.")
+                recover_misdirected_live(existing)
+                existing = None
             args.action = "prepare"
         else:
             if existing:
-                old_root = Path(existing["root"]).resolve()
-                if old_root.parent != (BASE / "storage/app/private/api-lab").resolve():
-                    raise SystemExit("Ruta previa de piloto no valida.")
-                (old_root / "pilot-state.json").write_text(json.dumps(existing), encoding="utf-8")
+                archive_state(existing)
             existing = None
             args.action = "prepare"
     if not existing and args.action not in ["prepare", "check"]:
@@ -54,7 +88,7 @@ def main():
         print("PILOTO LIVE: una verificacion inicial y una recurrente. Tarifas vigentes de Didit; limite de dos sesiones en esta base.")
         print("Didit recibira su documento, rostro y prueba de vida; ATD guardara datos cifrados y consentimiento de reutilizacion hasta 90 dias.")
         print("Los 90 dias son vigencia operativa ATD, no borrado automatico de medios en Didit.")
-        print("Confirme primero que cambio la aplicacion Didit de prueba a Live. No hay selector de resultados simulados.")
+        print("Se usara la aplicacion Live y su clave DIDIT_LIVE_API_KEY. No hay selector de resultados simulados.")
         if input("Escriba AUTORIZO LIVE para continuar: ").strip() != "AUTORIZO LIVE":
             raise SystemExit("Cancelado sin crear sesiones.")
         warnings.simplefilter("error", getpass.GetPassWarning)
@@ -70,6 +104,7 @@ def main():
     lab.env.update(DIDIT_ENVIRONMENT=realm, DIDIT_SANDBOX_SCENARIO=scenario)
     if realm == "live":
         lab.env["ATD_API_LAB_LIVE_CONFIRMED"] = "1"
+        lab.env["ATD_API_LAB_LIVE_PROFILE"] = "1"
     if lab.root.parent != (BASE / "storage/app/private/api-lab").resolve():
         raise SystemExit("Ruta de piloto no valida.")
     try:
@@ -105,6 +140,10 @@ def main():
             POINTER.write_text(json.dumps(state), encoding="utf-8")
         root = f'/api/v1/orders/{state["order_id"]}/people/{state["person_id"]}'
         if args.action == "diagnose":
+            binding = lab.control("provider-binding", order_id=state["order_id"])
+            if not binding.get("ok"):
+                print(json.dumps(binding))
+                return 1
             diagnostics = lab.control("provider-diagnostics", order_id=state["order_id"])
             print(json.dumps(diagnostics))
             return 0 if diagnostics.get("ok") else 1
@@ -142,9 +181,7 @@ def main():
             raise RuntimeError("No se pudo consultar la sesion del piloto.")
         session = data["data"]
         if realm == "live":
-            diagnostics = lab.control("provider-diagnostics", order_id=state["recurring"]["order_id"] if state["recurring"] and args.action in ["status", "recurrent"] else state["order_id"])
-            if not diagnostics.get("ok") or diagnostics.get("environment") != "live":
-                raise RuntimeError("Didit no confirmo entorno Live. No se entrega el enlace; no repita con otra clave.")
+            confirm_live_binding(lab, state["recurring"]["order_id"] if state["recurring"] and args.action in ["status", "recurrent"] else state["order_id"])
         print(json.dumps({"state": session["state"], "environment": session["environment"], "verification_kind": session["verification_kind"]}))
         if session["verification_url"]:
             (lab.root / "capture-link.txt").write_text(session["verification_url"], encoding="utf-8")
