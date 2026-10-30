@@ -19,7 +19,9 @@ use App\Models\User;
 use App\Models\WebhookDelivery;
 use App\Models\WebhookEndpoint;
 use App\Services\DiditClient;
+use App\Services\IdentitySettings;
 use App\Services\ProcessIdentitySession;
+use App\Support\IdentityNumber;
 use App\Support\IntegrationScopes;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
@@ -52,7 +54,8 @@ class Lab
                 throw new RuntimeException('El laboratorio requiere una carpeta nueva bajo storage/app/private/api-lab.');
             }
             mkdir($root, 0700);
-            file_put_contents($root.'/marker.json', json_encode(['version' => 1, 'key' => 'base64:'.base64_encode(random_bytes(32))], JSON_THROW_ON_ERROR));
+            $realm = getenv('ATD_API_LAB_PROVIDER') === 'didit' && getenv('ATD_API_LAB_LIVE_CONFIRMED') === '1' && getenv('DIDIT_ENVIRONMENT') === 'live' ? 'live' : 'sandbox';
+            file_put_contents($root.'/marker.json', json_encode(['version' => 1, 'environment' => $realm, 'key' => 'base64:'.base64_encode(random_bytes(32))], JSON_THROW_ON_ERROR));
         }
         $resolved = is_string($root) ? realpath($root) : false;
         if (! $resolved || ! is_dir($parent) || strtolower(dirname($resolved)) !== strtolower(realpath($parent)) || ! is_file($resolved.'/marker.json')) {
@@ -63,16 +66,21 @@ class Lab
         if (($marker['version'] ?? null) !== 1 || empty($marker['key'])) {
             throw new RuntimeException('Marcador no válido.');
         }
-        foreach (['framework/cache/data', 'framework/sessions', 'framework/views', 'logs', 'app/private', 'app/public', 'provider', 'fixtures'] as $directory) {
+        foreach (['framework/cache/data', 'framework/sessions', 'framework/views', 'logs', 'app/private', 'app/public', 'provider', 'requests', 'fixtures'] as $directory) {
             if (! is_dir($resolved.'/'.$directory)) {
                 mkdir($resolved.'/'.$directory, 0700, true);
             }
         }
         $mock = getenv('ATD_API_LAB_PROVIDER') !== 'didit';
+        $realm = $mock ? 'sandbox' : ($marker['environment'] ?? 'sandbox');
+        $live = $realm === 'live';
+        if ($live && getenv('ATD_API_LAB_LIVE_CONFIRMED') !== '1') {
+            throw new RuntimeException('El piloto Live requiere confirmación explícita.');
+        }
         $environment = ['APP_ENV' => 'local', 'APP_DEBUG' => 'false', 'APP_KEY' => $marker['key'],
             'APP_CONFIG_CACHE' => $resolved.'/config-cache.php', 'DB_CONNECTION' => 'sqlite', 'DB_DATABASE' => $resolved.'/lab.sqlite',
             'CACHE_STORE' => 'file', 'SESSION_DRIVER' => 'file', 'QUEUE_CONNECTION' => 'sync', 'MAIL_MAILER' => 'array',
-            'LOG_CHANNEL' => 'single', 'DIDIT_LOCAL_POLLING' => 'true'];
+            'LOG_CHANNEL' => 'single', 'DIDIT_LOCAL_POLLING' => 'true', 'DIDIT_ENVIRONMENT' => $realm, 'DIDIT_LOCAL_LIVE_TESTING' => $live ? 'true' : 'false'];
         if ($mock) {
             $environment += ['DIDIT_API_KEY' => 'synthetic-lab-only', 'DIDIT_WEBHOOK_SECRET' => 'synthetic-api-lab-signature-secret',
                 'DIDIT_APPLICATION_ID' => '11111111-1111-4111-8111-111111111111', 'DIDIT_WORKFLOW_ID' => '22222222-2222-4222-8222-222222222222',
@@ -98,8 +106,11 @@ class Lab
         if ($mock) {
             Http::preventStrayRequests();
             self::mockProvider();
-        } elseif (config('identity.didit.environment') !== 'sandbox' || ! config('identity.didit.local_polling')) {
-            throw new RuntimeException('El piloto externo requiere Didit Sandbox y polling local.');
+        } elseif (! IdentitySettings::localPolling() || config('identity.didit.environment') !== $realm) {
+            throw new RuntimeException('El piloto externo requiere su entorno confirmado y polling local.');
+        }
+        if ($live) {
+            config(['identity.daily_session_limit' => 2, 'identity.account_daily_session_limit' => 2]);
         }
 
         return $app;
@@ -146,6 +157,28 @@ class Lab
             case 'mode':
                 Setting::put('identity_verification_mode', $data['mode'] === 'didit' ? 'didit' : 'manual');
                 break;
+            case 'preflight':
+                abort_unless(IdentitySettings::reuseReady(), 503);
+                foreach (['initial' => 'workflow_id', 'recurring' => 'authentication_workflow_id'] as $kind => $key) {
+                    app(DiditClient::class)->assertActiveWorkflow(new IdentitySession(['workflow_id' => config('identity.didit.'.$key), 'verification_kind' => $kind]));
+                }
+
+                return ['ok' => true, 'environment' => config('identity.didit.environment'), 'application_id' => config('identity.didit.application_id')];
+            case 'resume-pilot-access':
+                abort_unless(getenv('ATD_API_LAB_PROVIDER') === 'didit', 403);
+                $manifest = json_decode(file_get_contents(self::$root.'/manifest.json'), true, 32, JSON_THROW_ON_ERROR);
+                $client = User::where('email', 'client@api-lab.test')->firstOrFail();
+                abort_unless($client->is_active && $client->hasVerifiedEmail() && ! $client->isStaff() && $client->account->hasIdentityApiCredit(), 403);
+                $token = $client->tokens()->find(explode('|', $manifest['tokens']['client'])[0]);
+                abort_unless($token, 401);
+                if ($token->expires_at?->isPast()) {
+                    $scopes = array_values(array_intersect($token->abilities, IntegrationScopes::ALL));
+                    $manifest['tokens']['client'] = $client->createToken('Pilot renewed', $scopes, now()->addHours(4))->plainTextToken;
+                    $token->delete();
+                    file_put_contents(self::$root.'/manifest.json', json_encode($manifest, JSON_THROW_ON_ERROR), LOCK_EX);
+                }
+
+                return ['ok' => true];
             case 'clear-cache':
                 Cache::flush();
                 break;
@@ -197,6 +230,10 @@ class Lab
                 if (! empty($data['empty_checks'])) {
                     $body['liveness_checks'] = $body['face_matches'] = $body['id_verifications'] = [];
                 }
+                if (isset($data['number'])) {
+                    $body['id_verifications'][0]['personal_number'] = $data['number'];
+                    $body['id_verifications'][0]['document_number'] = null;
+                }
                 file_put_contents($path, json_encode($body, JSON_THROW_ON_ERROR), LOCK_EX);
                 break;
             case 'provider-behavior':
@@ -217,17 +254,31 @@ class Lab
                 return ['ok' => true, 'status' => $body['status'], 'environment' => $body['environment'],
                     'document_checks' => array_map(fn ($check) => ['status' => $check['status'] ?? null, 'country' => $check['issuing_state'] ?? null, 'method' => $check['verification_method'] ?? null,
                         'has_number' => filled($check['personal_number'] ?? null) || filled($check['document_number'] ?? null),
-                        'dom_number_format' => collect(['personal_number', 'document_number'])->contains(fn ($key) => is_string($check[$key] ?? null) && preg_match('/^[0-9]{11}$/D', preg_replace('/[^0-9]/', '', $check[$key]))),
-                        'number_matches_request' => collect(['personal_number', 'document_number'])->contains(fn ($key) => is_string($check[$key] ?? null) && preg_replace('/[^0-9]/', '', $check[$key]) === $expected)], $body['id_verifications'] ?? []),
+                        'dom_number_format' => collect(['personal_number', 'document_number'])->contains(fn ($key) => IdentityNumber::normalize($check[$key] ?? null) !== null),
+                        'number_matches_request' => collect(['personal_number', 'document_number'])->contains(fn ($key) => IdentityNumber::matches($check[$key] ?? null, $expected))], $body['id_verifications'] ?? []),
                     'liveness_checks' => array_map(fn ($check) => ['status' => $check['status'] ?? null, 'method' => $check['method'] ?? null], $body['liveness_checks'] ?? []),
                     'face_checks' => array_map(fn ($check) => ['status' => $check['status'] ?? null], $body['face_matches'] ?? [])];
+            case 'provider-catalog':
+                $headers = ['x-api-key' => config('identity.didit.api_key')];
+                if (($data['auth'] ?? null) === 'session') {
+                    $session = $order->people()->firstOrFail()->identitySession()->firstOrFail();
+                    abort_unless(DiditClient::safeUrl($session->verification_url), 409);
+                    $headers = ['Session-Token' => basename(parse_url($session->verification_url, PHP_URL_PATH))];
+                }
+                $response = Http::withHeaders($headers)->acceptJson()->connectTimeout(3)->timeout(12)->withoutRedirecting()->get('https://verification.didit.me/v1/sandbox/scenarios/');
+                $body = $response->json();
+
+                return ['ok' => $response->successful() && is_array($body), 'status' => $response->status(), 'keys' => is_array($body) ? array_keys($body) : [],
+                    'sample_identity' => is_array($body) ? ($body['sample_identity'] ?? null) : null,
+                    'scenarios' => collect(is_array($body) ? ($body['scenarios'] ?? []) : [])->map(fn ($item, $key) => is_array($item) ? array_intersect_key($item, array_flip(['slug', 'id', 'title'])) : ['key' => $key])->values()->all()];
             case 'expire-reference':
                 IdentitySubject::where('public_id', $data['identity_id'])->firstOrFail()->forceFill(['expires_at' => now()->subMinute()])->save();
                 break;
             case 'snapshot':
-                return ['ok' => true, 'orders' => Order::count(), 'sessions' => IdentitySession::count(), 'provider_creates' => count(glob(self::$root.'/provider/*.json')),
+                return ['ok' => true, 'orders' => Order::count(), 'sessions' => IdentitySession::count(), 'references' => IdentitySubject::count(), 'provider_creates' => count(glob(self::$root.'/provider/*.json')),
                     'files' => count(Storage::disk('local')->allFiles()), 'stored_file_rows' => DB::table('order_attachments')->whereNotNull('file_path')->count() + OrderResult::whereNotNull('file_path')->count(),
                     'foreign_key_violations' => count(DB::select('PRAGMA foreign_key_check')),
+                    'provider_requests' => array_map(fn ($path) => json_decode(file_get_contents($path), true, 32, JSON_THROW_ON_ERROR), glob(self::$root.'/requests/*.json')),
                     'webhooks' => WebhookDelivery::get()->map(fn ($d) => ['type' => $d->event_type, 'payload' => $d->payload])->all()];
             case 'envelope':
                 $session = $order->people()->firstOrFail()->identitySession()->firstOrFail();
@@ -270,6 +321,9 @@ class Lab
                     'url' => 'https://verify.didit.me/session/api-lab-synthetic', 'id_verifications' => $session->verification_kind === 'initial' ? [['status' => 'Approved', 'issuing_state' => 'DOM', 'verification_method' => 'document', 'personal_number' => $session->person->profile['identity_number']]] : [],
                     'liveness_checks' => [['status' => 'Approved', 'method' => 'ACTIVE_3D']], 'face_matches' => [['status' => 'Approved', 'source_image_session_id' => $id]]];
                 file_put_contents(self::$root.'/provider/'.$id.'.json', json_encode($body, JSON_THROW_ON_ERROR), LOCK_EX);
+                file_put_contents(self::$root.'/requests/'.$id.'.json', json_encode(['workflow_id' => $request['workflow_id'], 'vendor_data' => $request['vendor_data'], 'metadata' => $request['metadata'],
+                    'has_portrait_image' => array_key_exists('portrait_image', $request->data()), 'has_expected_details' => array_key_exists('expected_details', $request->data()),
+                    'sandbox_scenario' => $request['sandbox_scenario'] ?? null, 'callback_host' => isset($request['callback']) ? parse_url($request['callback'], PHP_URL_HOST) : null], JSON_THROW_ON_ERROR), LOCK_EX);
                 if (! empty($behavior['create_timeout'])) {
                     throw new ConnectionException('Synthetic accepted request with lost response.');
                 }

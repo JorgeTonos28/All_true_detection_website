@@ -1,9 +1,12 @@
-"""One controlled Didit Sandbox capture through ATD's real HTTP API; no public server."""
+"""Controlled Didit Sandbox or opt-in Live pilot through ATD's HTTP API; no public server."""
 import argparse
+import getpass
 import json
 from pathlib import Path
+import re
 import sys
 import uuid
+import warnings
 
 from run import BASE, LabRun, order_payload
 
@@ -12,34 +15,90 @@ POINTER = BASE / "storage/app/private/api-lab/active-pilot.json"
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["prepare", "new", "status", "recurrent", "diagnose"])
+    parser.add_argument("action", choices=["prepare", "new", "check", "status", "recurrent", "diagnose"])
+    parser.add_argument("--live", action="store_true", help="Opt-in local Live pilot; preparation asks for private data and consent")
+    parser.add_argument("--scenario", choices=["approve", "decline_document_expired", "decline_face_match_low_similarity", "review_face_match_borderline"], default=None)
     args = parser.parse_args()
     existing = json.loads(POINTER.read_text(encoding="utf-8")) if POINTER.exists() else None
-    if args.action == "new":
-        if existing:
-            old_root = Path(existing["root"]).resolve()
-            if old_root.parent != (BASE / "storage/app/private/api-lab").resolve():
-                raise SystemExit("Ruta previa de piloto no valida.")
-            (old_root / "pilot-state.json").write_text(json.dumps(existing), encoding="utf-8")
+    if args.live and args.scenario:
+        raise SystemExit("Live no acepta escenarios simulados.")
+    if args.live and existing and existing.get("environment", "sandbox") != "live":
+        old_root = Path(existing["root"]).resolve()
+        if old_root.parent != (BASE / "storage/app/private/api-lab").resolve():
+            raise SystemExit("Ruta previa de piloto no valida.")
+        (old_root / "pilot-state.json").write_text(json.dumps(existing), encoding="utf-8")
         existing = None
-        args.action = "prepare"
-    if not existing and args.action != "prepare":
+    if args.action == "new":
+        if existing and existing.get("environment") == "live":
+            if existing.get("order_id"):
+                raise SystemExit("Ya hay una campaña Live. Use status/recurrent para no crear otro cargo inicial.")
+            args.action = "prepare"
+        else:
+            if existing:
+                old_root = Path(existing["root"]).resolve()
+                if old_root.parent != (BASE / "storage/app/private/api-lab").resolve():
+                    raise SystemExit("Ruta previa de piloto no valida.")
+                (old_root / "pilot-state.json").write_text(json.dumps(existing), encoding="utf-8")
+            existing = None
+            args.action = "prepare"
+    if not existing and args.action not in ["prepare", "check"]:
         raise SystemExit("Primero prepare una captura: python tests/Support/api-lab/pilot.py prepare")
+    realm = existing.get("environment", "sandbox") if existing else ("live" if args.live else "sandbox")
+    scenario = existing.get("scenario", "approve") if existing else (args.scenario or "approve")
+    if existing and args.scenario and args.scenario != scenario:
+        raise SystemExit("No cambie el escenario de una sesión existente; prepare otro piloto explícito.")
+    live_profile = None
+    if realm == "live" and args.action == "prepare" and not (existing and existing.get("order_id")):
+        if not sys.stdin.isatty():
+            raise SystemExit("Live requiere una terminal interactiva para consentimiento y datos privados. No pase datos por argumentos ni chat.")
+        print("PILOTO LIVE: una verificacion inicial y una recurrente. Tarifas vigentes de Didit; limite de dos sesiones en esta base.")
+        print("Didit recibira su documento, rostro y prueba de vida; ATD guardara datos cifrados y consentimiento de reutilizacion hasta 90 dias.")
+        print("Los 90 dias son vigencia operativa ATD, no borrado automatico de medios en Didit.")
+        print("Confirme primero que cambio la aplicacion Didit de prueba a Live. No hay selector de resultados simulados.")
+        if input("Escriba AUTORIZO LIVE para continuar: ").strip() != "AUTORIZO LIVE":
+            raise SystemExit("Cancelado sin crear sesiones.")
+        warnings.simplefilter("error", getpass.GetPassWarning)
+        first = getpass.getpass("Nombre real (oculto): ").strip()
+        last = getpass.getpass("Apellidos reales (ocultos): ").strip()
+        number = getpass.getpass("Cedula dominicana (oculta): ").strip()
+        address = getpass.getpass("Direccion autorizada (oculta): ").strip()
+        if not first or not last or len(first) > 100 or len(last) > 100 or not re.fullmatch(r"[0-9]{3}-?[0-9]{7}-?[0-9]", number) or not address or len(address) > 1000:
+            raise SystemExit("Datos invalidos. No se creo ninguna sesion.")
+        live_profile = {"first_name": first, "last_name": last, "identity_number": number, "address": address,
+                        "purpose": "Prueba de integracion Live autorizada por el titular", "authorization_confirmed": True, "service_codes": ["identity-verification"]}
     lab = LabRun(provider="didit", root=existing["root"] if existing else None)
+    lab.env.update(DIDIT_ENVIRONMENT=realm, DIDIT_SANDBOX_SCENARIO=scenario)
+    if realm == "live":
+        lab.env["ATD_API_LAB_LIVE_CONFIRMED"] = "1"
     if lab.root.parent != (BASE / "storage/app/private/api-lab").resolve():
         raise SystemExit("Ruta de piloto no valida.")
     try:
         lab.start(resume=bool(existing))
+        if existing:
+            if not lab.control("resume-pilot-access").get("ok"):
+                raise RuntimeError("El acceso del piloto fue revocado o suspendido; no se renueva automaticamente.")
+            lab.manifest = json.loads((lab.root / "manifest.json").read_text(encoding="utf-8"))
+            lab.tokens = lab.manifest["tokens"]
         ready = lab.control("mode", mode="didit")
         if not ready.get("ok"):
-            raise RuntimeError("La configuracion no corresponde a un Sandbox local listo.")
-        state = existing or {"root": str(lab.root), "order_id": None, "person_id": None, "recurring": None}
+            raise RuntimeError("La configuracion no corresponde al entorno local confirmado del piloto.")
+        state = existing or {"root": str(lab.root), "order_id": None, "person_id": None, "recurring": None, "environment": realm, "scenario": scenario}
         # Persist before the first POST so an interrupted command never creates another order blindly.
         if not existing:
             state["create_key"] = "pilot-initial-" + uuid.uuid4().hex
             POINTER.write_text(json.dumps(state), encoding="utf-8")
+        if args.action == "check":
+            result = lab.control("preflight")
+            print(json.dumps({"preflight": result.get("ok"), "configured_environment": realm, "provider_environment_confirmed": False,
+                              "maximum_sessions": 2 if realm == "live" else None}))
+            return 0 if result.get("ok") else 1
         if not state["order_id"]:
-            created, _ = lab.create(["identity-verification"], payload=order_payload(["identity-verification"]), key=state["create_key"])
+            if realm == "live" and live_profile is None:
+                raise RuntimeError("Primero ejecute prepare --live y confirme sus datos en la terminal privada.")
+            if not lab.control("preflight").get("ok"):
+                raise RuntimeError("Preflight no confirmado. No se creo ninguna sesion Didit.")
+            payload = order_payload(["identity-verification"], people=[live_profile]) if live_profile else order_payload(["identity-verification"])
+            created, _ = lab.create(["identity-verification"], payload=payload, key=state["create_key"])
             if not created:
                 raise RuntimeError("No se pudo crear la solicitud aislada; no se envio captura.")
             state.update(order_id=created["id"], person_id=created["people"][0]["id"])
@@ -82,6 +141,10 @@ def main():
         if status != 200:
             raise RuntimeError("No se pudo consultar la sesion del piloto.")
         session = data["data"]
+        if realm == "live":
+            diagnostics = lab.control("provider-diagnostics", order_id=state["recurring"]["order_id"] if state["recurring"] and args.action in ["status", "recurrent"] else state["order_id"])
+            if not diagnostics.get("ok") or diagnostics.get("environment") != "live":
+                raise RuntimeError("Didit no confirmo entorno Live. No se entrega el enlace; no repita con otra clave.")
         print(json.dumps({"state": session["state"], "environment": session["environment"], "verification_kind": session["verification_kind"]}))
         if session["verification_url"]:
             (lab.root / "capture-link.txt").write_text(session["verification_url"], encoding="utf-8")
@@ -105,6 +168,9 @@ def main():
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except (EOFError, KeyboardInterrupt, getpass.GetPassWarning):
+        print("Entrada privada cancelada o terminal no compatible. No se crea ninguna sesion sin consentimiento y datos validos.", file=sys.stderr)
+        raise SystemExit(1)
     except (RuntimeError, ValueError, KeyError, OSError) as error:
         print("Piloto detenido de forma segura: " + str(error), file=sys.stderr)
         raise SystemExit(1)

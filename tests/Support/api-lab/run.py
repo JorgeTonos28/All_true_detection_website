@@ -475,11 +475,14 @@ class LabRun:
                      body={"consent": True, "notice_version": self.manifest["notice"]}, expect=202)
         self.control("clear-cache")
 
+    def scenario_groups(self):
+        return [("authentication-contract", self.auth_and_contract), ("all-services", self.catalog_and_services),
+                ("files-batches", self.files_and_batches), ("identity", self.identity_flows), ("identity-resilience", self.identity_resilience), ("concurrency-limits", self.concurrency_and_limits)]
+
     def run(self, only=None):
         try:
             self.start()
-            for title, method in [("authentication-contract", self.auth_and_contract), ("all-services", self.catalog_and_services),
-                                  ("files-batches", self.files_and_batches), ("identity", self.identity_flows), ("identity-resilience", self.identity_resilience), ("concurrency-limits", self.concurrency_and_limits)]:
+            for title, method in self.scenario_groups():
                 if only and title not in only:
                     continue
                 print("RUN: " + title, flush=True)
