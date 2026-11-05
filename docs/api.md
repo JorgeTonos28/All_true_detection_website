@@ -8,13 +8,13 @@ Base de producción: `https://SU_DOMINIO/api/v1`. Base local predeterminada: `ht
 
 La versión de protocolo está en `/v1`; el contrato OpenAPI 3.0.3 describe rutas, parámetros y esquemas. Los identificadores de negocio son ULID opacos, nunca credenciales. Fechas de API en ISO 8601 UTC y vencimientos como `YYYY-MM-DD`. Dinero en unidades menores enteras: `1050` equivale a `10.50` de la moneda indicada. No use flotantes para conciliar importes.
 
-Contrato **1.6.2**: el enlace de captura requiere `identity:read` incluso al repetir POST y una consulta vinculada confirmada al proveedor. Una actualización de identidad pendiente de confirmar retiene el resultado anterior (409), también en las verificaciones recurrentes dependientes. No cambian rutas ni cuerpos de solicitud.
+Contrato **1.7.0**: añade categorías/modalidades del catálogo, credenciales de alguaciles, identificación de la cuenta cliente, filtros de solicitudes e instrucciones bancarias por factura. Conserva las garantías de 1.6.2: el enlace de captura requiere `identity:read` incluso al repetir POST y una consulta vinculada confirmada al proveedor. Una actualización de identidad pendiente de confirmar retiene el resultado anterior (409), también en las verificaciones recurrentes dependientes. No cambian rutas ni cuerpos de solicitud.
 
 El límite general es de 60 peticiones/minuto por usuario y 600/minuto por IP antes de autenticar. Además, las cargas de documentos admiten 10 intentos/minuto y las operaciones costosas de identidad (iniciar sesión, registrar referencia o crear reverificación) comparten otra cuota de 10 intentos/minuto por usuario. Estos dos contadores son independientes; usan el mismo usuario aunque se rote el token. Los intentos con validación fallida también cuentan. Los cupos diarios de sesiones Didit por cuenta/global siguen aplicándose aparte. Ante 429 respete `Retry-After`; no cree otra clave idempotente para evadir el bloqueo.
 
 ## Autenticación y permisos
 
-Cree un usuario cliente, confirme su email e ingrese al portal. En Integraciones API puede emitir tokens temporales de 1 a 90 días (opción predeterminada), o elegir explícitamente un token persistente para una automatización servidor a servidor. Este último tiene `expires_at=null`, no caduca por fecha y no necesita renovación automática. No se amplía la vigencia de tokens existentes. Todos mantienen scopes mínimos y revocación inmediata; se exige confirmación reciente de identidad al emitir o revocar. Cada usuario admite hasta 10 tokens; el token completo se muestra una sola vez y el servidor conserva su hash.
+Cree un usuario cliente eligiendo `account_type=individual` o `business` (empresa requiere nombre comercial), confirme su email e ingrese al portal. Las cuentas anteriores y los registros por Google sin clasificación deben confirmarla en Mi cuenta antes de crear solicitudes nuevas; una cuenta sin tipo recibe 422 con error `account_type` al crear por API. Elegir empresa no concede permisos de personal ni crédito. `customer_account` en solicitudes identifica la cuenta real y su tipo; estos valores son asignados por el servidor, no se aceptan como selección de otro cliente desde el JSON. Las facturas conservan `recipient.account_type` como instantánea al emitir; puede faltar en facturas anteriores. En Integraciones API puede emitir tokens temporales de 1 a 90 días (opción predeterminada), o elegir explícitamente un token persistente para una automatización servidor a servidor. Este último tiene `expires_at=null`, no caduca por fecha y no necesita renovación automática. No se amplía la vigencia de tokens existentes. Todos mantienen scopes mínimos y revocación inmediata; se exige confirmación reciente de identidad al emitir o revocar. Cada usuario admite hasta 10 tokens; el token completo se muestra una sola vez y el servidor conserva su hash.
 
 Un token persistente robado también conserva su validez hasta revocarlo. Guárdelo exclusivamente en un gestor de secretos del backend, nunca en una app distribuida, navegador, URL o repositorio. Revise su último uso, rote la credencial según su política operativa y revóquela ante cualquier sospecha. Para rotar sin interrumpir trabajo: emita otro token con los mismos scopes, actualice su aplicación, compruebe una llamada y revoque el anterior. Cambiar/restablecer contraseña, desactivar la cuenta o cambiar sus permisos sigue invalidando el acceso; la integración debe manejar 401/403 y alertar al responsable, no reintentar indefinidamente.
 
@@ -41,9 +41,19 @@ Si hay una actualización del proveedor pendiente de confirmar, ATD retiene la c
 
 Guardar el token en un gestor de secretos del backend. No colocarlo en JavaScript público, repositorios, logs o herramientas de analítica. Una integración servidor a servidor no necesita CORS. Para un consumidor de navegador, ATD debe autorizar orígenes exactos; no se habilitan cookies ni comodines de origen. Se recomienda un backend propio para no exponer credenciales a los usuarios del navegador.
 
+## Catálogo y modalidades
+
+| Familia | Servicios activos (`code`) |
+| --- | --- |
+| Evaluaciones a personas | Servicios poligráficos (`polygraph`), evaluaciones de perfiles (`profile-verification`), antidoping (`drug-screening`), psicometría (`psychometric`). |
+| Verificación de personas | Visitas domiciliarias (`home-visits`), exequátur de abogados y notarios (`exequatur`), credenciales de alguaciles (`bailiff-credentials`), identidad (`identity-verification`), título universitario (`university-degree`). |
+| Capacitación y equipos | `training-equipment`, único servicio sin ficha por persona. |
+
+`GET /services` devuelve los diez servicios activos. Las modalidades de poligrafía y perfiles son opciones del servicio, no códigos independientes ni precios distintos automáticos. Las sustancias del antidoping se coordinan según requerimiento. `deception-detection`, `applied-ai` e `investigations` ya no se ofrecen de forma independiente ni se aceptan en solicitudes nuevas; sus órdenes, documentos, facturas y entregas históricas siguen accesibles con sus permisos habituales. Consulte el catálogo en vez de fijar una lista de códigos en su integración.
+
 ## Crear una solicitud
 
-Primero consulte `GET /services` para obtener los códigos activos y sus requisitos: `per_person`, `requires_identity_number` y `required_evidence`. Luego envíe `POST /orders` con JSON, consentimiento e `Idempotency-Key`. `details` es opcional: se admite omitirlo, enviarlo como `null` o usar un texto de hasta 10.000 caracteres, sin longitud mínima.
+Primero consulte `GET /services` para obtener los códigos activos y sus requisitos: `category`, `category_name`, `options`, `per_person`, `requires_identity_number` y `required_evidence`. Los precios administrativos no se publican en este catálogo. Luego envíe `POST /orders` con JSON, consentimiento e `Idempotency-Key`. `details` es opcional: se admite omitirlo, enviarlo como `null` o usar un texto de hasta 10.000 caracteres, sin longitud mínima.
 
 ```json
 {"subject":"Consulta de capacitación","external_reference":"RRHH-2026-001","consent":true,"items":[{"service_code":"training-equipment","quantity":1}]}
@@ -71,15 +81,17 @@ Compatibilidad: `person` sigue disponible para una sola persona con título, exe
 | --- | --- |
 | `first_name`, `last_name` | Obligatorios, hasta 100 caracteres cada uno. |
 | `service_codes` | Lista no vacía, sin códigos repetidos; servicios de esta orden, nunca `training-equipment`. |
-| `identity_number` | Obligatoria solo para título, exequátur o identidad. Cédula dominicana de 11 dígitos con o sin guiones; se guarda normalizada. El formato no acredita autenticidad. Prohibida en los demás servicios. |
+| `identity_number` | Obligatoria solo para título, exequátur, identidad o credenciales de alguacil. Cédula dominicana de 11 dígitos con o sin guiones; se guarda normalizada. El formato no acredita autenticidad. Prohibida en los demás servicios. |
 | `address` | Obligatoria para título, exequátur, identidad y visitas domiciliarias; opcional para los demás, hasta 1.000 caracteres. |
-| `purpose` | Finalidad autorizada obligatoria para título, exequátur e identidad, 5-1.000 caracteres; opcional en los otros servicios. No sustituye a `details`, que sigue siendo opcional. |
+| `purpose` | Finalidad autorizada obligatoria para título, exequátur, identidad y credenciales de alguacil, 5-1.000 caracteres; opcional en los otros servicios. No sustituye a `details`, que sigue siendo opcional. |
 | `authorization_confirmed` | Debe ser `true` y representar autorización real de la persona. |
 | `birth_date`, `phone`, `email` | Opcionales; fecha `YYYY-MM-DD` no futura. |
 | `degree.institution`, `degree.degree_name` | Obligatorios solo para título universitario. |
 | `degree.graduation_year`, `degree.registration_number` | Opcionales; año no futuro. |
 | `exequatur.profession` | Obligatorio solo para exequátur. |
 | `exequatur.number`, `exequatur.issuing_authority`, `exequatur.issued_on` | Opcionales; fecha no futura. |
+| `bailiff.credential_number`, `bailiff.issuing_authority`, `bailiff.jurisdiction` | Opcionales, solo para `bailiff-credentials`; no sustituyen la credencial escaneada obligatoria. |
+| `service_options` | Modalidad opcional por persona: `polygraph` admite `pre_employment`, `routine`, `specific`; `profile-verification` admite `basic`, `routine`, `management`, `investigative`. Solo claves de servicios elegidos. Omitir significa definirla con ATD. |
 
 Ejemplo completamente ficticio (la cédula es solo un marcador de pruebas):
 
@@ -127,6 +139,7 @@ Ejemplo completamente ficticio (la cédula es solo un marcador de pruebas):
 
 La creación devuelve `people[].id`. Después suba cada evidencia a `/orders/{order}/attachments` mediante `file`, `purpose` y `person_id` de la ficha correspondiente. Si hay varias personas, `person_id` es obligatorio para evidencia clasificada. Con una sola persona se puede inferir por compatibilidad. Un identificador de otra orden devuelve 404, aunque ambas órdenes pertenezcan a la misma cuenta.
 
+- `bailiff_credential`: credencial de alguacil escaneada o fotografiada, obligatoria para `bailiff-credentials`; PDF, JPG, PNG o WebP. Requiere cédula escrita y finalidad, sin exigir foto de cédula ni dirección para este servicio.
 - `identity_front`: frente de la cédula, obligatorio para título/exequátur; una copia sirve para ambos. PDF, JPG, PNG o WebP, escaneada o fotografiada.
 - `identity_back`: reverso opcional, en los mismos formatos.
 - `degree_document`: título universitario escaneado en PDF o fotografiado, obligatorio para `university-degree`.
@@ -168,6 +181,9 @@ La UI muestra miniaturas y ampliación en modal. Antes de enviar, las miniaturas
 
 ## Seguimiento y conversación
 
+`GET /orders` acepta `q` (hasta 100 caracteres: asunto, referencia externa, nombre de cuenta o ULID exacto), `status`, `billing` (`pending`, `paid`, `unquoted`, `credit`), `from` y `to` (`YYYY-MM-DD`). Ambos días son inclusivos respecto a la **fecha de recepción de la solicitud** en `PORTAL_TIMEZONE` (predeterminado `America/Santo_Domingo`), no a la fecha de un pago. `to` debe ser mayor o igual a `from`. `external_reference` mantiene su filtro exacto; `per_page` admite 1–100. Los filtros se combinan sin ampliar nunca el ámbito de la cuenta. `mine=1` solo afecta al personal web; para el cliente API la cuenta ya define el ámbito.
+
+
 `GET /orders` admite `status`, `external_reference` y `per_page` (1–100, por defecto 25). `GET /orders/{order}` devuelve el estado y los servicios. La propiedad `invoice` contiene información financiera solo si el token también tiene `invoices:read`; con `orders:read` únicamente es `null`.
 
 Estados: `submitted` → `reviewing` → `quoted` → `in_progress` → `completed`; una cancelación puede cerrar el caso según las reglas de ATD. Completar el trabajo no equivale a publicar una entrega. El estado del pago es independiente.
@@ -179,6 +195,10 @@ Estados: `submitted` → `reviewing` → `quoted` → `in_progress` → `complet
 Con `invoices:read`, consulte `GET /invoices`, con filtros `status=unpaid`, `status=paid` o `status=overdue`; `order_id` permite limitar a una solicitud. Las colecciones paginan con `per_page` entre 1 y 100. `GET /invoices/{invoice}` agrega partidas y los pagos que ATD ha registrado.
 
 Se devuelven subtotal, impuesto, total, `paid_amount`, `outstanding`, moneda, vencimiento y snapshots del emisor/receptor. `unpaid` incluye facturas sin abonos y parcialmente pagadas; use importes para distinguirlas. `overdue` significa no pagada y vencimiento anterior a hoy. Las facturas emitidas conservan sus datos y precios originales. Los eventos de factura y pago sirven para actualizar su sistema; vuelva a consultar para conocer el saldo vigente.
+
+Las facturas con saldo pendiente incluyen `payment_accounts`: banco, `account_type` (`checking`/`savings`), titular, número como **texto** (conservar ceros iniciales) y moneda. Solo se devuelven cuentas ATD activas en la moneda de esa factura; pagada o sin cuentas configuradas devuelve `[]`. Estas instrucciones son la configuración bancaria vigente, no un registro histórico de dónde se pagó. La referencia y el pago efectivo deben ser conciliados por ATD. No solicite depósitos en otra moneda solo porque la lista esté vacía.
+
+Al emitir la cotización se notifica a los clientes habilitados/verificados y, cuando corresponde, al correo de facturación de la cuenta, con importe, vencimiento y enlace privado. El catálogo puede tener precios sugeridos administrados por ATD, pero solo la factura emitida confirma el monto. El administrador confirma o modifica estos precios antes de emitir; los servicios sin precio se cotizan manualmente. No existe endpoint cliente para cambiar tarifas, emitir facturas ni marcar `quoted`: este estado se alcanza al emitir una factura válida.
 
 `GET /invoices/{invoice}/document` descarga una representación HTML imprimible de la factura comercial. No es PDF ni un NCF/documento fiscal homologado. La API no confirma fondos, no cobra, no permite reembolsos y no puede marcar una factura pagada: esa confirmación corresponde al administrador general de ATD.
 
@@ -304,3 +324,5 @@ Integraciones API muestra actividad por ruta, códigos, latencia y request ID, t
 En el servidor se requieren worker y scheduler: el outbox se guarda con la transacción de negocio y el scheduler encola pendientes/reintentos. Los envíos HTTP no mantienen abierta una transacción de base de datos. Los procesos usan leases para evitar entregar simultáneamente el mismo evento. Configurar escáner, cuotas del servidor web, TLS, respaldos privados y protección de APP_KEY según el runbook de operación.
 
 Antes de activar una integración: probar scopes mínimos, aislamiento entre cuentas, expiración/revocación, clave repetida y conflicto, MIME/tamaño rechazado, pagos parciales, bloqueo de entregas, firma/replay y recuperación ante timeouts. Solicitar a soporte el diagnóstico con `X-Request-ID`, fecha/hora UTC y operación; nunca enviar el token, la clave HMAC ni el contenido del expediente.
+
+La sección web «Identidades reutilizables» permanece oculta durante el piloto biométrico. Las rutas API existentes mantienen sus permisos, consentimientos, vigencia y comprobaciones; ocultar el módulo web no certifica ni cierra las pruebas Live.

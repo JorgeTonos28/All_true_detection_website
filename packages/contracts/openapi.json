@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "All True Detection API",
-    "version": "1.6.2",
+    "version": "1.7.0",
     "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API. Límite general 60/min por usuario y 600/min por IP; cargas 10/min e identidad costosa 10/min en contadores independientes por usuario. Los fallos de validación cuentan. Respetar Retry-After en 429; cuotas diarias Didit adicionales."
   },
   "servers": [
@@ -286,6 +286,58 @@
             "schema": {
               "type": "string",
               "maxLength": 100
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Texto en asunto, referencia externa o nombre de cuenta; ULID exacto. Siempre limitado a su cuenta.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "billing",
+            "in": "query",
+            "description": "Situación de facturación. credit identifica órdenes con sesiones api_credit.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "paid",
+                "unquoted",
+                "credit"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Primer día local de creación inclusive en PORTAL_TIMEZONE (predeterminado America/Santo_Domingo).",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Último día local de creación inclusive; debe ser >= from.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "description": "Reservado a personal web; no restringe adicionalmente al cliente API.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
             }
           }
         ],
@@ -1510,9 +1562,9 @@
                       "selfie_extra",
                       "degree_document",
                       "exequatur_document"
-                    ],
+                    , "bailiff_credential"],
                     "default": "supporting",
-                    "description": "identity_front obligatorio para título/exequátur; degree_document para título; exequatur_document para exequátur; selfie para identidad. Selfies solo JPG/PNG/WebP; documentos clasificados PDF o imágenes, no DOCX. El mismo archivo no puede repetirse."
+                    "description": "identity_front obligatorio para título/exequátur; degree_document para título; exequatur_document para exequátur; bailiff_credential para credenciales de alguacil; selfie para identidad. Selfies solo JPG/PNG/WebP; documentos clasificados PDF o imágenes, no DOCX. El mismo archivo no puede repetirse."
                   },
                   "person_id": {
                     "type": "string",
@@ -2747,10 +2799,28 @@
           "description"
         ],
         "properties": {
-          "identity_mode": { "type": "string", "nullable": true, "enum": ["manual", "didit", null] },
-          "per_person": { "type": "boolean", "description": "Todos salvo training-equipment." },
-          "requires_identity_number": { "type": "boolean" },
-          "required_evidence": { "type": "array", "items": { "type": "string" } },
+          "identity_mode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "manual",
+              "didit",
+              null
+            ]
+          },
+          "per_person": {
+            "type": "boolean",
+            "description": "Todos salvo training-equipment."
+          },
+          "requires_identity_number": {
+            "type": "boolean"
+          },
+          "required_evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "code": {
             "type": "string"
           },
@@ -2759,6 +2829,38 @@
           },
           "description": {
             "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "assessments",
+              "verifications",
+              "additional",
+              null
+            ]
+          },
+          "category_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "name"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -2826,6 +2928,39 @@
           }
         }
       },
+      "PaymentAccount": {
+        "type": "object",
+        "required": [
+          "bank_name",
+          "account_type",
+          "account_holder",
+          "account_number",
+          "currency"
+        ],
+        "properties": {
+          "bank_name": {
+            "type": "string"
+          },
+          "account_type": {
+            "type": "string",
+            "enum": [
+              "checking",
+              "savings"
+            ]
+          },
+          "account_holder": {
+            "type": "string"
+          },
+          "account_number": {
+            "type": "string",
+            "description": "Conservar como texto, incluidos ceros iniciales."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        }
+      },
       "Invoice": {
         "type": "object",
         "properties": {
@@ -2888,7 +3023,19 @@
             "type": "object"
           },
           "recipient": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+              "account_type": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "individual",
+                  "business",
+                  null
+                ],
+                "description": "Instantánea al emitir; puede faltar en facturas históricas."
+              }
+            }
           },
           "lines": {
             "type": "array",
@@ -2942,6 +3089,13 @@
           "document_url": {
             "type": "string",
             "format": "uri"
+          },
+          "payment_accounts": {
+            "type": "array",
+            "description": "Cuentas ATD activas, de la misma moneda, para facturas con saldo pendiente. Lista vacía si pagada o sin cuentas configuradas. Son instrucciones vigentes, no una instantánea histórica. No equivale a pago registrado.",
+            "items": {
+              "$ref": "#/components/schemas/PaymentAccount"
+            }
           }
         }
       },
@@ -3018,10 +3172,37 @@
           "people": {
             "type": "array",
             "description": "Solo creación y detalle autorizado; ausente del listado, notificaciones y webhooks.",
-            "items": { "$ref": "#/components/schemas/OrderPerson" }
+            "items": {
+              "$ref": "#/components/schemas/OrderPerson"
+            }
           },
           "verification": {
             "$ref": "#/components/schemas/VerificationEvidence"
+          },
+          "customer_account": {
+            "type": "object",
+            "nullable": true,
+            "readOnly": true,
+            "description": "Cuenta determinada por el servidor a partir del usuario autenticado; nunca permite seleccionar otra cuenta desde el cuerpo.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "ULID público de la cuenta."
+              },
+              "name": {
+                "type": "string"
+              },
+              "account_type": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "individual",
+                  "business",
+                  null
+                ],
+                "description": "null solo en cuentas anteriores pendientes de clasificación."
+              }
+            }
           }
         }
       },
@@ -3178,7 +3359,7 @@
               "selfie_extra",
               "degree_document",
               "exequatur_document"
-            ],
+            , "bailiff_credential"],
             "default": "supporting"
           }
         }
@@ -3243,30 +3424,147 @@
       "OrderPerson": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["first_name", "last_name", "authorization_confirmed", "service_codes"],
-        "description": "Ficha cifrada por solicitud. Cédula y finalidad obligatorias solo para título, exequátur e identidad; no aportar cédula para otros servicios. Dirección obligatoria también para visitas domiciliarias. degree/exequatur obligatorios solo con su servicio. No acepta decisiones ni identificadores del cliente.",
+        "required": [
+          "first_name",
+          "last_name",
+          "authorization_confirmed",
+          "service_codes"
+        ],
+        "description": "Ficha cifrada por solicitud. Cédula y finalidad obligatorias para título, exequátur, identidad y credenciales de alguacil. No aportar cédula para otros servicios. Dirección obligatoria para título, exequátur, identidad y visitas domiciliarias. Los códigos retirados se conservan en respuestas históricas, pero no se aceptan en solicitudes nuevas. No acepta decisiones ni identificadores del cliente.",
         "properties": {
-          "identity_mode": { "type": "string", "enum": ["manual", "didit"], "readOnly": true },
-          "identity_session_url": { "type": "string", "format": "uri", "nullable": true, "readOnly": true },
-          "id": { "type": "string", "readOnly": true, "description": "ULID público generado por ATD; úselo en person_id al cargar evidencia." },
-          "service_codes": { "type": "array", "minItems": 1, "maxItems": 11, "uniqueItems": true, "items": { "type": "string", "enum": ["polygraph", "deception-detection", "profile-verification", "applied-ai", "home-visits", "investigations", "drug-screening", "psychometric", "university-degree", "exequatur", "identity-verification"] } },
-          "first_name": { "$ref": "#/components/schemas/VerificationPerson/properties/first_name" },
-          "last_name": { "$ref": "#/components/schemas/VerificationPerson/properties/last_name" },
-          "identity_number": { "$ref": "#/components/schemas/VerificationPerson/properties/identity_number" },
-          "address": { "$ref": "#/components/schemas/VerificationPerson/properties/address" },
-          "birth_date": { "$ref": "#/components/schemas/VerificationPerson/properties/birth_date" },
-          "phone": { "$ref": "#/components/schemas/VerificationPerson/properties/phone" },
-          "email": { "$ref": "#/components/schemas/VerificationPerson/properties/email" },
-          "purpose": { "$ref": "#/components/schemas/VerificationPerson/properties/purpose" },
-          "authorization_confirmed": { "$ref": "#/components/schemas/VerificationPerson/properties/authorization_confirmed" },
-          "degree": { "$ref": "#/components/schemas/VerificationPerson/properties/degree" },
-          "exequatur": { "$ref": "#/components/schemas/VerificationPerson/properties/exequatur" }
+          "identity_mode": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "didit"
+            ],
+            "readOnly": true
+          },
+          "identity_session_url": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "readOnly": true
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true,
+            "description": "ULID público generado por ATD; úselo en person_id al cargar evidencia."
+          },
+          "service_codes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "polygraph",
+                "deception-detection",
+                "profile-verification",
+                "applied-ai",
+                "home-visits",
+                "investigations",
+                "drug-screening",
+                "psychometric",
+                "university-degree",
+                "exequatur",
+                "identity-verification",
+                "bailiff-credentials"
+              ]
+            }
+          },
+          "first_name": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/first_name"
+          },
+          "last_name": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/last_name"
+          },
+          "identity_number": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/identity_number"
+          },
+          "address": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/address"
+          },
+          "birth_date": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/birth_date"
+          },
+          "phone": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/phone"
+          },
+          "email": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/email"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/purpose"
+          },
+          "authorization_confirmed": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/authorization_confirmed"
+          },
+          "degree": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/degree"
+          },
+          "exequatur": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/exequatur"
+          },
+          "bailiff": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Solo con bailiff-credentials. Los campos son opcionales; la credencial escaneada se aporta aparte.",
+            "properties": {
+              "credential_number": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "issuing_authority": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              },
+              "jurisdiction": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              }
+            }
+          },
+          "service_options": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Modalidades opcionales por persona. Cada clave debe corresponder a un servicio seleccionado; consulte options del catálogo. Omitir equivale a definirlo con ATD.",
+            "properties": {
+              "polygraph": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "pre_employment",
+                  "routine",
+                  "specific",
+                  null
+                ]
+              },
+              "profile-verification": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "basic",
+                  "routine",
+                  "management",
+                  "investigative",
+                  null
+                ]
+              }
+            }
+          }
         }
       },
       "VerificationPerson": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Campo anterior compatible para una sola persona, cantidad=1. No combinar con people; se recomienda people para nuevas integraciones. Solo creación/detalle autorizado, nunca listados ni webhooks.",
+        "description": "Campo anterior compatible para una sola persona, cantidad=1. No combinar con people; se recomienda people para nuevas integraciones. Solo creación/detalle autorizado, nunca listados ni webhooks. También compatible con bailiff-credentials; para ese servicio address es opcional.",
         "required": [
           "first_name",
           "last_name",
@@ -3380,6 +3678,58 @@
                 "description": "No futura."
               }
             }
+          },
+          "bailiff": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Solo con bailiff-credentials. Los campos son opcionales; la credencial escaneada se aporta aparte.",
+            "properties": {
+              "credential_number": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "issuing_authority": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              },
+              "jurisdiction": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              }
+            }
+          },
+          "service_options": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Modalidades opcionales por persona. Cada clave debe corresponder a un servicio seleccionado; consulte options del catálogo. Omitir equivale a definirlo con ATD.",
+            "properties": {
+              "polygraph": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "pre_employment",
+                  "routine",
+                  "specific",
+                  null
+                ]
+              },
+              "profile-verification": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "basic",
+                  "routine",
+                  "management",
+                  "investigative",
+                  null
+                ]
+              }
+            }
           }
         }
       },
@@ -3427,7 +3777,7 @@
                 "selfie",
                 "degree_document",
                 "exequatur_document"
-              ]
+              , "bailiff_credential"]
             }
           },
           "missing": {
@@ -3439,7 +3789,7 @@
                 "selfie",
                 "degree_document",
                 "exequatur_document"
-              ]
+              , "bailiff_credential"]
             }
           }
         }
