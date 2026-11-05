@@ -1,4 +1,4 @@
-@if($person->identity_mode==='didit' && $person->identitySession && !auth()->user()->isStaff())
+@if(config('portal.reusable_identity_ui_enabled') && $person->identity_mode==='didit' && $person->identitySession && !auth()->user()->isStaff())
 @php($reuseSource = $person->identitySession)
 @if($person->identity_subject_id)
 <p class="info-strip">Autenticación recurrente · referencia {{ $person->identitySubject->public_id }}. Incluye captura activa nueva y comparación facial, no una nueva validación de la cédula.</p>

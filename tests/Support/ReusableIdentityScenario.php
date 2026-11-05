@@ -45,6 +45,9 @@ class ReusableIdentityScenario
 
     public function __construct(public string $channel = 'api_credit')
     {
+        if ($channel === 'web') {
+            config(['portal.reusable_identity_ui_enabled' => true]);
+        }
         Notification::fake();
         Queue::fake();
         Http::preventStrayRequests();
