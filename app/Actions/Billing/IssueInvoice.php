@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Audit;
+use App\Services\BusinessBillingSettings;
 use App\Services\OrderEvents;
 use App\Support\PersonVerification;
 use Illuminate\Support\Facades\DB;
@@ -25,8 +26,8 @@ class IssueInvoice
             abort_unless(in_array($order->status, [OrderStatus::Submitted, OrderStatus::Reviewing], true) && ! $order->invoice()->exists(), 409, 'La orden no admite una nueva factura.');
             PersonVerification::requireEvidence($order);
             $subtotal = 0;
-            foreach ($order->items as $item) {
-                $price = $data['prices'][$item->id] ?? null;
+            foreach ($order->items()->with('service')->get() as $item) {
+                $price = array_key_exists($item->id, $data['prices'] ?? []) ? $data['prices'][$item->id] : BusinessBillingSettings::suggestedPrice($item->service);
                 abort_unless(is_int($price) || (is_string($price) && ctype_digit($price)), 422, 'Debe cotizar cada servicio en centavos enteros.');
                 $price = (int) $price;
                 abort_unless($price > 0 && $price <= 100000000, 422);
@@ -41,7 +42,7 @@ class IssueInvoice
             $invoice = $order->invoice()->create([
                 'number' => 'ATD-'.now()->format('Y').'-'.Str::ulid(), 'currency' => config('portal.currency'),
                 'issuer' => collect($settings)->only(['company_name', 'email', 'phone', 'address'])->all(),
-                'recipient' => $order->account->only(['name', 'billing_email', 'tax_id', 'billing_address']),
+                'recipient' => $order->account->only(['name', 'billing_email', 'tax_id', 'billing_address']) + ['account_type' => $order->account->account_type?->value],
                 'subtotal' => $subtotal, 'tax_basis_points' => $basisPoints, 'tax' => $tax, 'total' => $subtotal + $tax,
                 'issued_at' => now(), 'due_date' => $data['due_date'] ?? null,
             ]);

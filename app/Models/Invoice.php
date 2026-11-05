@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasPublicId;
+use App\Services\BusinessBillingSettings;
 use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
@@ -41,5 +42,10 @@ class Invoice extends Model
     public function outstanding(): int
     {
         return $this->total - $this->paidAmount();
+    }
+
+    public function paymentAccounts(): array
+    {
+        return $this->outstanding() > 0 ? BusinessBillingSettings::paymentAccounts($this->currency) : [];
     }
 }

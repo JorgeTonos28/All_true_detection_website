@@ -11,6 +11,17 @@ enum OrderStatus: string
     case Completed = 'completed';
     case Cancelled = 'cancelled';
 
+    public function nextStates(): array
+    {
+        return match ($this) {
+            self::Submitted => [self::Reviewing, self::Cancelled],
+            self::Reviewing => [self::Cancelled],
+            self::Quoted => [self::InProgress],
+            self::InProgress => [self::Completed],
+            default => [],
+        };
+    }
+
     public function label(): string
     {
         return match ($this) {

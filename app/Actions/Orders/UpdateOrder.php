@@ -25,14 +25,11 @@ class UpdateOrder
                 $order->assigned_to = $data['assigned_to'];
             }
             if (isset($data['status']) && $data['status'] !== $order->status->value) {
-                $allowed = match ($order->status) {
-                    OrderStatus::Submitted => ['reviewing', 'cancelled'],
-                    OrderStatus::Reviewing => ['cancelled'],
-                    OrderStatus::Quoted => ['in_progress'],
-                    OrderStatus::InProgress => ['completed'],
-                    default => [],
-                };
+                $allowed = array_map(fn ($state) => $state->value, $order->status->nextStates());
                 abort_unless(in_array($data['status'], $allowed, true), 409, 'La transición de estado no está permitida.');
+                if ($order->status === OrderStatus::Quoted) {
+                    abort_unless($order->invoice()->exists(), 409, 'Emita la factura antes de iniciar el trabajo.');
+                }
                 if ($data['status'] === 'cancelled') {
                     Gate::forUser($actor)->authorize('administer', $order);
                     abort_if($order->invoice()->exists(), 409, 'Una orden facturada no puede cancelarse.');
