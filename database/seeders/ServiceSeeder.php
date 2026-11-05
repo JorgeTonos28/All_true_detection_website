@@ -11,7 +11,8 @@ class ServiceSeeder extends Seeder
     public function run(): void
     {
         foreach (ServiceCatalog::all() as $index => $service) {
-            Service::query()->firstOrCreate(['code' => $service['code']], $service + ['sort_order' => $index]);
+            Service::query()->updateOrCreate(['code' => $service['code']], $service + ['sort_order' => $index, 'is_active' => true]);
         }
+        Service::whereIn('code', ServiceCatalog::retiredCodes())->update(['is_active' => false]);
     }
 }
