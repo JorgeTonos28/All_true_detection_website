@@ -16,6 +16,8 @@ El intento Live actual del titular quedó sin ID remoto; búsqueda exacta vacía
 
 PHP 8.3+ con PDO MySQL/SQLite, mbstring, OpenSSL, cURL, fileinfo y XML; GD para validación de imágenes. El lock de Composer se resuelve contra PHP 8.3 para evitar dependencias que solo funcionen en el PHP de desarrollo. MySQL 8+ o SQLite; la suite de CI cubre ambos motores. Los assets del portal son estáticos y están en Git.
 
+Parche del 5 de noviembre de 2026: desplegar el `composer.lock` que fija `symfony/http-foundation`, `http-kernel`, `routing` y `serializer` en 7.4.23, mediante el procedimiento habitual de `composer install`. Reconstruir la caché de rutas y reiniciar workers/procesos persistentes para cargar los componentes corregidos; el parche de Routing también afecta al código de rutas compiladas. Ejecutar `composer audit --no-interaction` después de instalar. [Diagnóstico, avisos y validación CI](qa/security-ci-2026-11-05.md).
+
 Antes de actualizar, crear y verificar un respaldo de base de datos, `storage/app/private`, logos, configuración privada y APP_KEY. Conservar APP_KEY: cifra mensajes, descripción de expedientes, resultados, secretos de webhooks y trabajos de autenticación en cola. Una clave distinta impide recuperar los datos. El almacenamiento privado y sus respaldos deben tener acceso restringido y cifrado de disco/servicio de almacenamiento; no colocarlos bajo el document root.
 
 ### Acceso administrativo local sin correo

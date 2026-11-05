@@ -43,6 +43,8 @@ Al actualizar una instalación existente, respaldar la base, los documentos y AP
 
 `php vendor/phpunit/phpunit/phpunit`, `php vendor/bin/pint --test`, `composer audit`. Las pruebas usan SQLite en memoria y no modifican la base configurada en `.env`.
 
+La [corrección de seguridad del 5 de noviembre](docs/qa/security-ci-2026-11-05.md) actualiza cuatro componentes Symfony a 7.4.23 para resolver nueve avisos publicados el día anterior. CI comprobó 196 pruebas / 2.190 aserciones tanto con PHP 8.3/SQLite como con PHP 8.4/MySQL, con auditoría de dependencias limpia.
+
 ## Solicitudes y cobros
 
 Las órdenes aceptan varios servicios y cantidades. Las facturas comerciales conservan los importes emitidos, el emisor y el destinatario. La interfaz recibe importes con dos decimales e impuestos en porcentaje; internamente y en la API se usan centavos enteros y puntos básicos (1800 = 18 %), sin cálculos monetarios en coma flotante. La moneda predeterminada es DOP. El administrador general registra pagos parciales y sus referencias; un pago repetido con la misma referencia no duplica el cobro. El cliente puede actualizar los datos fiscales/de contacto de su cuenta sin alterar facturas ya emitidas.
