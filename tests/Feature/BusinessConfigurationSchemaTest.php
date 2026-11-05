@@ -43,4 +43,18 @@ class BusinessConfigurationSchemaTest extends TestCase
         $this->expectException(QueryException::class);
         DB::table('customer_accounts')->insert(['public_id' => (string) Str::ulid(), 'name' => 'Invalid', 'account_type' => 'administrator']);
     }
+
+    public function test_same_option_code_can_have_a_distinct_price_in_each_service(): void
+    {
+        $this->seed();
+        $polygraph = Service::where('code', 'polygraph')->sole();
+        $profiles = Service::where('code', 'profile-verification')->sole();
+        DB::table('service_option_prices')->insert([
+            ['service_id' => $polygraph->id, 'option_code' => 'routine', 'unit_price' => 120000],
+            ['service_id' => $profiles->id, 'option_code' => 'routine', 'unit_price' => 95000],
+        ]);
+        $this->assertDatabaseCount('service_option_prices', 2);
+        $this->expectException(QueryException::class);
+        DB::table('service_option_prices')->insert(['service_id' => $polygraph->id, 'option_code' => 'routine', 'unit_price' => 130000]);
+    }
 }
