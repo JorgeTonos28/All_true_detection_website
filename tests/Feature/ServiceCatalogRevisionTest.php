@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Auth\CreateNewUser;
 use App\Actions\Orders\CreateOrder;
 use App\Models\Service;
+use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
@@ -12,6 +13,18 @@ use Tests\TestCase;
 class ServiceCatalogRevisionTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_default_copy_update_preserves_business_edits(): void
+    {
+        $this->seed();
+        Setting::put('hero_subtitle', 'Texto propio del negocio');
+        Setting::put('meta_description', 'All True Detection ofrece evaluación de perfiles, polígrafo, verificación, antidoping, investigación, capacitación y análisis asistido por IA para decisiones corporativas más seguras.');
+        $migration = require database_path('migrations/2026_11_04_000004_align_default_catalog_copy.php');
+        $migration->up();
+        $this->assertSame('Texto propio del negocio', Setting::values()['hero_subtitle']);
+        $this->assertStringContainsString('credenciales', Setting::values()['meta_description']);
+        $this->assertStringNotContainsString('IA', Setting::values()['meta_description']);
+    }
 
     public function test_catalog_revision_preserves_historical_lines_and_prices(): void
     {
