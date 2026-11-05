@@ -85,7 +85,7 @@ class PersonVerificationWorkflowTest extends TestCase
             $this->assertSame(409, $error->getStatusCode());
         }
         $findings = [];
-        foreach (PersonVerification::SERVICES as $code) {
+        foreach (array_column(self::data()['items'], 'service_code') as $code) {
             $findings[$code] = ['outcome' => 'inconclusive', 'notes' => 'Conclusión ficticia: se necesita más evidencia.'];
         }
         $result = app(StoreResult::class)->handle($admin, $order, 'Informe humano reservado', null, $findings);
@@ -165,7 +165,7 @@ class PersonVerificationWorkflowTest extends TestCase
         $admin = User::factory()->create(['role' => Role::Admin]);
         $evidence = array_combine(['identity_front', 'selfie', 'degree_document', 'exequatur_document'], array_map(self::evidence(...), ['identity_front', 'selfie', 'degree_document', 'exequatur_document']));
         $order = app(CreateOrder::class)->handle($client, self::data(), null, [], $evidence, true);
-        $findings = array_fill_keys(PersonVerification::SERVICES, ['outcome' => 'inconclusive', 'notes' => str_repeat('ñ', 5000)]);
+        $findings = array_fill_keys(array_column(self::data()['items'], 'service_code'), ['outcome' => 'inconclusive', 'notes' => str_repeat('ñ', 5000)]);
         $result = app(StoreResult::class)->handle($admin, $order, 'Prueba sintética de capacidad', null, $findings);
         $this->assertGreaterThan(65535, strlen(DB::table('order_results')->where('id', $result->id)->value('verification_findings')));
         $this->assertSame(5000, mb_strlen($result->fresh()->verification_findings['checks'][0]['notes']));

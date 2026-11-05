@@ -11,13 +11,13 @@ use Illuminate\Validation\ValidationException;
 
 class PersonVerification
 {
-    public const SERVICES = ['university-degree', 'exequatur', 'identity-verification'];
+    public const SERVICES = ['university-degree', 'exequatur', 'identity-verification', 'bailiff-credentials'];
 
-    public const PERSON_SERVICES = ['polygraph', 'deception-detection', 'profile-verification', 'applied-ai', 'home-visits', 'investigations', 'drug-screening', 'psychometric', 'university-degree', 'exequatur', 'identity-verification'];
+    public const PERSON_SERVICES = ['polygraph', 'deception-detection', 'profile-verification', 'applied-ai', 'home-visits', 'investigations', 'drug-screening', 'psychometric', 'university-degree', 'exequatur', 'identity-verification', 'bailiff-credentials'];
 
-    public const PURPOSES = ['supporting', 'identity_front', 'identity_back', 'selfie', 'selfie_extra', 'degree_document', 'exequatur_document'];
+    public const PURPOSES = ['supporting', 'identity_front', 'identity_back', 'selfie', 'selfie_extra', 'degree_document', 'exequatur_document', 'bailiff_credential'];
 
-    public const LABELS = ['supporting' => 'Documento de apoyo', 'identity_front' => 'Cédula: frente', 'identity_back' => 'Cédula: reverso', 'selfie' => 'Selfie frontal', 'selfie_extra' => 'Selfie adicional', 'degree_document' => 'Título universitario escaneado o fotografiado', 'exequatur_document' => 'Exequátur escaneado o fotografiado'];
+    public const LABELS = ['supporting' => 'Documento de apoyo', 'identity_front' => 'Cédula: frente', 'identity_back' => 'Cédula: reverso', 'selfie' => 'Selfie frontal', 'selfie_extra' => 'Selfie adicional', 'degree_document' => 'Título universitario escaneado o fotografiado', 'exequatur_document' => 'Exequátur escaneado o fotografiado', 'bailiff_credential' => 'Credencial de alguacil escaneada o fotografiada'];
 
     public const OUTCOMES = ['verified' => 'Verificado', 'not_verified' => 'No verificado', 'inconclusive' => 'No concluyente'];
 
@@ -40,9 +40,9 @@ class PersonVerification
     {
         $codes = array_values(array_filter($codes, 'is_string'));
         $identity = (bool) array_intersect($codes, self::SERVICES);
-        $address = $identity || in_array('home-visits', $codes, true);
+        $address = (bool) array_intersect($codes, ['university-degree', 'exequatur', 'identity-verification', 'home-visits']);
         $rules = [
-            'person' => ['required', 'array:first_name,last_name,identity_number,address,birth_date,phone,email,purpose,authorization_confirmed,degree,exequatur'.($prefix !== 'person' ? ',service_codes' : '')],
+            'person' => ['required', 'array:first_name,last_name,identity_number,address,birth_date,phone,email,purpose,authorization_confirmed,degree,exequatur,bailiff,service_options'.($prefix !== 'person' ? ',service_codes' : '')],
             'person.first_name' => ['required', 'string', 'max:100'],
             'person.last_name' => ['required', 'string', 'max:100'],
             // Format only. This does NOT assert authenticity or registry validity.
@@ -63,7 +63,19 @@ class PersonVerification
             'person.exequatur.number' => ['nullable', 'string', 'max:100'],
             'person.exequatur.issuing_authority' => ['nullable', 'string', 'max:200'],
             'person.exequatur.issued_on' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'person.bailiff' => [in_array('bailiff-credentials', $codes, true) ? 'nullable' : 'prohibited', 'array:credential_number,issuing_authority,jurisdiction'],
+            'person.bailiff.credential_number' => ['nullable', 'string', 'max:100'],
+            'person.bailiff.issuing_authority' => ['nullable', 'string', 'max:200'],
+            'person.bailiff.jurisdiction' => ['nullable', 'string', 'max:200'],
         ];
+        $options = [];
+        foreach (ServiceCatalog::all() as $service) {
+            if (in_array($service['code'], $codes, true) && $service['options']) {
+                $options[] = $service['code'];
+                $rules['person.service_options.'.$service['code']] = ['nullable', Rule::in(array_column($service['options'], 'code'))];
+            }
+        }
+        $rules['person.service_options'] = $options ? ['nullable', 'array:'.implode(',', $options)] : ['prohibited'];
 
         return collect($rules)->mapWithKeys(fn ($rule, $key) => [str_replace('person', $prefix, $key) => array_map(fn ($value) => is_string($value) ? str_replace('person.', $prefix.'.', $value) : $value, $rule)])->all();
     }
@@ -77,7 +89,7 @@ class PersonVerification
             }
             $codes = is_array($person) && is_array($person['service_codes'] ?? null) ? $person['service_codes'] : [];
             $rules += self::profileRules($codes, 'people.'.$index);
-            $rules['people.'.$index.'.service_codes'] = ['required', 'array', 'list', 'min:1', 'max:11'];
+            $rules['people.'.$index.'.service_codes'] = ['required', 'array', 'list', 'min:1', 'max:'.count(self::PERSON_SERVICES)];
             $rules['people.'.$index.'.service_codes.*'] = ['required', 'string', 'distinct', Rule::in(self::PERSON_SERVICES)];
         }
 
@@ -150,7 +162,7 @@ class PersonVerification
             return;
         }
         $service = match ($purpose) {
-            'degree_document' => 'university-degree', 'exequatur_document' => 'exequatur',
+            'degree_document' => 'university-degree', 'exequatur_document' => 'exequatur', 'bailiff_credential' => 'bailiff-credentials',
             'selfie', 'selfie_extra' => 'identity-verification', default => null,
         };
         if (! array_intersect($codes, self::SERVICES) || ($service && ! in_array($service, $codes, true))) {
@@ -183,6 +195,9 @@ class PersonVerification
     {
         $codes = array_filter($codes, 'is_string');
         $required = array_intersect($codes, ['university-degree', 'exequatur']) ? ['identity_front'] : [];
+        if (in_array('bailiff-credentials', $codes, true)) {
+            $required[] = 'bailiff_credential';
+        }
         if ($identityMode !== 'didit' && in_array('identity-verification', $codes, true)) {
             $required[] = 'selfie';
         }

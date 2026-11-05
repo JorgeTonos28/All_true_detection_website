@@ -72,6 +72,7 @@ class StoreOrderRequest extends FormRequest
             'evidence.selfie_extra' => PrivateUpload::rules(false),
             'evidence.degree_document' => array_merge([! $api && ! $people && in_array('university-degree', $codes, true) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1)),
             'evidence.exequatur_document' => array_merge([! $api && ! $people && in_array('exequatur', $codes, true) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1)),
+            'evidence.bailiff_credential' => array_merge([! $api && ! $people && in_array('bailiff-credentials', $codes, true) ? 'required' : 'nullable'], array_slice(PrivateUpload::rules(), 1)),
         ] + $personRules + $evidenceRules;
     }
 
@@ -95,6 +96,7 @@ class StoreOrderRequest extends FormRequest
             'person_evidence.*.selfie.required' => 'Adjunte una selfie frontal para cada persona con verificación de identidad.',
             'person_evidence.*.degree_document.required' => 'Adjunte el título universitario de cada persona que solicite validarlo.',
             'person_evidence.*.exequatur_document.required' => 'Adjunte el exequátur de cada persona que solicite validarlo.',
+            'person_evidence.*.bailiff_credential.required' => 'Adjunte la credencial escaneada o fotografiada de cada alguacil.',
         ];
     }
 
