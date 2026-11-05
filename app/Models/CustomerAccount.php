@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AccountType;
 use App\Models\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Model;
 
@@ -9,11 +10,11 @@ class CustomerAccount extends Model
 {
     use HasPublicId;
 
-    protected $fillable = ['name', 'billing_email', 'tax_id', 'billing_address'];
+    protected $fillable = ['name', 'billing_email', 'tax_id', 'billing_address', 'account_type'];
 
     protected function casts(): array
     {
-        return ['identity_api_enabled' => 'boolean', 'identity_api_daily_limit' => 'integer', 'identity_api_approved_at' => 'datetime'];
+        return ['account_type' => AccountType::class, 'identity_api_enabled' => 'boolean', 'identity_api_daily_limit' => 'integer', 'identity_api_approved_at' => 'datetime'];
     }
 
     public function hasIdentityApiCredit(): bool

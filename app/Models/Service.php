@@ -8,10 +8,10 @@ class Service extends Model
 {
     protected $attributes = ['is_active' => true];
 
-    protected $fillable = ['code', 'name', 'description', 'is_active', 'sort_order'];
+    protected $fillable = ['code', 'name', 'description', 'is_active', 'sort_order', 'category', 'options', 'default_price'];
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return ['is_active' => 'boolean', 'options' => 'array', 'default_price' => 'integer'];
     }
 }
