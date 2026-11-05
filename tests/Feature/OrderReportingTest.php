@@ -53,7 +53,7 @@ class OrderReportingTest extends TestCase
         $this->order($other, 'Datos de otra cuenta', '2026-11-04 04:00:00');
         $this->actingAs($client);
         $filters = '?from=2026-11-04&to=2026-11-04&billing=pending&q=Caso';
-        $this->get('/portal'.$filters)->assertOk()->assertViewHas('money', fn ($money) => $money['DOP'] === ['collected' => 4000, 'outstanding' => 6000])->assertSee('Caso de noviembre')->assertDontSee('Fuera del día')->assertDontSee('Datos de otra cuenta');
+        $this->get('/portal'.$filters)->assertOk()->assertViewHas('money', fn ($money) => $money['DOP'] === ['collected' => 4000, 'outstanding' => 6000])->assertSee('Caso de noviembre')->assertSee('Filtros activos')->assertSee('Saldo pendiente')->assertDontSee('Total pagado')->assertDontSee('Total cobrado')->assertDontSee('Fuera del día')->assertDontSee('Datos de otra cuenta');
         $this->get('/portal/orders'.$filters)->assertOk()->assertViewHas('summary', fn ($summary) => $summary['total'] === 1)->assertSee('Caso de noviembre')->assertDontSee('Fuera del día');
         $this->get('/portal/orders?to=2026-11-04')->assertOk();
         $this->getJson('/portal?from=2026-11-05&to=2026-11-04')->assertUnprocessable();
