@@ -15,7 +15,7 @@ if (PHP_SAPI !== 'cli' || ! $app->environment('local') || $connection->getDriver
     || ! $expected || realpath($connection->getDatabaseName()) !== $expected) {
     throw new RuntimeException('Este helper solo actualiza la SQLite local habitual del proyecto.');
 }
-$allowed = ['2026_11_04_000001_add_account_types_catalog_and_bank_accounts', '2026_11_04_000002_index_order_creation_dates', '2026_11_04_000003_refresh_customer_service_catalog', '2026_11_04_000004_align_default_catalog_copy'];
+$allowed = ['2026_11_04_000001_add_account_types_catalog_and_bank_accounts', '2026_11_04_000002_index_order_creation_dates', '2026_11_04_000003_refresh_customer_service_catalog', '2026_11_04_000004_align_default_catalog_copy', '2026_11_05_000001_add_service_option_prices_and_invoice_lines'];
 $ran = $app->make('migration.repository')->getRan();
 $pending = array_values(array_diff(array_keys($app->make('migrator')->getMigrationFiles(database_path('migrations'))), $ran));
 if (! $pending) {
@@ -40,9 +40,9 @@ if ($snapshot->query('PRAGMA integrity_check')->fetchColumn() !== 'ok') {
     throw new RuntimeException('La copia consistente no pasó la verificación de integridad.');
 }
 $tables = ['users', 'orders', 'order_people', 'order_items', 'order_attachments', 'order_results', 'invoices', 'payments', 'identity_sessions'];
-$digest = static function (PDO $pdo, string $table): string {
+$digest = static function (PDO $pdo, string $table, string $columns): string {
     $hash = hash_init('sha256');
-    $rows = $pdo->query('SELECT * FROM '.$table.' ORDER BY id');
+    $rows = $pdo->query('SELECT '.$columns.' FROM '.$table.' ORDER BY id');
     while ($row = $rows->fetch(PDO::FETCH_ASSOC)) {
         hash_update($hash, json_encode($row, JSON_THROW_ON_ERROR));
     }
@@ -51,7 +51,10 @@ $digest = static function (PDO $pdo, string $table): string {
 };
 $before = [];
 foreach ($tables as $table) {
-    $before[$table] = $digest($snapshot, $table);
+    // Compare every original column; the new nullable invoice snapshot has no historical value.
+    $names = array_column($snapshot->query('PRAGMA table_info('.$table.')')->fetchAll(PDO::FETCH_ASSOC), 'name');
+    $columns = implode(', ', array_map(fn ($name) => '"'.str_replace('"', '""', $name).'"', $names));
+    $before[$table] = ['columns' => $columns, 'hash' => $digest($snapshot, $table, $columns)];
 }
 $accountCount = $connection->table('customer_accounts')->count();
 $exit = Artisan::call('migrate', ['--path' => array_map(fn ($name) => 'database/migrations/'.$name.'.php', $pending), '--force' => true]);
@@ -59,8 +62,8 @@ echo Artisan::output();
 if ($exit !== 0 || $connection->selectOne('PRAGMA integrity_check')->integrity_check !== 'ok' || $connection->select('PRAGMA foreign_key_check')) {
     throw new RuntimeException('Revise la actualización y conserve la copia privada.');
 }
-foreach ($before as $table => $hash) {
-    if (! hash_equals($hash, $digest($connection->getPdo(), $table))) {
+foreach ($before as $table => $original) {
+    if (! hash_equals($original['hash'], $digest($connection->getPdo(), $table, $original['columns']))) {
         throw new RuntimeException('Cambió una tabla protegida; revise actividad concurrente y la copia privada.');
     }
 }

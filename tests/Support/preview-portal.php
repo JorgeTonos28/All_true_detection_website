@@ -10,9 +10,11 @@ use App\Actions\Orders\StoreResult;
 use App\Actions\Orders\UpdateOrder;
 use App\Enums\Role;
 use App\Models\ApiRequestLog;
+use App\Models\Service;
 use App\Models\User;
 use App\Models\WebhookEndpoint;
 use App\Notifications\PortalActivity;
+use App\Services\BusinessBillingSettings;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Notification;
@@ -63,4 +65,16 @@ foreach ([42, 81, 36, 127, 64] as $index => $duration) {
 foreach ([$client, $admin] as $recipient) {
     $recipient->notifications()->create(['id' => (string) Str::uuid(), 'type' => PortalActivity::class, 'data' => ['title' => 'Pago total confirmado', 'copy' => 'ATD confirmó el pago de la factura de demostración.', 'path' => '/portal/orders/'.$order->public_id, 'reference' => $order->public_id]]);
 }
+$polygraph = Service::where('code', 'polygraph')->sole();
+app(BusinessBillingSettings::class)->save($admin, ['catalog_pricing_enabled' => true, 'service_option_prices' => [$polygraph->id => [
+    'pre_employment' => '1250.50', 'routine' => '1850.00', 'specific' => '2300.00',
+]]]);
+app(CreateOrder::class)->handle($client, [
+    'subject' => 'Modalidades poligráficas de demostración', 'consent' => true,
+    'items' => [['service_code' => 'polygraph', 'quantity' => 3]],
+    'people' => collect(['pre_employment', 'routine', 'pre_employment'])->map(fn ($option, $index) => [
+        'first_name' => 'Persona '.($index + 1), 'last_name' => 'Ficticia', 'authorization_confirmed' => true,
+        'service_codes' => ['polygraph'], 'service_options' => ['polygraph' => $option],
+    ])->all(),
+]);
 echo json_encode(['database' => $path, 'admin' => $admin->email, 'client' => $client->email, 'password' => $password], JSON_THROW_ON_ERROR).PHP_EOL;

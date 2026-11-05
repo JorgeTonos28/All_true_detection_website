@@ -212,14 +212,18 @@ class LabRun:
             print("SERVICE: " + service["code"], flush=True)
             self.control("clear-cache")
             code = service["code"]
-            created, key = self.create([code])
+            if code == "polygraph":
+                people = [dict(profile([code]), service_options={code: option}) for option in ("pre_employment", "routine", "pre_employment")]
+                payload = order_payload([code], people)
+            else:
+                payload = order_payload([code])
+            created, key = self.create([code], payload=payload)
             if not created:
                 continue
             order, person = created["id"], (created.get("people") or [{}])[0].get("id")
-            again, _ = self.create([code], key=key, name="idempotent retry " + code)
+            again, _ = self.create([code], payload=payload, key=key, name="idempotent retry " + code)
             self.check("same order on retry " + code, order == again.get("id"))
-            altered = order_payload([code])
-            altered["subject"] = "Changed payload"
+            altered = dict(payload, subject="Changed payload")
             self.create([code], payload=altered, key=key, expect=409, name="idempotency conflict " + code)
             required = service["required_evidence"]
             for position, purpose in enumerate(required):
@@ -242,7 +246,7 @@ class LabRun:
             self.request("message isolation " + code, "GET", root + "/messages", token="other", expect=403)
             self.request("message scope " + code, "POST", root + "/messages", body={"body": "Denied"}, token="messages:read", expect=403)
             self.request("invoice scope " + code, "GET", "/api/v1/invoices", token="orders:read", expect=403)
-            invoice = self.control("invoice", order_id=order, tax_basis_points=1800)
+            invoice = self.control("invoice", order_id=order, tax_basis_points=1800, price_by_option={"pre_employment": 125050, "routine": 180075} if code == "polygraph" else {})
             self.check("admin quote " + code, invoice.get("ok"), evidence=invoice.get("status"))
             result = self.control("result", order_id=order, file=True)
             self.check("admin prepares synthetic result " + code, result.get("ok"))
@@ -255,7 +259,13 @@ class LabRun:
             self.check("admin completes " + code, self.control("complete", order_id=order).get("ok"))
             self.control("payment", order_id=order, amount=invoice["total"] - 1)
             self.request("partial payment blocks " + code, "GET", root + "/deliveries", expect=409)
-            self.request("invoice detail " + code, "GET", f"/api/v1/invoices/{iid}")
+            _, detail, _, _ = self.request("invoice detail " + code, "GET", f"/api/v1/invoices/{iid}")
+            if code == "polygraph":
+                lines = detail.get("data", {}).get("lines", [])
+                self.check("modalities split the invoice by actual person counts and confirmed rates",
+                           [(line.get("option_code"), line["quantity"], line["unit_price"], line["total"]) for line in lines]
+                           == [("pre_employment", 2, 125050, 250100), ("routine", 1, 180075, 180075)])
+                self.check("mixed modalities reconcile to invoice totals", invoice["total"] == 507607)
             self.request("invoice printable " + code, "GET", f"/api/v1/invoices/{iid}/document")
             self.request("invoice isolation " + code, "GET", f"/api/v1/invoices/{iid}", token="other", expect=403)
             self.control("payment", order_id=order, amount=1)

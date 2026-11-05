@@ -22,6 +22,7 @@ use App\Models\WebhookEndpoint;
 use App\Services\DiditClient;
 use App\Services\IdentitySettings;
 use App\Services\ProcessIdentitySession;
+use App\Services\QuoteLines;
 use App\Support\IdentityNumber;
 use App\Support\IntegrationScopes;
 use Illuminate\Contracts\Console\Kernel;
@@ -210,7 +211,8 @@ class Lab
                 Cache::flush();
                 break;
             case 'invoice':
-                $invoice = app(IssueInvoice::class)->handle($admin, $order, ['prices' => $order->items->mapWithKeys(fn ($item) => [$item->id => 1250])->all(), 'tax_basis_points' => $data['tax_basis_points'] ?? 0, 'due_date' => today()->subDay()->toDateString()]);
+                $prices = array_map(fn ($line) => $data['price_by_option'][$line['option_code']] ?? 1250, QuoteLines::build($order));
+                $invoice = app(IssueInvoice::class)->handle($admin, $order, ['prices' => $prices, 'tax_basis_points' => $data['tax_basis_points'] ?? 0, 'due_date' => today()->subDay()->toDateString()]);
 
                 return ['ok' => true, 'invoice_id' => $invoice->public_id, 'total' => $invoice->total];
             case 'result':
@@ -337,7 +339,7 @@ class Lab
         // boot() already binds this connection to a marked, private laboratory directory.
         abort_unless(DB::connection()->getDatabaseName() === self::$root.'/lab.sqlite', 403);
         $pending = array_diff(array_keys(app('migrator')->getMigrationFiles(database_path('migrations'))), app('migration.repository')->getRan());
-        $allowed = ['2026_11_04_000001_add_account_types_catalog_and_bank_accounts', '2026_11_04_000002_index_order_creation_dates', '2026_11_04_000003_refresh_customer_service_catalog', '2026_11_04_000004_align_default_catalog_copy'];
+        $allowed = ['2026_11_04_000001_add_account_types_catalog_and_bank_accounts', '2026_11_04_000002_index_order_creation_dates', '2026_11_04_000003_refresh_customer_service_catalog', '2026_11_04_000004_align_default_catalog_copy', '2026_11_05_000001_add_service_option_prices_and_invoice_lines'];
         if (array_diff($pending, $allowed)) {
             throw new RuntimeException('El piloto necesita una actualización adicional revisada.');
         }
