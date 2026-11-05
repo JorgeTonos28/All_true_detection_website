@@ -11,7 +11,7 @@ use App\Models\Order;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\BusinessBillingSettings;
-use App\Services\UserDirectory;
+use App\Services\OrderFilters;
 use App\Support\PersonVerification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -21,27 +21,10 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $data = $request->validate(['status' => ['nullable', Rule::enum(OrderStatus::class)], 'q' => ['nullable', 'string', 'max:100'], 'billing' => ['nullable', 'in:pending,paid,unquoted,credit'], 'mine' => ['nullable', 'in:1']]);
-        $base = Order::visibleTo($request->user());
+        $data = OrderFilters::validate($request);
+        $base = OrderFilters::apply(Order::visibleTo($request->user()), $data, $request->user());
         $summary = ['total' => (clone $base)->count(), 'working' => (clone $base)->whereIn('status', ['reviewing', 'quoted', 'in_progress'])->count(), 'pending' => (clone $base)->whereHas('invoice', fn ($q) => $q->where('status', 'unpaid'))->count(), 'completed' => (clone $base)->where('status', 'completed')->count()];
         $query = $base->withIdentityCredit()->with(['account', 'invoice' => fn ($q) => $q->withSum('payments', 'amount'), 'assignee', 'items'])->withCount('attachments');
-        if (! empty($data['status'])) {
-            $query->where('status', $data['status']);
-        }
-        if (! empty($data['q'])) {
-            $pattern = UserDirectory::pattern($data['q']);
-            $query->where(fn ($q) => $q->whereRaw("LOWER(subject) LIKE ? ESCAPE '!'", [$pattern])->orWhere('public_id', $data['q'])->orWhereRaw("LOWER(external_reference) LIKE ? ESCAPE '!'", [$pattern])->orWhereHas('account', fn ($account) => $account->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])));
-        }
-        if (($data['billing'] ?? null) === 'unquoted') {
-            $query->whereDoesntHave('invoice')->whereDoesntHave('people', fn ($q) => $q->whereHas('identitySession', fn ($q) => $q->where('access_channel', 'api_credit')));
-        } elseif (($data['billing'] ?? null) === 'credit') {
-            $query->whereHas('people', fn ($q) => $q->whereHas('identitySession', fn ($q) => $q->where('access_channel', 'api_credit')));
-        } elseif (! empty($data['billing'])) {
-            $query->whereHas('invoice', fn ($q) => $q->where('status', $data['billing'] === 'paid' ? 'paid' : 'unpaid'));
-        }
-        if (! empty($data['mine']) && $request->user()->isStaff()) {
-            $query->where('assigned_to', $request->user()->id);
-        }
 
         return view('portal.orders.index', ['orders' => $query->latest('id')->paginate(20)->withQueryString(), 'statuses' => OrderStatus::cases(), 'summary' => $summary]);
     }

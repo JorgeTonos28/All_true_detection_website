@@ -2,6 +2,7 @@
 
 return [
     'currency' => env('PORTAL_CURRENCY', 'DOP'),
+    'display_timezone' => env('PORTAL_TIMEZONE', 'America/Santo_Domingo'),
     'reusable_identity_ui_enabled' => (bool) env('PORTAL_REUSABLE_IDENTITIES_UI_ENABLED', false),
     'require_staff_two_factor' => env('PORTAL_REQUIRE_STAFF_2FA', true),
     'token_days' => 90,

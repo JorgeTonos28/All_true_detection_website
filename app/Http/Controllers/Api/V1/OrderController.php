@@ -3,25 +3,21 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Actions\Orders\CreateOrder;
-use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
+use App\Services\OrderFilters;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $data = $request->validate(['per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'status' => ['sometimes', Rule::enum(OrderStatus::class)], 'external_reference' => ['sometimes', 'string', 'max:100']]);
-        $query = Order::visibleTo($request->user())->with(['items.service', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')]);
-        if (isset($data['status'])) {
-            $query->where('status', $data['status']);
-        }
+        $data = array_merge(OrderFilters::validate($request), $request->validate(['per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'external_reference' => ['sometimes', 'string', 'max:100']]));
+        $query = OrderFilters::apply(Order::visibleTo($request->user()), $data, $request->user())->with(['items.service', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')]);
         if (isset($data['external_reference'])) {
             $query->where('external_reference', $data['external_reference']);
         }
