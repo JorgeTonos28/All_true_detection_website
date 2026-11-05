@@ -137,7 +137,7 @@ class Lab
         $manifest = ['root' => self::$root, 'tokens' => [], 'users' => [], 'notice' => config('identity.notice_version'), 'reuse_notice' => config('identity.reuse_notice_version')];
         foreach (['client', 'other', 'untrusted', 'inactive', 'unverified'] as $name) {
             $password = Str::password(24);
-            $user = app(CreateNewUser::class)->create(['name' => 'Integrador sintético '.$name, 'email' => $name.'@api-lab.test', 'password' => $password, 'password_confirmation' => $password, 'terms' => true]);
+            $user = app(CreateNewUser::class)->create(['name' => 'Integrador sintético '.$name, 'email' => $name.'@api-lab.test', 'password' => $password, 'password_confirmation' => $password, 'account_type' => 'individual', 'terms' => true]);
             $user->forceFill(['email_verified_at' => $name === 'unverified' ? null : now(), 'is_active' => $name !== 'inactive'])->save();
             if (in_array($name, ['client', 'other'], true)) {
                 app(ManagePartnerAccess::class)->handle($admin, $user->account, ['enabled' => true, 'daily_limit' => 100]);
@@ -192,6 +192,7 @@ class Lab
                 return ['ok' => true, 'environment' => config('identity.didit.environment'), 'application_id' => config('identity.didit.application_id')];
             case 'resume-pilot-access':
                 abort_unless(getenv('ATD_API_LAB_PROVIDER') === 'didit', 403);
+                self::upgradePilotDatabase();
                 $manifest = json_decode(file_get_contents(self::$root.'/manifest.json'), true, 32, JSON_THROW_ON_ERROR);
                 $client = User::where('email', 'client@api-lab.test')->firstOrFail();
                 abort_unless($client->is_active && $client->hasVerifiedEmail() && ! $client->isStaff() && $client->account->hasIdentityApiCredit(), 403);
@@ -329,6 +330,34 @@ class Lab
         }
 
         return ['ok' => true];
+    }
+
+    private static function upgradePilotDatabase(): void
+    {
+        // boot() already binds this connection to a marked, private laboratory directory.
+        abort_unless(DB::connection()->getDatabaseName() === self::$root.'/lab.sqlite', 403);
+        $pending = array_diff(array_keys(app('migrator')->getMigrationFiles(database_path('migrations'))), app('migration.repository')->getRan());
+        $allowed = ['2026_11_04_000001_add_account_types_catalog_and_bank_accounts', '2026_11_04_000002_index_order_creation_dates', '2026_11_04_000003_refresh_customer_service_catalog', '2026_11_04_000004_align_default_catalog_copy'];
+        if (array_diff($pending, $allowed)) {
+            throw new RuntimeException('El piloto necesita una actualización adicional revisada.');
+        }
+        if ($pending) {
+            $backup = self::$root.'/before-business-'.now()->format('Ymd-His').'-'.Str::random(8).'.sqlite';
+            DB::unprepared('VACUUM INTO '.DB::connection()->getPdo()->quote($backup));
+            if (Artisan::call('migrate', ['--path' => array_map(fn ($name) => 'database/migrations/'.$name.'.php', array_values($pending)), '--force' => true]) !== 0) {
+                throw new RuntimeException('La actualización aislada no terminó; conserve el respaldo privado.');
+            }
+        }
+        $manifest = json_decode(file_get_contents(self::$root.'/manifest.json'), true, 32, JSON_THROW_ON_ERROR);
+        foreach ($manifest['users'] as $name => $id) {
+            $fixture = User::whereKey($id)->where('email', $name.'@api-lab.test')->firstOrFail();
+            if ($fixture->account && $fixture->account->account_type === null) {
+                $fixture->account->update(['account_type' => 'individual']);
+            }
+        }
+        if (DB::selectOne('PRAGMA integrity_check')->integrity_check !== 'ok' || DB::select('PRAGMA foreign_key_check')) {
+            throw new RuntimeException('La integridad del laboratorio requiere revisión.');
+        }
     }
 
     private static function mockProvider(): void

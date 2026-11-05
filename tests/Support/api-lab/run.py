@@ -59,7 +59,7 @@ def docx(macro=False) -> bytes:
 
 def profile(codes, number="00000000000"):
     data = {"first_name": "Persona", "last_name": "Ficticia", "service_codes": codes, "authorization_confirmed": True}
-    if set(codes) & {"university-degree", "exequatur", "identity-verification"}:
+    if set(codes) & {"university-degree", "exequatur", "identity-verification", "bailiff-credentials"}:
         data.update(identity_number=number, address="Direccion ficticia para pruebas", purpose="Prueba autorizada de integracion")
     if "home-visits" in codes:
         data["address"] = "Direccion ficticia para pruebas"
@@ -205,7 +205,8 @@ class LabRun:
 
     def catalog_and_services(self):
         _, catalog, _, _ = self.request("catalog", "GET", "/api/v1/services")
-        self.check("all 12 services advertised", len(catalog.get("data", [])) == 12)
+        self.check("all 10 active services advertised", len(catalog.get("data", [])) == 10)
+        self.check("retired services absent", not {"deception-detection", "applied-ai", "investigations"} & {s["code"] for s in catalog.get("data", [])})
         self.control("mode", mode="manual")
         for index, service in enumerate(catalog["data"]):
             print("SERVICE: " + service["code"], flush=True)
