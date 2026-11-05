@@ -128,15 +128,35 @@
     }
     form.querySelector('[data-open-services]').addEventListener('click', () => open(servicesDialog));
     choices.forEach(input => input.addEventListener('change', updateServices));
-    servicesDialog.querySelector('[data-service-filter]').addEventListener('input', event => {
-        const words = event.target.value.toLocaleLowerCase('es').trim().split(/\s+/);
+    const catalogSearch = servicesDialog.querySelector('[data-service-filter]');
+    const catalogGroups = Array.from(servicesDialog.querySelectorAll('[data-service-group]'));
+    const catalogTabs = Array.from(servicesDialog.querySelectorAll('[data-catalog-category]'));
+    const searchText = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('es');
+    let catalogCategory = 'all';
+    function filterCatalog() {
+        const words = searchText(catalogSearch.value).trim().split(/\s+/);
         let visible = 0;
-        servicesDialog.querySelectorAll('[data-service-option]').forEach(option => {
-            option.hidden = !words.every(word => option.textContent.toLocaleLowerCase('es').includes(word));
-            if (!option.hidden) visible++;
+        catalogGroups.forEach(group => {
+            let matches = 0;
+            const inCategory = catalogCategory === 'all' || group.dataset.serviceGroup === catalogCategory;
+            const heading = group.querySelector('h3').textContent;
+            group.querySelectorAll('[data-service-option]').forEach(option => {
+                const text = searchText(`${heading} ${option.textContent}`);
+                option.hidden = !inCategory || !words.every(word => text.includes(word));
+                if (!option.hidden) matches++;
+            });
+            group.hidden = matches === 0;
+            visible += matches;
         });
         servicesDialog.querySelector('[data-service-empty]').hidden = visible > 0;
-    });
+        servicesDialog.querySelector('[data-catalog-list]').scrollTop = 0;
+    }
+    catalogSearch.addEventListener('input', filterCatalog);
+    catalogTabs.forEach(tab => tab.addEventListener('click', () => {
+        catalogCategory = tab.dataset.catalogCategory;
+        catalogTabs.forEach(item => item.setAttribute('aria-pressed', String(item === tab)));
+        filterCatalog();
+    }));
     form.querySelector('[data-add-person]').addEventListener('click', () => {
         if (entries().length >= 10) return;
         const clone = form.querySelector('[data-person-template]').content.cloneNode(true);

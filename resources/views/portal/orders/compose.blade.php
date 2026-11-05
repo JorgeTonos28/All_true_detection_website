@@ -40,13 +40,43 @@
     </div>
     <aside class="panel compose-guide"><h2>Su expediente, organizado</h2><div class="compose-totals"><strong data-person-count>0</strong><span data-person-count-label>personas</span><strong data-service-count>0</strong><span data-service-count-label>servicios distintos</span></div><p class="muted">Puede pedir servicios diferentes para cada persona, sin repetir sus datos.</p><ol><li><strong>Envío único</strong><p>Personas y documentos privados, juntos en una solicitud.</p></li><li><strong>Una cotización</strong><p>ATD revisa el alcance y coordina el pago manual.</p></li><li><strong>Entrega protegida</strong><p>Los resultados se publican tras completar el trabajo y confirmar el pago.</p></li></ol><a href="{{ route('portal.messages.index') }}">¿Necesita orientación? Escríbanos →</a></aside>
     <dialog class="portal-dialog services-dialog" id="service-picker-dialog" aria-labelledby="service-picker-title" data-services-dialog>
-        <div class="dialog-heading"><div><h2 id="service-picker-title">Seleccione los servicios</h2><p class="muted">Puede combinar varios y asignarlos después a cada persona.</p></div><button type="button" class="secondary" data-close-dialog aria-label="Cerrar selector de servicios">Cerrar</button></div>
-        <label>Buscar servicio<input type="search" data-service-filter placeholder="Nombre o descripción del servicio" autocomplete="off"></label>
-        <div class="service-options">@foreach($services->groupBy('category') as $category=>$categoryServices)<h3 class="service-category-heading">{{ \App\Support\ServiceCatalog::categories()[$category] ?? 'Otros servicios' }}</h3>@foreach($categoryServices as $service)
-            <label class="service-option" data-service-option><input type="checkbox" name="service_codes[]" value="{{ $service->code }}" data-label="{{ $service->name }}" @checked(in_array($service->code,$selectedCodes))><span><strong>{{ $service->name }}</strong><small>{{ $service->code==='identity-verification' ? \App\Services\IdentitySettings::description() : $service->description }}</small><small class="service-kind">{{ $service->code === 'training-equipment' ? 'Solicitud general' : 'Por persona' }}</small></span></label>
-        @endforeach @endforeach</div>
-        <p class="muted" data-service-empty hidden>No hay servicios que coincidan con la búsqueda.</p>
-        <div class="dialog-actions"><span class="muted" data-services-count></span><button type="button" data-close-dialog>Confirmar servicios</button></div>
+        <div class="dialog-heading"><div><h2 id="service-picker-title">Seleccione los servicios</h2><p class="muted">Combine los servicios que necesita. Las modalidades se eligen en la ficha de cada persona.</p></div><button type="button" class="secondary" data-close-dialog aria-label="Cerrar selector de servicios">Cerrar</button></div>
+        <div class="catalog-controls">
+            <label>Buscar servicio<input type="search" data-service-filter placeholder="Ej. nuevo ingreso, título" autocomplete="off"></label>
+            <div class="catalog-tabs" role="group" aria-label="Filtrar por familia">
+                @foreach(['all'=>'Todas','assessments'=>'Evaluaciones','verifications'=>'Verificaciones','additional'=>'Capacitación'] as $key=>$label)
+                    <button type="button" class="secondary" data-catalog-category="{{ $key }}" aria-pressed="{{ $key === 'all' ? 'true' : 'false' }}">{{ $label }}</button>
+                @endforeach
+            </div>
+        </div>
+        <div class="service-options" data-catalog-list>
+            @foreach($services->groupBy('category') as $category=>$categoryServices)
+                <section class="catalog-group" data-service-group="{{ $category }}" aria-labelledby="catalog-group-{{ $loop->index }}">
+                    <header class="catalog-group-heading">
+                        <h3 id="catalog-group-{{ $loop->index }}">{{ \App\Support\ServiceCatalog::categories()[$category] ?? 'Otros servicios' }}</h3>
+                        <small>{{ $category === 'additional' ? 'Solicitud general' : 'Por persona' }}</small>
+                    </header>
+                    <div class="catalog-group-options">
+                        @foreach($categoryServices as $service)
+                            <label class="service-option" data-service-option>
+                                <input type="checkbox" name="service_codes[]" value="{{ $service->code }}" data-label="{{ $service->name }}" @checked(in_array($service->code,$selectedCodes))>
+                                <span class="catalog-option-copy">
+                                    <strong>{{ $service->name }}</strong>
+                                    @if($service->options)
+                                        <small class="catalog-modalities-label">Modalidades</small>
+                                        <small class="catalog-modalities">{{ implode(' · ',array_column($service->options,'name')) }}</small>
+                                    @else
+                                        <small>{{ $service->code==='identity-verification' ? \App\Services\IdentitySettings::description() : $service->description }}</small>
+                                    @endif
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                </section>
+            @endforeach
+            <p class="catalog-empty muted" data-service-empty role="status" hidden>No hay servicios que coincidan con estos filtros.</p>
+        </div>
+        <div class="dialog-actions"><span class="muted" data-services-count aria-live="polite"></span><button type="button" data-close-dialog>Confirmar servicios</button></div>
     </dialog>
     <template data-person-template>@include('portal.orders.person-editor',['index'=>'__INDEX__','entry'=>[]])</template>
 </form>
