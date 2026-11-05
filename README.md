@@ -6,7 +6,7 @@ Sitio público y portal de servicios. PHP 8.3+, Laravel 13, Blade, Fortify, Soci
 
 1. `composer install`.
 2. Copiar `.env.example` a `.env` y configurar base de datos, `APP_URL`, correo y clave (`php artisan key:generate` solo en una instalación nueva).
-3. `php artisan migrate --seed`. Los seeders preservan la configuración existente y crean el catálogo de doce servicios; no crean contraseñas ni administradores predecibles.
+3. `php artisan migrate --seed`. Los seeders preservan la configuración existente y crean el catálogo de diez servicios activos; no crean contraseñas ni administradores predecibles.
 4. `php artisan storage:link` para logos públicos. Expedientes y resultados permanecen en `storage/app/private` y se descargan mediante autorización.
 5. `php artisan portal:create-admin correo@empresa.com`. Envía recuperación al correo indicado; si existe la cuenta, cambia su rol, rota la contraseña y revoca sesiones/tokens. El administrador verifica su correo y configura 2FA antes de operar.
 6. `php artisan serve`; para correo y tareas asíncronas ejecutar `php artisan queue:work --tries=5`.
@@ -75,9 +75,23 @@ Facturas comerciales imprimibles desde el navegador; no hay numeración fiscal/N
 
 En producción, configurar `DOCUMENT_SCAN_BINARY` con la ruta de `clamdscan` o `clamscan`, sus firmas actualizadas y permisos para leer los temporales PHP. Las cargas privadas fallan de forma cerrada si falta el escáner, está indisponible o detecta malware. Correo de verificación y recuperación se procesa en cola con payload cifrado. La recuperación excepcional de 2FA usa `portal:reset-two-factor correo --confirmed-identity`, tras verificar la identidad por un canal independiente; revoca sesiones y tokens y queda auditada.
 
+## Catálogo, clientes y facturación
+
+La oferta se organiza en evaluaciones a personas (poligrafía, perfiles, antidoping y psicometría), verificación de personas (visitas, exequátur de abogados/notarios, credenciales de alguaciles, identidad y título universitario) y capacitación/equipos. Poligrafía y perfiles permiten indicar modalidad por persona. Se conservan íntegros los expedientes de los tres servicios retirados como oferta independiente. La nueva credencial de alguacil tiene evidencia PDF/imagen propia obligatoria, cédula escrita y finalidad; la dirección es opcional.
+
+El registro exige elegir persona individual o empresa; la empresa aporta su nombre. Google y las cuentas anteriores sin tipo completan esta elección en Datos de mi cuenta antes de crear solicitudes nuevas. La cuenta y sus permisos no se reemplazan. El tipo se muestra en usuarios, solicitudes, facturas nuevas y API; cambiarlo no altera facturas emitidas ni concede crédito. «Identidades reutilizables» queda oculto en la web (`PORTAL_REUSABLE_IDENTITIES_UI_ENABLED=false`); las pruebas biométricas Live siguen abiertas.
+
+**Mi negocio** se divide en Marca, Contacto y redes, Contenido web, Precios y pagos y Verificación de identidad. En Precios y pagos, el administrador configura hasta 20 cuentas bancarias y activa opcionalmente los precios sugeridos por servicio. El switch apagado conserva los precios; un importe vacío se cotiza manualmente. Antes de emitir se confirman o editan los importes. «Cotizada» se asigna al emitir la factura, no desde el selector de estado. La emisión envía un aviso de cotización con importe, vencimiento y enlace privado a los destinatarios habilitados y al correo de facturación cuando corresponde.
+
+Las cuentas de depósito activas y de la misma moneda aparecen en la solicitud, factura imprimible y API cuando queda saldo. Sus números se conservan como texto y cifrados en BD. Son instrucciones vigentes; los datos comerciales y montos de la factura permanecen como instantáneas. Resumen añade cobrado/por cobrar y comparte filtros de texto, estado, facturación y rango de recepción con Solicitudes. Los totales corresponden a los casos filtrados, con monedas separadas, no a un libro de caja por fecha de pago.
+
+La actualización comercial local ya se aplicó con respaldo privado y comprobación de integridad. Para otro checkout con la SQLite local habitual, `php tests/Support/apply-business-local.php` verifica sin modificar; agregar `--apply` crea una copia consistente y aplica únicamente las cuatro migraciones de esta entrega. En producción seguir el runbook y conservar APP_KEY.
+
 ## API y eventos
 
 El [laboratorio HTTP](docs/api-testing.md) permite probar todos los servicios con documentos ficticios en una base y almacenamiento separados: `python tests/Support/api-lab/run.py`. Incluye permisos, pagos/entregas, varios solicitantes, identidad inicial/recurrente, concurrencia y límites; no consume Didit real. El piloto móvil separado `python tests/Support/api-lab/pilot.py prepare` sí prepara un enlace de **Sandbox** usando la clave privada local, para que el titular haga su captura; consultar después con `status`. Los tokens, bases y enlaces se conservan bajo storage privado, fuera de Git.
+
+[QA comercial del 4 de noviembre](docs/qa/business-portal-2026-11-04.md): 196 pruebas / 2.190 aserciones y 515 llamadas HTTP / 1.469 comprobaciones correctas, con los diez servicios activos y contrato 1.7.0.
 
 [QA del 29 de octubre](docs/qa/api-http-2026-10-29.md): 574 llamadas HTTP y 1.664 comprobaciones correctas, 25 operaciones del contrato y doce servicios. Se separaron las cuotas de cargas e identidad y se corrigió el callback móvil local. El piloto externo confirmó ACTIVE_3D y Face Match simulados, pero su número documental de muestra no cumple/vincula la cédula DOM solicitada: ATD lo mantiene no concluyente y no habilita reutilización sobre esa fuente.
 
