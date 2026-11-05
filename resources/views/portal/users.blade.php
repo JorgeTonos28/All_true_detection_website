@@ -23,10 +23,10 @@
     <div data-manage-content></div>
 </dialog>
 
-<dialog class="portal-dialog invite-dialog" id="invite-user" aria-labelledby="invite-user-title" data-invite-dialog @if($errors->hasAny(['name','email','company','customer_account_id'])) data-validation-errors @endif>
+<dialog class="portal-dialog invite-dialog" id="invite-user" aria-labelledby="invite-user-title" data-invite-dialog @if($errors->hasAny(['name','email','company','customer_account_id','account_type'])) data-validation-errors @endif>
     <div class="dialog-heading"><div><p class="eyebrow">NUEVO ACCESO</p><h2 id="invite-user-title">Invitar usuario</h2></div><button type="button" class="secondary" data-close-dialog aria-label="Cerrar invitación">Cerrar ×</button></div>
     @if($errors->any())<div class="alert" role="alert">{{ $errors->first() }}</div>@endif
-    <form method="post" action="{{ route('portal.users.store') }}" class="stack">@csrf
+    <form method="post" action="{{ route('portal.users.store') }}" class="stack" data-account-type-form>@csrf
         <div class="form-grid">
             <label>Nombre<input name="name" value="{{ old('name') }}" maxlength="120" autocomplete="name" required></label>
             <label>Correo electrónico<input type="email" name="email" value="{{ old('email') }}" maxlength="255" autocomplete="email" required></label>
@@ -37,7 +37,7 @@
             <label>Buscar cuenta existente<input type="search" placeholder="Nombre de empresa o correo (mínimo 2 caracteres)" maxlength="120" data-account-search data-url="{{ route('portal.users.accounts') }}" autocomplete="off"></label>
             <label>Cuenta de cliente<select name="customer_account_id" data-account-select><option value="">Crear una cuenta nueva</option>@if($selectedAccount)<option value="{{ $selectedAccount->id }}" selected>{{ $selectedAccount->name }} · {{ $selectedAccount->billing_email }}</option>@endif</select></label>
             <small role="status" data-account-feedback>Busque para ver hasta 20 cuentas coincidentes.</small>
-            <label>Empresa (para una cuenta nueva)<input name="company" value="{{ old('company') }}" maxlength="200"></label>
+            <fieldset class="form-grid" data-new-account-fields>@include('shared.account-type-field')<label data-company-only>Nombre de la empresa<input name="company" value="{{ old('company') }}" maxlength="200"></label></fieldset>
             <p class="muted">Los clientes de una misma cuenta comparten sus solicitudes.</p>
         </fieldset>
         <p class="muted">Enviaremos un enlace para establecer la contraseña. Los administradores y colaboradores deben configurar 2FA.</p>

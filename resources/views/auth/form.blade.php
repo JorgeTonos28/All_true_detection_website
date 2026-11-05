@@ -16,11 +16,12 @@
     <form method="post" action="{{ route('verification.send') }}">@csrf<button>Reenviar enlace</button></form>
     <form method="post" action="{{ route('logout') }}">@csrf<button class="secondary">Cerrar sesión</button></form>
 @else
-<form method="post" action="{{ route($actions[$mode]) }}" class="stack">@csrf
+<form method="post" action="{{ route($actions[$mode]) }}" class="stack" @if($mode==='register') data-account-type-form @endif>@csrf
     @if ($mode === 'reset-password')<input type="hidden" name="token" value="{{ $token }}">@endif
     @if ($mode === 'register')
         <label>Nombre completo<input name="name" value="{{ old('name') }}" maxlength="120" autocomplete="name" required></label>
-        <label>Empresa (opcional)<input name="company" value="{{ old('company') }}" maxlength="200" autocomplete="organization"></label>
+        @include('shared.account-type-field')
+        <label data-company-only>Nombre de la empresa<input name="company" value="{{ old('company') }}" maxlength="200" autocomplete="organization"></label>
     @endif
     @if (in_array($mode, ['login','register','forgot-password','reset-password']))<label>Correo electrónico<input type="email" name="email" value="{{ old('email', $email ?? '') }}" autocomplete="email" maxlength="255" required autofocus></label>@endif
     @if (in_array($mode, ['login','register','reset-password','confirm-password']))<label>Contraseña<input type="password" name="password" autocomplete="{{ in_array($mode, ['register','reset-password']) ? 'new-password' : 'current-password' }}" maxlength="128" required></label>@endif
@@ -40,4 +41,4 @@
 @elseif ($mode === 'forgot-password')<a href="{{ route('login') }}">Volver a iniciar sesión</a>
 @endif
 @if($mode === 'confirm-password' && auth()->user()?->google_id)<a class="button secondary" href="{{ route('google.reauthenticate') }}">Confirmar identidad con Google</a>@endif
-</section></main></body></html>
+</section></main><script src="{{ asset('assets/js/account-types.js') }}" defer></script></body></html>

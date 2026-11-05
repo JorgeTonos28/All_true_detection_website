@@ -7,7 +7,7 @@
     @forelse($users as $member)
         <tr data-user-row>
             <td><a class="row-title user-name" href="{{ route('portal.users.show',$member) }}" data-manage-user>{{ $member->name }}@if($member->id === auth()->id())<span class="self-label">Tú</span>@endif</a><small>{{ $member->email }}</small><span class="reference">#{{ $member->id }}</span></td>
-            <td>{{ $member->account?->name ?? 'Equipo ATD' }}@if($member->customer_account_id)<small>Cuenta #{{ $member->customer_account_id }}</small>@endif</td>
+            <td>{{ $member->account?->name ?? 'Equipo ATD' }}@if($member->customer_account_id)<small>{{ $member->account?->typeLabel() }} · Cuenta #{{ $member->customer_account_id }}</small>@endif</td>
             <td><span class="badge">{{ $member->role->label() }}</span></td>
             <td><span class="badge {{ $member->is_active ? 'status-completed' : 'status-cancelled' }}">{{ $member->is_active ? 'Activo' : 'Desactivado' }}</span></td>
             <td><small>{{ $member->email_verified_at ? 'Correo verificado' : 'Por verificar' }}</small><small>{{ $member->two_factor_confirmed_at ? '2FA activa' : 'Sin 2FA' }}</small></td>

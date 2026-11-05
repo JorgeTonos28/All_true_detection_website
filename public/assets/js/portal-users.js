@@ -96,6 +96,7 @@
             const body = await getJson(link.href, manageRequest.signal);
             if (version !== manageVersion) return;
             manageContent.innerHTML = body.html;
+            manageContent.querySelectorAll('form[data-account-type-form]').forEach(form => form.dispatchEvent(new Event('change', { bubbles: true })));
         } catch (error) {
             if (error.name !== 'AbortError' && version === manageVersion) manageContent.textContent = error.message;
         } finally {
@@ -172,7 +173,7 @@
                 accountSelect.replaceChildren(new Option('Crear una cuenta nueva', ''));
                 if (selectedId) accountSelect.add(new Option(selected.textContent, selectedId, true, true));
                 for (const account of body.accounts) {
-                    if (String(account.id) !== selectedId) accountSelect.add(new Option(`${account.name} · ${account.billing_email}`, account.id));
+                    if (String(account.id) !== selectedId) accountSelect.add(new Option(`${account.name} · ${account.account_type === "business" ? "Empresa" : account.account_type === "individual" ? "Persona individual" : "Tipo pendiente"} · ${account.billing_email}`, account.id));
                 }
                 accountFeedback.textContent = body.accounts.length
                     ? `${body.accounts.length} ${body.accounts.length === 1 ? 'cuenta encontrada' : 'cuentas encontradas'}. Seleccione una o cree una nueva.`
