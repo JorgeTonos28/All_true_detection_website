@@ -320,11 +320,9 @@
             </div>
             <div>
                 <h2>Servicios</h2>
-                <a href="#servicios">Evaluaciones con polígrafo</a>
-                <a href="#servicios">Verificación de perfiles</a>
-                <a href="#servicios">Análisis con IA aplicada</a>
-                <a href="#servicios">Investigaciones</a>
-                <a href="#servicios">Capacitación</a>
+                @foreach(\App\Support\ServiceCatalog::categories() as $categoryName)
+                <a href="#servicios">{{ $categoryName }}</a>
+                @endforeach
             </div>
             <div>
                 <h2>Empresa</h2>

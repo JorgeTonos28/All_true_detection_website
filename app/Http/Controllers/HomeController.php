@@ -41,7 +41,7 @@ class HomeController extends Controller
             'slogan' => 'Evaluamos. Detectamos. Prevenimos.',
             'hero_title' => 'Confianza verificable para decisiones',
             'hero_accent' => 'más seguras',
-            'hero_subtitle' => 'Servicios de evaluación de perfiles, detección de engaño, verificación, investigación preventiva, capacitación especializada y análisis asistido por IA.',
+            'hero_subtitle' => 'Evaluaciones de personas, verificación de identidad y credenciales, capacitación y equipos para empresas, instituciones y clientes individuales.',
             'primary_cta_label' => 'Solicitar evaluación',
             'phone' => '+1 (829) 534 5678',
             'whatsapp' => '18295345678',
