@@ -16,7 +16,7 @@ class PortalAuthenticationTest extends TestCase
     public function test_registration_cannot_promote_itself_and_requires_consent(): void
     {
         Notification::fake();
-        $data = ['name' => 'Cliente', 'email' => 'client@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'role' => 'admin', 'terms' => true];
+        $data = ['name' => 'Cliente', 'email' => 'client@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'role' => 'admin', 'account_type' => 'individual', 'terms' => true];
         $this->post('/register', $data)->assertRedirect('/portal');
         $user = User::first();
         $this->assertSame(Role::Client, $user->role);

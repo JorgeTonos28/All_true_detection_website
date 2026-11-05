@@ -54,7 +54,7 @@ class ReusableIdentityScenario
         DiditProviderTest::configure();
         config(['identity.didit.authentication_workflow_id' => '33333333-3333-4333-8333-333333333333', 'identity.didit.reuse_privacy_approved' => true]);
         Setting::put('identity_verification_mode', 'didit');
-        $this->client = app(CreateNewUser::class)->create(['name' => 'Synthetic Reuse', 'email' => Str::random(12).'@example.test', 'password' => 'SyntheticPassword123', 'password_confirmation' => 'SyntheticPassword123', 'terms' => true]);
+        $this->client = app(CreateNewUser::class)->create(['name' => 'Synthetic Reuse', 'email' => Str::random(12).'@example.test', 'password' => 'SyntheticPassword123', 'password_confirmation' => 'SyntheticPassword123', 'account_type' => 'individual', 'terms' => true]);
         $this->client->forceFill(['email_verified_at' => now()])->save();
         $this->admin = User::factory()->create(['role' => Role::Admin, 'two_factor_confirmed_at' => now()]);
         app(ManagePartnerAccess::class)->handle($this->admin, $this->client->account, ['enabled' => true, 'daily_limit' => 20]);

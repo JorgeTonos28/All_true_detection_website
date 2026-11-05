@@ -22,6 +22,11 @@ class CustomerAccount extends Model
         return $this->identity_api_enabled && $this->identity_api_approved_by && $this->identity_api_approved_at;
     }
 
+    public function typeLabel(): string
+    {
+        return $this->account_type?->label() ?? 'Tipo pendiente';
+    }
+
     public function users()
     {
         return $this->hasMany(User::class);

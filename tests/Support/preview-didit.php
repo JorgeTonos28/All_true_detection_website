@@ -32,7 +32,7 @@ Artisan::call('db:seed', ['--database' => 'didit_preview', '--force' => true]);
 config(['identity.didit' => ['api_key' => 'synthetic-ui-only', 'webhook_secret' => 'synthetic-ui-only-signing-secret', 'application_id' => '11111111-1111-4111-8111-111111111111', 'workflow_id' => '22222222-2222-4222-8222-222222222222', 'environment' => 'sandbox', 'privacy_approved' => true, 'production_approved' => false]]);
 $password = Str::password(24);
 $admin = User::factory()->create(['name' => 'Administración ficticia', 'email' => 'admin-didit@atd.test', 'password' => $password, 'role' => Role::Admin, 'two_factor_confirmed_at' => now()]);
-$client = app(CreateNewUser::class)->create(['name' => 'Cliente de demostración', 'email' => 'client-didit@atd.test', 'password' => $password, 'password_confirmation' => $password, 'terms' => true]);
+$client = app(CreateNewUser::class)->create(['name' => 'Cliente de demostración', 'email' => 'client-didit@atd.test', 'password' => $password, 'password_confirmation' => $password, 'account_type' => 'individual', 'terms' => true]);
 $client->forceFill(['email_verified_at' => now()])->save();
 Setting::put('identity_verification_mode', 'didit');
 $order = app(CreateOrder::class)->handle($client, ['subject' => 'Identidad · demostración sin datos reales', 'consent' => true, 'items' => [['service_code' => 'identity-verification', 'quantity' => 1]], 'people' => [['first_name' => 'Persona', 'last_name' => 'Ficticia', 'identity_number' => '00000000000', 'address' => 'Dirección ficticia', 'purpose' => 'Revisar visualmente la integración', 'authorization_confirmed' => true, 'service_codes' => ['identity-verification']]]]);

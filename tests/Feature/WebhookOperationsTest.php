@@ -25,7 +25,7 @@ class WebhookOperationsTest extends TestCase
         Notification::fake();
         $this->seed();
         config(['portal.webhook_allowed_hosts' => ['hooks.example.com']]);
-        $user = app(CreateNewUser::class)->create(['name' => 'Integrador', 'email' => 'integrador@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Integrador', 'email' => 'integrador@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $management = app(WebhookManagement::class);
         [$endpoint, $old] = $management->create($user, ['url' => 'https://hooks.example.com/atd', 'events' => ['result.published']]);
         $secret = $management->rotate($user, $endpoint);
@@ -64,7 +64,7 @@ class WebhookOperationsTest extends TestCase
     {
         Notification::fake();
         $this->seed();
-        $user = app(CreateNewUser::class)->create(['name' => 'Otra cuenta', 'email' => 'otra@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Otra cuenta', 'email' => 'otra@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $endpoint = WebhookEndpoint::create(['customer_account_id' => CustomerAccount::create(['name' => 'Ajena', 'billing_email' => 'ajena@example.com'])->id, 'url' => 'https://hooks.example.com/atd', 'secret' => 'hidden']);
         $this->expectException(HttpException::class);
         app(WebhookManagement::class)->rotate($user, $endpoint);
@@ -75,7 +75,7 @@ class WebhookOperationsTest extends TestCase
         Notification::fake();
         $this->seed();
         config(['portal.webhook_allowed_hosts' => ['hooks.example.com']]);
-        $user = app(CreateNewUser::class)->create(['name' => 'Avisos API', 'email' => 'hooknotice@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Avisos API', 'email' => 'hooknotice@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
         $management = app(WebhookManagement::class);
         [$endpoint] = $management->create($user, ['url' => 'https://hooks.example.com/atd']);

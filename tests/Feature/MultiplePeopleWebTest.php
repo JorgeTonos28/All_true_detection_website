@@ -23,7 +23,7 @@ class MultiplePeopleWebTest extends TestCase
         Storage::fake('local');
         config(['portal.require_staff_two_factor' => false]);
         $this->seed();
-        $client = app(CreateNewUser::class)->create(['name' => 'Cliente sintético', 'email' => 'batch-web@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $client = app(CreateNewUser::class)->create(['name' => 'Cliente sintético', 'email' => 'batch-web@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
         $this->actingAs($client);
     }

@@ -24,6 +24,9 @@ class CreateOrder
     public function handle(User $actor, array $data, ?string $key = null, array $files = [], array $evidence = [], bool $requireEvidence = false, array $personEvidence = [], ?IdentitySubject $identitySubject = null): Order
     {
         abort_unless($actor->is_active && $actor->hasVerifiedEmail() && $actor->role === Role::Client && $actor->customer_account_id, 403);
+        if (! $actor->account->account_type) {
+            throw ValidationException::withMessages(['account_type' => 'Seleccione el tipo de cuenta desde Datos de mi cuenta antes de solicitar servicios.']);
+        }
         $profile = isset($data['person']) ? PersonVerification::profile($data) : null;
         $people = PersonVerification::people($data);
         if ($people && $evidence) {

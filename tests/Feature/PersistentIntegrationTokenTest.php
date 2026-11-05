@@ -16,7 +16,7 @@ class PersistentIntegrationTokenTest extends TestCase
     {
         Notification::fake();
         $this->seed();
-        $user = app(CreateNewUser::class)->create(['name' => 'Automatización', 'email' => 'persistent@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Automatización', 'email' => 'persistent@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
         $this->actingAs($user)->withSession(['auth.password_confirmed_at' => time()]);
         $this->post('/portal/tokens', ['name' => 'Servicio backend', 'scopes' => ['orders:read'], 'lifetime' => 'persistent'])->assertRedirect();
@@ -37,7 +37,7 @@ class PersistentIntegrationTokenTest extends TestCase
     public function test_existing_creation_defaults_to_expiration_and_rejects_unknown_modes(): void
     {
         Notification::fake();
-        $user = app(CreateNewUser::class)->create(['name' => 'Temporal', 'email' => 'expiring@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Temporal', 'email' => 'expiring@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
         $this->actingAs($user)->withSession(['auth.password_confirmed_at' => time()]);
         $this->post('/portal/tokens', ['name' => 'Temporal', 'scopes' => ['orders:read']])->assertRedirect();

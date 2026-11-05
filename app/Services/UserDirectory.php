@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AccountType;
 use App\Enums\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -13,7 +14,7 @@ class UserDirectory
         $query = User::query()->select([
             'id', 'name', 'email', 'role', 'is_active', 'customer_account_id',
             'email_verified_at', 'two_factor_confirmed_at', 'created_at', 'updated_at',
-        ])->with('account:id,name,billing_email,tax_id,billing_address');
+        ])->with('account:id,name,billing_email,tax_id,billing_address,account_type');
 
         $query->when($role, fn (Builder $query) => $query->where('role', $role));
         $query->when($status, fn (Builder $query) => $query->where('is_active', $status === 'active'));
@@ -28,11 +29,16 @@ class UserDirectory
                     }
                     $matches->orWhereHas('account', function (Builder $account) use ($pattern): void {
                         $account->where(function (Builder $fields) use ($pattern): void {
-                            foreach (['name', 'billing_email', 'tax_id', 'billing_address'] as $column) {
+                            foreach (['name', 'billing_email', 'tax_id', 'billing_address', 'account_type'] as $column) {
                                 $fields->orWhereRaw("LOWER(customer_accounts.{$column}) LIKE ? ESCAPE '!'", [$pattern]);
                             }
                         });
                     });
+                    foreach (AccountType::cases() as $type) {
+                        if (mb_stripos($type->label(), $word) !== false) {
+                            $matches->orWhereHas('account', fn (Builder $account) => $account->where('account_type', $type->value));
+                        }
+                    }
                     foreach (Role::cases() as $role) {
                         if (mb_stripos($role->label(), $word) !== false) {
                             $matches->orWhere('role', $role->value);

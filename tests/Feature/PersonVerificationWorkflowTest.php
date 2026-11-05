@@ -32,7 +32,7 @@ class PersonVerificationWorkflowTest extends TestCase
         Notification::fake();
         Storage::fake('local');
         $this->seed();
-        $user = app(CreateNewUser::class)->create(['name' => 'Cliente ficticio', 'email' => 'verification@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Cliente ficticio', 'email' => 'verification@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
 
         return $user;

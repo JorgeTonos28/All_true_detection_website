@@ -13,6 +13,7 @@ class OrderResource extends JsonResource
         return [
             'id' => $this->public_id, 'subject' => $this->subject, 'details' => $this->details, 'external_reference' => $this->external_reference,
             'status' => $this->status->value, 'created_at' => $this->created_at->toIso8601String(), 'updated_at' => $this->updated_at->toIso8601String(),
+            'customer_account' => $this->whenLoaded('account', fn () => ['id' => $this->account->public_id, 'name' => $this->account->name, 'account_type' => $this->account->account_type?->value]),
             'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($i) => ['service_code' => $i->service->code, 'service_name' => $i->service_name, 'quantity' => $i->quantity, 'unit_price' => $i->unit_price])),
             // Detail only: never bulk-export identity data in the paginated list.
             'person' => $this->whenLoaded('person', fn () => $this->people()->count() <= 1 ? $this->person?->profile : null),

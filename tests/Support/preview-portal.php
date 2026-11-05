@@ -31,7 +31,7 @@ Artisan::call('migrate', ['--database' => 'portal_preview', '--force' => true]);
 Artisan::call('db:seed', ['--database' => 'portal_preview', '--force' => true]);
 $password = Str::password(24);
 $admin = User::factory()->create(['name' => 'Administración ATD', 'email' => 'admin@atd.test', 'password' => $password, 'role' => Role::Admin]);
-$client = app(CreateNewUser::class)->create(['name' => 'Laura Méndez', 'company' => 'Comercial Horizonte', 'email' => 'cliente@atd.test', 'password' => $password, 'password_confirmation' => $password, 'terms' => true]);
+$client = app(CreateNewUser::class)->create(['name' => 'Laura Méndez', 'company' => 'Comercial Horizonte', 'email' => 'cliente@atd.test', 'password' => $password, 'password_confirmation' => $password, 'account_type' => 'business', 'terms' => true]);
 $client->forceFill(['email_verified_at' => now()])->save();
 foreach (['Validación de credenciales profesionales', 'Evaluación de nuevo ingreso', 'Verificación de perfil ejecutivo'] as $index => $subject) {
     $data = ['subject' => $subject, 'details' => 'Solicitamos verificar la información autorizada del expediente. Datos y personas completamente ficticios para la revisión visual.', 'external_reference' => 'DEMO-'.($index + 1), 'items' => [['service_code' => ['profile-verification', 'polygraph', 'profile-verification'][$index], 'quantity' => 1]]];

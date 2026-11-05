@@ -20,7 +20,7 @@ class IdentityPartnerPanelTest extends TestCase
 
     private function client(string $email): User
     {
-        $user = app(CreateNewUser::class)->create(['name' => 'Synthetic', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Synthetic', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
 
         return $user;

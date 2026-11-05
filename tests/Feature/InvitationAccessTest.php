@@ -22,7 +22,7 @@ class InvitationAccessTest extends TestCase
         config(['app.url' => 'http://127.0.0.1:8000']);
         $admin = User::factory()->create(['role' => Role::Admin, 'two_factor_confirmed_at' => now()]);
         $this->actingAs($admin)->withSession(['auth.password_confirmed_at' => time()]);
-        $this->post('/portal/users', ['name' => 'Cliente invitado', 'email' => 'invitado@example.com', 'role' => 'client'])->assertRedirect();
+        $this->post('/portal/users', ['account_type' => 'individual', 'name' => 'Cliente invitado', 'email' => 'invitado@example.com', 'role' => 'client'])->assertRedirect();
         $client = User::where('email', 'invitado@example.com')->firstOrFail();
         $notification = Notification::sent($client, RecoverAccountPassword::class)->first();
         $url = $notification->toMail($client)->actionUrl;

@@ -44,7 +44,7 @@ class DiditWebTest extends TestCase
         $this->seed();
         DiditProviderTest::configure();
         Setting::put('identity_verification_mode', 'didit');
-        $client = app(CreateNewUser::class)->create(['name' => 'Synthetic', 'email' => 'webdidit@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $client = app(CreateNewUser::class)->create(['name' => 'Synthetic', 'email' => 'webdidit@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
         $this->actingAs($client)->get('/portal/orders/new?service=identity-verification')->assertOk()->assertSee('captura guiada')->assertDontSee('[selfie]', false);
         $data = PersonVerificationWorkflowTest::data(['identity-verification']);

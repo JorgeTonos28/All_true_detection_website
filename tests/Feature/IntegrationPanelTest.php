@@ -20,9 +20,9 @@ class IntegrationPanelTest extends TestCase
     {
         Notification::fake();
         $this->seed();
-        $user = app(CreateNewUser::class)->create(['name' => 'Cliente integración', 'email' => 'panel@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Cliente integración', 'email' => 'panel@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
-        $other = app(CreateNewUser::class)->create(['name' => 'Otra empresa', 'email' => 'otherpanel@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $other = app(CreateNewUser::class)->create(['name' => 'Otra empresa', 'email' => 'otherpanel@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $id = (string) Str::uuid();
         foreach ([$user, $other] as $actor) {
             ApiRequestLog::create(['request_id' => $actor->id === $user->id ? $id : (string) Str::uuid(), 'user_id' => $actor->id, 'customer_account_id' => $actor->customer_account_id, 'method' => 'GET', 'route' => 'api/v1/orders', 'status' => 200, 'duration_ms' => 10, 'created_at' => now()]);

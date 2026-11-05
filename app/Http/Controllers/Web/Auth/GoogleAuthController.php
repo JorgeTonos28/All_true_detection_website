@@ -72,6 +72,10 @@ class GoogleAuthController extends Controller
         $request->session()->regenerate();
         $request->session()->put('auth.password_confirmed_at', time());
 
+        if (! $user->isStaff() && ! $user->account?->account_type) {
+            return redirect()->route('portal.account')->with('status', 'Complete el tipo de cuenta y sus datos de facturación para continuar.');
+        }
+
         return redirect()->intended(route('portal.dashboard'));
     }
 }

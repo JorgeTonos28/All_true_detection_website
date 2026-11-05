@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Enums\AccountType;
 use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Models\CustomerAccount;
@@ -57,7 +58,7 @@ class UserController extends Controller
             return response()->json(['accounts' => []]);
         }
         $pattern = UserDirectory::pattern($search);
-        $accounts = CustomerAccount::query()->select('id', 'name', 'billing_email')
+        $accounts = CustomerAccount::query()->select('id', 'name', 'billing_email', 'account_type')
             ->where(fn ($query) => $query->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])->orWhereRaw("LOWER(billing_email) LIKE ? ESCAPE '!'", [$pattern])->orWhere('id', $search))
             ->orderBy('name')->orderBy('id')->limit(20)->get();
 
@@ -67,11 +68,14 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
-        $data = $request->validate(['name' => ['required', 'string', 'max:120'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'role' => ['required', Rule::enum(Role::class)], 'customer_account_id' => ['nullable', 'integer', 'exists:customer_accounts,id'], 'company' => ['nullable', 'string', 'max:200']]);
+        $newAccount = $request->input('role') === 'client' && ! $request->filled('customer_account_id');
+        $data = $request->validate(['name' => ['required', 'string', 'max:120'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'role' => ['required', Rule::enum(Role::class)], 'customer_account_id' => ['nullable', 'integer', 'exists:customer_accounts,id'],
+            'account_type' => [Rule::requiredIf($newAccount), 'nullable', Rule::enum(AccountType::class)],
+            'company' => [Rule::requiredIf($newAccount && $request->input('account_type') === 'business'), 'nullable', 'string', 'max:200']]);
         $user = DB::transaction(function () use ($request, $data) {
             $accountId = null;
             if ($data['role'] === 'client') {
-                $accountId = $data['customer_account_id'] ?? CustomerAccount::create(['name' => ($data['company'] ?? null) ?: $data['name'], 'billing_email' => $data['email']])->id;
+                $accountId = $data['customer_account_id'] ?? CustomerAccount::create(['account_type' => $data['account_type'], 'name' => $data['account_type'] === 'business' ? $data['company'] : $data['name'], 'billing_email' => $data['email']])->id;
             }
             $user = new User(['name' => $data['name'], 'email' => $data['email'], 'password' => Str::random(64)]);
             $user->forceFill(['role' => $data['role'], 'customer_account_id' => $accountId])->save();
@@ -90,14 +94,16 @@ class UserController extends Controller
     {
         $data = $request->validate(['role' => ['required', Rule::enum(Role::class)], 'is_active' => ['required', 'boolean']]);
         abort_if($user->id === $request->user()->id && ($data['role'] !== 'admin' || ! $data['is_active']), 422, 'No puede retirar su propio acceso administrativo.');
-        DB::transaction(function () use ($request, $user, $data) {
+        $profile = $data['role'] === 'client' && ! $user->customer_account_id
+            ? $request->validate(['account_type' => ['required', Rule::enum(AccountType::class)], 'company' => ['nullable', 'required_if:account_type,business', 'string', 'max:200']]) : [];
+        DB::transaction(function () use ($request, $user, $data, $profile) {
             $admins = User::where('role', 'admin')->where('is_active', true)->orderBy('id')->lockForUpdate()->get();
             $actor = User::findOrFail($request->user()->id);
             abort_unless($actor->isAdmin() && $actor->is_active, 403);
             $user = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
             abort_if($user->isAdmin() && $user->is_active && ($data['role'] !== 'admin' || ! $data['is_active']) && $admins->count() <= 1, 422, 'Debe conservar al menos un administrador general activo.');
             if ($data['role'] === 'client' && ! $user->customer_account_id) {
-                $user->customer_account_id = CustomerAccount::create(['name' => $user->name, 'billing_email' => $user->email])->id;
+                $user->customer_account_id = CustomerAccount::create(['account_type' => $profile['account_type'], 'name' => $profile['account_type'] === 'business' ? $profile['company'] : $user->name, 'billing_email' => $user->email])->id;
             }
             $user->forceFill($data + ['remember_token' => Str::random(60)])->save();
             $user->tokens()->delete();

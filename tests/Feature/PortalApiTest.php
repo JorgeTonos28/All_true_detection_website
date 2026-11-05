@@ -16,7 +16,7 @@ class PortalApiTest extends TestCase
     private function token(array $scopes = ['orders:read', 'orders:write', 'results:read', 'messages:read', 'messages:write']): array
     {
         $email = uniqid().'@example.com';
-        $user = app(CreateNewUser::class)->create(['name' => 'API client', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'API client', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
 
         return [$user, $user->createToken('API', $scopes, now()->addDay())->plainTextToken];

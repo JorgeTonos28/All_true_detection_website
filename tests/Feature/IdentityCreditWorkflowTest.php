@@ -48,7 +48,7 @@ class IdentityCreditWorkflowTest extends TestCase
         DiditProviderTest::configure();
         $this->seed();
         Setting::put('identity_verification_mode', 'didit');
-        $this->client = app(CreateNewUser::class)->create(['name' => 'Synthetic', 'email' => 'credit@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $this->client = app(CreateNewUser::class)->create(['name' => 'Synthetic', 'email' => 'credit@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $this->client->forceFill(['email_verified_at' => now()])->save();
         $this->admin = User::factory()->create(['role' => Role::Admin]);
         $this->headers = ['Authorization' => 'Bearer '.$this->client->createToken('Synthetic', ['orders:read', 'orders:write', 'results:read', 'identity:verify', 'identity:read'])->plainTextToken];
@@ -218,7 +218,7 @@ class IdentityCreditWorkflowTest extends TestCase
             $this->assertSame($index === 0 ? 'in_progress' : 'completed', $order->fresh()->status->value);
             $this->getJson($url.'/result', $this->headers)->assertOk()->assertJsonPath('data.person_id', $person->public_id);
         }
-        $other = app(CreateNewUser::class)->create(['name' => 'Other', 'email' => 'isolated-partner@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $other = app(CreateNewUser::class)->create(['name' => 'Other', 'email' => 'isolated-partner@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $other->forceFill(['email_verified_at' => now()])->save();
         app(ManagePartnerAccess::class)->handle($this->admin, $other->account, ['enabled' => true, 'daily_limit' => 20]);
         $headers = ['Authorization' => 'Bearer '.$other->createToken('Other', ['identity:read'])->plainTextToken];

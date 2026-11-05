@@ -21,7 +21,7 @@ class GoogleAuthenticationTest extends TestCase
     public function test_google_registration_creates_verified_client_and_account(): void
     {
         Socialite::shouldReceive('driver->user')->once()->andReturn($this->google());
-        $this->get('/auth/google/callback')->assertRedirect('/portal');
+        $this->get('/auth/google/callback')->assertRedirect('/portal/account');
         $user = User::first();
         $this->assertTrue($user->hasVerifiedEmail());
         $this->assertFalse($user->isStaff());

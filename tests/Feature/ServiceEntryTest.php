@@ -20,7 +20,7 @@ class ServiceEntryTest extends TestCase
         $this->seed();
         $destination = route('portal.orders.create', ['service' => 'exequatur']);
         $this->get('/solicitar?service=exequatur')->assertRedirect('/login')->assertSessionHas('url.intended', $destination);
-        $this->post('/register', ['name' => 'Cliente', 'email' => 'entry@example.com', 'password' => 'PasswordCliente123', 'password_confirmation' => 'PasswordCliente123', 'terms' => true])->assertRedirect($destination);
+        $this->post('/register', ['name' => 'Cliente', 'email' => 'entry@example.com', 'password' => 'PasswordCliente123', 'password_confirmation' => 'PasswordCliente123', 'account_type' => 'individual', 'terms' => true])->assertRedirect($destination);
         $user = User::where('email', 'entry@example.com')->firstOrFail();
         $user->forceFill(['email_verified_at' => now()])->save();
         $this->actingAs($user->fresh());
@@ -39,7 +39,7 @@ class ServiceEntryTest extends TestCase
     public function test_historical_messages_use_the_current_client_name(): void
     {
         Notification::fake();
-        $client = app(CreateNewUser::class)->create(['name' => 'Nombre anterior', 'email' => 'name@example.com', 'password' => 'PasswordCliente123', 'password_confirmation' => 'PasswordCliente123', 'terms' => true]);
+        $client = app(CreateNewUser::class)->create(['name' => 'Nombre anterior', 'email' => 'name@example.com', 'password' => 'PasswordCliente123', 'password_confirmation' => 'PasswordCliente123', 'account_type' => 'individual', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
         $conversation = app(CreateConversation::class)->handle($client, ['subject' => 'Cambio de nombre', 'body' => 'Consulta inicial de prueba.']);
         $client->update(['name' => 'Nombre actualizado']);

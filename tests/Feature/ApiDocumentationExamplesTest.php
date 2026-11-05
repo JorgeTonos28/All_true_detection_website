@@ -15,7 +15,7 @@ class ApiDocumentationExamplesTest extends TestCase
     {
         Notification::fake();
         $this->seed();
-        $client = app(CreateNewUser::class)->create(['name' => 'Documentación', 'email' => 'docs-examples@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $client = app(CreateNewUser::class)->create(['name' => 'Documentación', 'email' => 'docs-examples@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
         $headers = ['Authorization' => 'Bearer '.$client->createToken('Ejemplos', ['orders:read', 'orders:write'])->plainTextToken];
         $source = file_get_contents(base_path('docs/api.md'));

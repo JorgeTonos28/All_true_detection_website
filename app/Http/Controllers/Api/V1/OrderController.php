@@ -17,7 +17,7 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $data = array_merge(OrderFilters::validate($request), $request->validate(['per_page' => ['sometimes', 'integer', 'min:1', 'max:100'], 'external_reference' => ['sometimes', 'string', 'max:100']]));
-        $query = OrderFilters::apply(Order::visibleTo($request->user()), $data, $request->user())->with(['items.service', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')]);
+        $query = OrderFilters::apply(Order::visibleTo($request->user()), $data, $request->user())->with(['account', 'items.service', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')]);
         if (isset($data['external_reference'])) {
             $query->where('external_reference', $data['external_reference']);
         }
@@ -33,13 +33,13 @@ class OrderController extends Controller
         }
         $order = $action->handle($request->user(), $request->validated(), $key);
 
-        return (new OrderResource($order->load(['items.service', 'person', 'people.services', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')])))->additional(['meta' => ['request_id' => $request->attributes->get('request_id')]])->response()->setStatusCode(201)->header('Location', url('/api/v1/orders/'.$order->public_id));
+        return (new OrderResource($order->load(['account', 'items.service', 'person', 'people.services', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')])))->additional(['meta' => ['request_id' => $request->attributes->get('request_id')]])->response()->setStatusCode(201)->header('Location', url('/api/v1/orders/'.$order->public_id));
     }
 
     public function show(Request $request, Order $order)
     {
         Gate::authorize('view', $order);
 
-        return (new OrderResource($order->load(['items.service', 'person', 'people.services', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')])))->additional(['meta' => ['request_id' => $request->attributes->get('request_id')]]);
+        return (new OrderResource($order->load(['account', 'items.service', 'person', 'people.services', 'invoice' => fn ($q) => $q->withSum('payments', 'amount')])))->additional(['meta' => ['request_id' => $request->attributes->get('request_id')]]);
     }
 }

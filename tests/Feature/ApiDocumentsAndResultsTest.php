@@ -29,7 +29,7 @@ class ApiDocumentsAndResultsTest extends TestCase
         Notification::fake();
         Storage::fake('local');
         $this->seed();
-        $client = app(CreateNewUser::class)->create(['name' => 'Cliente API', 'email' => 'api-docs@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $client = app(CreateNewUser::class)->create(['name' => 'Cliente API', 'email' => 'api-docs@example.com', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
         $admin = User::factory()->create(['role' => Role::Admin]);
         $order = app(CreateOrder::class)->handle($client, ['subject' => 'Verificación por API', 'details' => 'Detalle del caso para revisar', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]]);

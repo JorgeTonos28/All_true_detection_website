@@ -24,7 +24,7 @@ class PersonVerificationApiTest extends TestCase
 
     private function token(string $email): array
     {
-        $user = app(CreateNewUser::class)->create(['name' => 'Integrador ficticio', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Integrador ficticio', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
 
         return ['Authorization' => 'Bearer '.$user->createToken('Pruebas', ['orders:read', 'orders:write', 'results:read'])->plainTextToken];

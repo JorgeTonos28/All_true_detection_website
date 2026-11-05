@@ -32,7 +32,7 @@ class PortalWebTest extends TestCase
 
     private function client(string $email = 'client@example.com'): User
     {
-        $user = app(CreateNewUser::class)->create(['name' => 'Cliente', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Cliente', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
 
         return $user;
@@ -139,7 +139,7 @@ class PortalWebTest extends TestCase
         $this->assertSame(3558, $invoice->total);
         $this->post('/portal/invoices/'.$invoice->public_id.'/payments', ['amount' => '35.58', 'method' => 'cash', 'reference' => 'MONEY-TEST'])->assertRedirect();
         $this->assertSame('paid', $invoice->fresh()->status);
-        $this->actingAs($client)->put('/portal/account', ['name' => 'Nuevo nombre', 'company' => 'Nueva empresa', 'billing_email' => 'factura@example.com'])->assertRedirect();
+        $this->actingAs($client)->put('/portal/account', ['account_type' => 'business', 'name' => 'Nuevo nombre', 'company' => 'Nueva empresa', 'billing_email' => 'factura@example.com'])->assertRedirect();
         $this->assertSame('Nueva empresa', $client->account->fresh()->name);
         $this->assertNotSame('Nueva empresa', $invoice->fresh()->recipient['name']);
     }

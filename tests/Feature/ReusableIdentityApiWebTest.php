@@ -63,7 +63,7 @@ class ReusableIdentityApiWebTest extends TestCase
         $ordinary = $case->client->createToken('Ordinary', ['orders:write', 'identity:read']);
         app('auth')->forgetGuards();
         $this->postJson($url, $case->consent(), ['Authorization' => 'Bearer '.$ordinary->plainTextToken, 'Idempotency-Key' => 'scope-check-reuse-001'])->assertForbidden();
-        $other = app(CreateNewUser::class)->create(['name' => 'Other synthetic', 'email' => 'other-reuse@example.test', 'password' => 'SyntheticPassword123', 'password_confirmation' => 'SyntheticPassword123', 'terms' => true]);
+        $other = app(CreateNewUser::class)->create(['name' => 'Other synthetic', 'email' => 'other-reuse@example.test', 'password' => 'SyntheticPassword123', 'password_confirmation' => 'SyntheticPassword123', 'account_type' => 'individual', 'terms' => true]);
         $other->forceFill(['email_verified_at' => now()])->save();
         app(ManagePartnerAccess::class)->handle($case->admin, $other->account, ['enabled' => true, 'daily_limit' => 20]);
         $otherToken = $other->createToken('Other', IntegrationScopes::ALL);

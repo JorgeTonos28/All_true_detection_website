@@ -16,11 +16,12 @@ use App\Http\Controllers\Web\OrderController;
 use App\Http\Controllers\Web\SecurityController;
 use App\Http\Controllers\Web\SettingsController;
 use App\Http\Controllers\Web\UserController;
+use App\Http\Middleware\EnsureCustomerAccountType;
 use App\Http\Middleware\EnsureReusableIdentityUiEnabled;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/contact', [MessageController::class, 'contact'])->middleware('throttle:contact')->name('contact.store');
-Route::middleware(['auth', 'active', 'verified'])->prefix('portal')->name('portal.')->group(function () {
+Route::middleware(['auth', 'active', 'verified', EnsureCustomerAccountType::class])->prefix('portal')->name('portal.')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::get('/notifications/summary', [NotificationController::class, 'summary'])->middleware('throttle:30,1')->name('notifications.summary');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');

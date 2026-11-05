@@ -24,7 +24,7 @@ class PersonVerificationDomainTest extends TestCase
     {
         Notification::fake();
         $this->seed();
-        $user = app(CreateNewUser::class)->create(['name' => 'Cliente', 'email' => 'person@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Cliente', 'email' => 'person@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
         $order = app(CreateOrder::class)->handle($user, ['subject' => 'Caso ficticio', 'details' => 'Detalle suficiente del caso', 'items' => [['service_code' => 'polygraph', 'quantity' => 1]]]);
         $person = $order->person()->create(['profile' => self::profile()]);

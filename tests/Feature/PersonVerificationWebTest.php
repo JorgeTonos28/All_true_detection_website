@@ -21,7 +21,7 @@ class PersonVerificationWebTest extends TestCase
         Storage::fake('local');
         config(['portal.require_staff_two_factor' => false]);
         $this->seed();
-        $client = app(CreateNewUser::class)->create(['name' => 'Prueba web', 'email' => 'web-person@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $client = app(CreateNewUser::class)->create(['name' => 'Prueba web', 'email' => 'web-person@example.test', 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $client->forceFill(['email_verified_at' => now()])->save();
         $this->actingAs($client)->get(route('portal.orders.create', ['service' => 'identity-verification']))->assertOk()->assertSee('name="people[__INDEX__][first_name]"', false)->assertSee('Selfie frontal')->assertSee('revisión humana');
         $data = PersonVerificationWorkflowTest::data();

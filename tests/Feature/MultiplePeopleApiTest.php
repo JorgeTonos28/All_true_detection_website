@@ -16,7 +16,7 @@ class MultiplePeopleApiTest extends TestCase
 
     private function token(string $email = 'batch-api@example.test'): array
     {
-        $user = app(CreateNewUser::class)->create(['name' => 'Integración sintética', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'terms' => true]);
+        $user = app(CreateNewUser::class)->create(['name' => 'Integración sintética', 'email' => $email, 'password' => 'PasswordSegura123', 'password_confirmation' => 'PasswordSegura123', 'account_type' => 'individual', 'terms' => true]);
         $user->forceFill(['email_verified_at' => now()])->save();
 
         return ['Authorization' => 'Bearer '.$user->createToken('Prueba', ['orders:read', 'orders:write'])->plainTextToken];
