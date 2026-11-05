@@ -14,7 +14,7 @@ class Invoice extends Model
 
     protected function casts(): array
     {
-        return ['issuer' => 'array', 'recipient' => 'array', 'subtotal' => 'integer', 'tax' => 'integer', 'total' => 'integer', 'tax_basis_points' => 'integer', 'issued_at' => 'datetime', 'paid_at' => 'datetime', 'due_date' => 'date'];
+        return ['issuer' => 'array', 'recipient' => 'array', 'line_items' => 'array', 'subtotal' => 'integer', 'tax' => 'integer', 'total' => 'integer', 'tax_basis_points' => 'integer', 'issued_at' => 'datetime', 'paid_at' => 'datetime', 'due_date' => 'date'];
     }
 
     public function order()
@@ -25,6 +25,15 @@ class Invoice extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function billingLines(): array
+    {
+        // Earlier invoices use their original order item snapshots.
+        return $this->line_items ?? $this->order->items->map(fn ($item) => [
+            'service_name' => $item->service_name, 'quantity' => (int) $item->quantity,
+            'unit_price' => (int) $item->unit_price, 'total' => $item->unit_price * $item->quantity,
+        ])->all();
     }
 
     public function paidAmount(): int

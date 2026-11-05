@@ -17,6 +17,8 @@
 .catalog-price-table .price-family small{color:var(--muted);font-size:.75rem;margin-top:4px}
 .catalog-price-table .price-option td:first-child{padding-left:26px}
 .catalog-price-table input[type=number]{width:min(100%,210px);min-width:112px}
+.quote-line{padding:12px;border:1px solid var(--line);border-radius:6px;background:#f8fafb}
+.quote-line>small{font-weight:400;color:var(--muted)}
 @media(max-width:600px){
     .summary-filter-dialog{padding:18px}
     .summary-filter-dialog .order-filters{grid-template-columns:minmax(0,1fr);gap:12px}

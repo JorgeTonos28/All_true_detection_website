@@ -17,10 +17,10 @@ class BillingController extends Controller
     public function issue(Request $request, Order $order, IssueInvoice $action)
     {
         Gate::authorize('administer', $order);
-        $data = $request->validate(['prices' => ['required', 'array'], 'prices.*' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'], 'tax_percent' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:100'], 'due_date' => ['nullable', 'date', 'after_or_equal:today']]);
+        $data = $request->validate(['prices' => ['required', 'array', 'max:100'], 'prices.*' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'], 'tax_percent' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:100'], 'due_date' => ['nullable', 'date', 'after_or_equal:today']]);
         $data['prices'] = array_map(fn ($price) => Money::parse((string) $price), $data['prices']);
         $data['tax_basis_points'] = Money::parse((string) $data['tax_percent']);
-        $action->handle($request->user(), $order, $data);
+        $action->handle($request->user(), $order, $data, requireExplicitPrices: true);
 
         return back()->with('status', 'Factura emitida. Los importes quedaron fijados.');
     }

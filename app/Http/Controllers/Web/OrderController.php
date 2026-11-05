@@ -10,8 +10,8 @@ use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
 use App\Models\Service;
 use App\Models\User;
-use App\Services\BusinessBillingSettings;
 use App\Services\OrderFilters;
+use App\Services\QuoteLines;
 use App\Support\PersonVerification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -56,10 +56,11 @@ class OrderController extends Controller
         $order->load(['items.service', 'person', 'people.services', 'people.identitySession', 'invoice.payments.recorder', 'account', 'requester', 'assignee', 'attachments.person', 'conversation']);
         $results = ($request->user()->isStaff() || $order->canReleaseResults()) ? $order->results()->when(! $request->user()->isStaff(), fn ($q) => $q->whereNotNull('published_at'))->latest('id')->get() : collect();
 
-        $suggestedPrices = $request->user()->isAdmin() && BusinessBillingSettings::pricingEnabled()
-            ? $order->items->mapWithKeys(fn ($item) => [$item->id => BusinessBillingSettings::suggestedPrice($item->service, pricingEnabled: true)])->all() : [];
+        $creditOrder = $order->people->contains(fn ($person) => $person->identitySession?->access_channel === 'api_credit');
+        $quoteLines = $request->user()->isAdmin() && ! $creditOrder && ! $order->invoice
+            && in_array($order->status, [OrderStatus::Submitted, OrderStatus::Reviewing], true) ? QuoteLines::build($order) : [];
 
-        return view('portal.orders.show', ['order' => $order, 'suggestedPrices' => $suggestedPrices, 'verificationStatus' => PersonVerification::evidenceStatus($order), 'results' => $results, 'staff' => $request->user()->isAdmin() ? User::where('is_active', true)->whereIn('role', ['admin', 'collaborator'])->orderBy('name')->get() : collect()]);
+        return view('portal.orders.show', ['order' => $order, 'quoteLines' => $quoteLines, 'creditOrder' => $creditOrder, 'verificationStatus' => PersonVerification::evidenceStatus($order), 'results' => $results, 'staff' => $request->user()->isAdmin() ? User::where('is_active', true)->whereIn('role', ['admin', 'collaborator'])->orderBy('name')->get() : collect()]);
     }
 
     public function update(Request $request, Order $order, UpdateOrder $action)
