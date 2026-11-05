@@ -20,8 +20,8 @@ class BusinessBillingSettingsTest extends TestCase
     {
         $this->seed();
         $admin = User::factory()->create(['role' => Role::Admin]);
-        $service = Service::firstOrFail();
-        $other = Service::whereKeyNot($service->id)->firstOrFail();
+        $service = Service::where('code', 'training-equipment')->sole();
+        $other = Service::where('code', 'drug-screening')->sole();
         $bank = BusinessBankAccount::factory()->create();
         $usd = BusinessBankAccount::factory()->create(['currency' => 'USD']);
         $settings = app(BusinessBillingSettings::class);
@@ -48,7 +48,7 @@ class BusinessBillingSettingsTest extends TestCase
     public function test_invalid_bank_data_prevents_partial_price_updates(): void
     {
         $this->seed();
-        $service = Service::firstOrFail();
+        $service = Service::where('code', 'training-equipment')->sole();
         try {
             app(BusinessBillingSettings::class)->save(User::factory()->create(['role' => Role::Admin]),
                 ['catalog_pricing_enabled' => true, 'service_prices' => [$service->id => '10.25'], 'bank_accounts' => [['account_number' => '<script>invalid</script>']]]);
@@ -70,5 +70,30 @@ class BusinessBillingSettingsTest extends TestCase
         ]])->assertSessionHasNoErrors()->assertRedirect();
         $this->get('/portal/settings?tab=billing')->assertOk()->assertSee('000123456');
         $this->assertDatabaseCount('business_bank_accounts', 1);
+    }
+
+    public function test_admin_sets_leaf_prices_without_copying_the_former_family_price(): void
+    {
+        $this->seed();
+        $polygraph = Service::where('code', 'polygraph')->sole();
+        $polygraph->update(['default_price' => 990000]);
+        $admin = User::factory()->create(['role' => Role::Admin, 'two_factor_confirmed_at' => now()]);
+        $this->actingAs($admin)->withSession(['auth.password_confirmed_at' => time()]);
+        $url = '/portal/settings?tab=billing';
+        $this->get($url)->assertOk()->assertSee('Nuevo ingreso')->assertSee('Prueba específica')
+            ->assertDontSee('name="service_prices['.$polygraph->id.']"', false)->assertDontSee('9900.00');
+        $form = ['section' => 'billing', 'catalog_pricing_enabled' => '1'];
+        $this->put($url, $form + ['service_option_prices' => [$polygraph->id => ['pre_employment' => '1250.75', 'routine' => '1600.00', 'specific' => null]]])->assertSessionHasNoErrors();
+        $this->assertSame(125075, BusinessBillingSettings::suggestedPrice($polygraph->fresh(), 'pre_employment'));
+        $this->assertSame(160000, BusinessBillingSettings::suggestedPrice($polygraph->fresh(), 'routine'));
+        $this->assertNull(BusinessBillingSettings::suggestedPrice($polygraph->fresh(), 'specific'));
+        $this->assertNull(BusinessBillingSettings::suggestedPrice($polygraph->fresh()));
+        $this->put($url, $form + ['service_option_prices' => [$polygraph->id => ['investigative' => '100.00', 'routine' => '2.00']]])->assertSessionHasErrors('service_option_prices');
+        $this->put($url, $form + ['service_prices' => [$polygraph->id => '10.00']])->assertSessionHasErrors('service_prices');
+        $this->assertSame(160000, BusinessBillingSettings::suggestedPrice($polygraph->fresh(), 'routine'));
+        $this->assertSame(990000, $polygraph->fresh()->default_price);
+        $this->put($url, ['section' => 'billing', 'catalog_pricing_enabled' => '0'])->assertSessionHasNoErrors();
+        $this->assertNull(BusinessBillingSettings::suggestedPrice($polygraph->fresh(), 'routine'));
+        $this->assertSame(160000, $polygraph->optionPrices()->where('option_code', 'routine')->sole()->unit_price);
     }
 }

@@ -12,6 +12,11 @@
 .metrics.metrics-client{grid-template-columns:repeat(6,minmax(0,1fr))}
 .metrics-client>section{grid-column:span 2}
 .metrics-client>section:nth-last-child(-n+2){grid-column:span 3}
+.catalog-price-table .price-category th{background:#e6eef3;color:#203e54}
+.catalog-price-table .price-family td{background:#f6f9fa}
+.catalog-price-table .price-family small{color:var(--muted);font-size:.75rem;margin-top:4px}
+.catalog-price-table .price-option td:first-child{padding-left:26px}
+.catalog-price-table input[type=number]{width:min(100%,210px);min-width:112px}
 @media(max-width:600px){
     .summary-filter-dialog{padding:18px}
     .summary-filter-dialog .order-filters{grid-template-columns:minmax(0,1fr);gap:12px}

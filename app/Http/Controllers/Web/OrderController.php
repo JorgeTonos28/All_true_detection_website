@@ -57,7 +57,7 @@ class OrderController extends Controller
         $results = ($request->user()->isStaff() || $order->canReleaseResults()) ? $order->results()->when(! $request->user()->isStaff(), fn ($q) => $q->whereNotNull('published_at'))->latest('id')->get() : collect();
 
         $suggestedPrices = $request->user()->isAdmin() && BusinessBillingSettings::pricingEnabled()
-            ? $order->items->filter(fn ($item) => $item->service->is_active)->mapWithKeys(fn ($item) => [$item->id => $item->service->default_price])->all() : [];
+            ? $order->items->mapWithKeys(fn ($item) => [$item->id => BusinessBillingSettings::suggestedPrice($item->service, pricingEnabled: true)])->all() : [];
 
         return view('portal.orders.show', ['order' => $order, 'suggestedPrices' => $suggestedPrices, 'verificationStatus' => PersonVerification::evidenceStatus($order), 'results' => $results, 'staff' => $request->user()->isAdmin() ? User::where('is_active', true)->whereIn('role', ['admin', 'collaborator'])->orderBy('name')->get() : collect()]);
     }

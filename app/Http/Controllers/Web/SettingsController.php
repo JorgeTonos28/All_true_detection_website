@@ -22,7 +22,7 @@ class SettingsController extends Controller
         $tab = in_array($tab, ['brand', 'contact', 'content', 'billing', 'identity'], true) ? $tab : 'brand';
 
         return view('portal.settings', ['tab' => $tab, 'bankAccounts' => BusinessBankAccount::orderBy('sort_order')->orderBy('id')->get(),
-            'services' => Service::where('is_active', true)->orderBy('sort_order')->get(), 'pricingEnabled' => BusinessBillingSettings::pricingEnabled(),
+            'services' => $tab === 'billing' ? Service::where('is_active', true)->with('optionPrices')->orderBy('sort_order')->get() : collect(), 'pricingEnabled' => BusinessBillingSettings::pricingEnabled(),
             'settings' => Setting::whereNotIn('key', ['identity_verification_mode', 'catalog_pricing_enabled'])->orderBy('group')->orderBy('id')->get()->groupBy('group'),
             'identityReady' => IdentitySettings::ready(), 'identityMode' => IdentitySettings::mode(),
             'identityCounts' => IdentitySession::selectRaw('state, count(*) as total')->groupBy('state')->pluck('total', 'state'),
@@ -33,7 +33,7 @@ class SettingsController extends Controller
     {
         $section = $request->validate(['section' => 'sometimes|in:brand,contact,content,billing,identity,all'])['section'] ?? 'all';
         if ($section === 'billing') {
-            $input = $request->only(['catalog_pricing_enabled', 'service_prices', 'bank_accounts']);
+            $input = $request->only(['catalog_pricing_enabled', 'service_prices', 'service_option_prices', 'bank_accounts']);
             if ($request->boolean('bank_accounts_present') && ! array_key_exists('bank_accounts', $input)) {
                 $input['bank_accounts'] = [];
             }

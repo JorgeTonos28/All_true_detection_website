@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Service extends Model
 {
@@ -13,5 +14,15 @@ class Service extends Model
     protected function casts(): array
     {
         return ['is_active' => 'boolean', 'options' => 'array', 'default_price' => 'integer'];
+    }
+
+    public function optionPrices(): HasMany
+    {
+        return $this->hasMany(ServiceOptionPrice::class);
+    }
+
+    public function optionLabels(): array
+    {
+        return array_column($this->options ?? [], 'name', 'code');
     }
 }
