@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "All True Detection API",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API. Límite general 60/min por usuario y 600/min por IP; cargas 10/min e identidad costosa 10/min en contadores independientes por usuario. Los fallos de validación cuentan. Respetar Retry-After en 429; cuotas diarias Didit adicionales."
   },
   "servers": [
@@ -3039,12 +3039,16 @@
           },
           "lines": {
             "type": "array",
+            "description": "Partidas confirmadas al emitir. Una familia puede aparecer varias veces con modalidades, cantidades y tarifas diferentes. Las facturas históricas conservan sus partidas originales.",
             "items": {
               "type": "object",
               "properties": {
                 "service_name": {
                   "type": "string"
                 },
+                "service_code": { "type": "string", "description": "Código del servicio agrupador; puede faltar en facturas anteriores." },
+                "option_code": { "type": "string", "nullable": true, "description": "Modalidad de esta partida, si fue especificada. Puede faltar en facturas anteriores." },
+                "option_name": { "type": "string", "nullable": true, "description": "Nombre de modalidad fijado al emitir. Úselo para mostrar la partida cuando esté presente." },
                 "quantity": {
                   "type": "integer",
                   "minimum": 0
@@ -3135,7 +3139,8 @@
                 },
                 "unit_price": {
                   "type": "integer",
-                  "nullable": true
+                  "nullable": true,
+                  "description": "Precio unitario común de la partida agrupada. null si aún no se factura o si sus modalidades tienen precios diferentes; concilie con invoice.lines mediante invoices:read."
                 }
               }
             }

@@ -162,3 +162,11 @@ Para actualizar localmente existe `php tests/Support/apply-identity-credit-local
 - Resumen y Solicitudes comparten texto/estado/facturación/asignación y días inclusivos de recepción en `PORTAL_TIMEZONE`. Cobrado y por cobrar agrupan importes por moneda sobre las solicitudes filtradas. No interpretar el filtro como fecha de cobro, ni como contabilidad fiscal o consumo Didit pendiente de facturar a crédito.
 
 Solo para la SQLite habitual en APP_ENV=local: `php tests/Support/apply-business-local.php` hace preflight de solo lectura. `php tests/Support/apply-business-local.php --apply` guarda un respaldo consistente bajo `storage/app/private/operational-backups`, aplica exclusivamente estas migraciones y verifica integridad, claves foráneas, número de cuentas y huellas de nueve tablas protegidas. Rechaza otra DB/entorno/migraciones ajenas; no restaura ni destruye automáticamente. Ya se ejecutó en esta instalación. No sustituye el despliegue de producción ni valida MySQL.
+
+### Tarifas y partidas por modalidad — 5 de noviembre de 2026
+
+Aplicar `2026_11_05_000001_add_service_option_prices_and_invoice_lines` antes de servir esta versión, con el respaldo habitual. En esta SQLite local ya se aplicó y se verificó el contenido original de las nueve tablas protegidas, incluidas facturas y pagos. Para otro entorno local puede usarse el helper comercial que respalda y comprueba las columnas originales.
+
+En **Mi negocio → Precios y pagos**, configurar Nuevo ingreso, Rutina o control y Prueba específica por separado; perfiles distingue Básica, Rutina, Gerencial e Investigativa. El importe anterior de una familia no se copia a sus modalidades. Cada modalidad vacía, y cada solicitud que no la especifica, requiere cotización manual. Apagar el switch conserva las tarifas. Para facturar, confirmar cada partida con su cantidad; varios solicitantes de una misma modalidad comparten su precio unitario y modalidades diferentes tienen partidas distintas.
+
+Las facturas emitidas conservan nombres, cantidades e importes de sus partidas. Las anteriores usan sus datos originales. La API 1.8.0 desglosa las nuevas partidas bajo `invoices:read`; revise consumidores que esperen un solo precio unitario por familia. [Contrato y guía](api.md#facturas-pagos-y-saldos).
