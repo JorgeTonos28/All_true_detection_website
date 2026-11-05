@@ -10,6 +10,7 @@ use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
 use App\Models\Service;
 use App\Models\User;
+use App\Services\BusinessBillingSettings;
 use App\Services\UserDirectory;
 use App\Support\PersonVerification;
 use Illuminate\Http\Request;
@@ -72,7 +73,10 @@ class OrderController extends Controller
         $order->load(['items.service', 'person', 'people.services', 'people.identitySession', 'invoice.payments.recorder', 'account', 'requester', 'assignee', 'attachments.person', 'conversation']);
         $results = ($request->user()->isStaff() || $order->canReleaseResults()) ? $order->results()->when(! $request->user()->isStaff(), fn ($q) => $q->whereNotNull('published_at'))->latest('id')->get() : collect();
 
-        return view('portal.orders.show', ['order' => $order, 'verificationStatus' => PersonVerification::evidenceStatus($order), 'results' => $results, 'staff' => $request->user()->isAdmin() ? User::where('is_active', true)->whereIn('role', ['admin', 'collaborator'])->orderBy('name')->get() : collect()]);
+        $suggestedPrices = $request->user()->isAdmin() && BusinessBillingSettings::pricingEnabled()
+            ? $order->items->filter(fn ($item) => $item->service->is_active)->mapWithKeys(fn ($item) => [$item->id => $item->service->default_price])->all() : [];
+
+        return view('portal.orders.show', ['order' => $order, 'suggestedPrices' => $suggestedPrices, 'verificationStatus' => PersonVerification::evidenceStatus($order), 'results' => $results, 'staff' => $request->user()->isAdmin() ? User::where('is_active', true)->whereIn('role', ['admin', 'collaborator'])->orderBy('name')->get() : collect()]);
     }
 
     public function update(Request $request, Order $order, UpdateOrder $action)

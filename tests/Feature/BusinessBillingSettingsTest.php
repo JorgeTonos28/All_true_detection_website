@@ -58,4 +58,17 @@ class BusinessBillingSettingsTest extends TestCase
             $this->assertDatabaseCount('business_bank_accounts', 0);
         }
     }
+
+    public function test_admin_can_save_and_render_the_separate_billing_tab(): void
+    {
+        $this->seed();
+        $admin = User::factory()->create(['role' => Role::Admin, 'two_factor_confirmed_at' => now()]);
+        $this->actingAs($admin)->withSession(['auth.password_confirmed_at' => time()]);
+        $this->get('/portal/settings?tab=billing')->assertOk()->assertSee('Precios de servicios')->assertSee('Agregar cuenta bancaria')->assertDontSee('name="hero_title"', false);
+        $this->put('/portal/settings?tab=billing', ['section' => 'billing', 'catalog_pricing_enabled' => '1', 'bank_accounts_present' => '1', 'bank_accounts' => [
+            ['bank_name' => 'Banco de prueba', 'account_type' => 'checking', 'account_holder' => 'ATD Ficticia', 'account_number' => '000123456', 'currency' => 'DOP', 'is_active' => '1'],
+        ]])->assertSessionHasNoErrors()->assertRedirect();
+        $this->get('/portal/settings?tab=billing')->assertOk()->assertSee('000123456');
+        $this->assertDatabaseCount('business_bank_accounts', 1);
+    }
 }

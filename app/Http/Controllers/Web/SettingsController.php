@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\BusinessBankAccount;
 use App\Models\IdentitySession;
+use App\Models\Service;
 use App\Models\Setting;
 use App\Services\Audit;
+use App\Services\BusinessBillingSettings;
 use App\Services\IdentitySettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,9 +16,14 @@ use Illuminate\Validation\ValidationException;
 
 class SettingsController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return view('portal.settings', ['settings' => Setting::where('key', '!=', 'identity_verification_mode')->orderBy('group')->orderBy('id')->get()->groupBy('group'),
+        $tab = $request->query('tab', 'brand');
+        $tab = in_array($tab, ['brand', 'contact', 'content', 'billing', 'identity'], true) ? $tab : 'brand';
+
+        return view('portal.settings', ['tab' => $tab, 'bankAccounts' => BusinessBankAccount::orderBy('sort_order')->orderBy('id')->get(),
+            'services' => Service::where('is_active', true)->orderBy('sort_order')->get(), 'pricingEnabled' => BusinessBillingSettings::pricingEnabled(),
+            'settings' => Setting::whereNotIn('key', ['identity_verification_mode', 'catalog_pricing_enabled'])->orderBy('group')->orderBy('id')->get()->groupBy('group'),
             'identityReady' => IdentitySettings::ready(), 'identityMode' => IdentitySettings::mode(),
             'identityCounts' => IdentitySession::selectRaw('state, count(*) as total')->groupBy('state')->pluck('total', 'state'),
             'identityLastSync' => IdentitySession::max('last_synced_at')]);
@@ -23,16 +31,36 @@ class SettingsController extends Controller
 
     public function update(Request $request)
     {
-        $fields = Setting::where('type', '!=', 'file')->where('key', '!=', 'identity_verification_mode')->pluck('key')->all();
+        $section = $request->validate(['section' => 'sometimes|in:brand,contact,content,billing,identity,all'])['section'] ?? 'all';
+        if ($section === 'billing') {
+            $input = $request->only(['catalog_pricing_enabled', 'service_prices', 'bank_accounts']);
+            if ($request->boolean('bank_accounts_present') && ! array_key_exists('bank_accounts', $input)) {
+                $input['bank_accounts'] = [];
+            }
+            app(BusinessBillingSettings::class)->save($request->user(), $input);
+
+            return back()->with('status', 'Precios y cuentas bancarias actualizados.');
+        }
+        $groups = ['brand' => ['Marca'], 'contact' => ['Contacto', 'Redes'], 'content' => ['Home', 'SEO'], 'identity' => []];
+        $fields = Setting::where('type', '!=', 'file')->whereNotIn('key', ['identity_verification_mode', 'catalog_pricing_enabled'])
+            ->when($section !== 'all', fn ($query) => $query->whereIn('group', $groups[$section]))->pluck('key')->all();
         $rules = [];
         foreach ($fields as $field) {
             $rules[$field] = str_ends_with($field, '_url') ? ['nullable', 'url:http,https', 'max:500'] : ['nullable', 'string', 'max:5000'];
         }
-        $rules['email'] = ['nullable', 'email', 'max:255'];
-        $rules['company_name'] = ['required', 'string', 'max:200'];
-        $rules['identity_verification_mode'] = ['sometimes', 'in:manual,didit'];
-        $rules['logo'] = ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'extensions:jpg,jpeg,png,webp', 'max:2048', 'dimensions:max_width=4000,max_height=4000'];
-        $rules['favicon'] = ['nullable', 'image', 'mimes:png', 'extensions:png', 'max:512', 'dimensions:max_width=512,max_height=512'];
+        if (in_array('email', $fields, true)) {
+            $rules['email'] = ['nullable', 'email', 'max:255'];
+        }
+        if (in_array('company_name', $fields, true)) {
+            $rules['company_name'] = ['required', 'string', 'max:200'];
+        }
+        if (in_array($section, ['all', 'identity'], true)) {
+            $rules['identity_verification_mode'] = ['sometimes', 'in:manual,didit'];
+        }
+        if (in_array($section, ['all', 'brand'], true)) {
+            $rules['logo'] = ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'extensions:jpg,jpeg,png,webp', 'max:2048', 'dimensions:max_width=4000,max_height=4000'];
+            $rules['favicon'] = ['nullable', 'image', 'mimes:png', 'extensions:png', 'max:512', 'dimensions:max_width=512,max_height=512'];
+        }
         $data = $request->validate($rules);
         if (($data['identity_verification_mode'] ?? null) === 'didit' && ! IdentitySettings::ready()) {
             throw ValidationException::withMessages(['identity_verification_mode' => 'Configure las credenciales, aplicación, workflow y aprobaciones Didit antes de activar el modo automático.']);

@@ -22,7 +22,7 @@ class DiditWebTest extends TestCase
     {
         $this->seed();
         $admin = User::factory()->create(['role' => Role::Admin, 'two_factor_confirmed_at' => now()]);
-        $this->actingAs($admin)->withSession(['auth.password_confirmed_at' => time()])->get('/portal/settings')->assertOk()->assertSee('role="switch"', false)->assertSee('Automatización no disponible')->assertDontSee('synthetic-private-api-key');
+        $this->actingAs($admin)->withSession(['auth.password_confirmed_at' => time()])->get('/portal/settings?tab=identity')->assertOk()->assertSee('role="switch"', false)->assertSee('Automatización no disponible')->assertDontSee('synthetic-private-api-key');
         $data = ['company_name' => 'All True Detection', 'identity_verification_mode' => 'didit'];
         $this->put('/portal/settings', $data)->assertSessionHasErrors('identity_verification_mode');
         $this->assertSame('manual', IdentitySettings::mode());
