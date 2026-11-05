@@ -95,12 +95,7 @@
                 </div>
                 <div class="service-catalog reveal" aria-label="Catálogo de servicios">
                     <p class="catalog-heading">Nuestros servicios</p>
-                    @php($families = [
-                        ['name'=>'Evaluación de personas','codes'=>['polygraph','deception-detection','drug-screening','psychometric']],
-                        ['name'=>'Verificación de información','codes'=>['profile-verification','home-visits','university-degree','exequatur','identity-verification']],
-                        ['name'=>'Investigación y análisis','codes'=>['investigations','applied-ai']],
-                        ['name'=>'Formación y equipamiento','codes'=>['training-equipment']],
-                    ])
+                    @php($families = collect(\App\Support\ServiceCatalog::categories())->map(fn($name,$category)=>['name'=>$name,'codes'=>collect($services)->where('category',$category)->pluck('code')->all()])->values()->all())
                     @php($hasExpandedFamily = false)
                     @foreach($families as $family)
                         @php($familyServices = collect($services)->whereIn('code',$family['codes']))

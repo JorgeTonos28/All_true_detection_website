@@ -14,11 +14,12 @@
     const file = form.querySelector('input[type=file]');
     function update() {
         const codes = person.selectedOptions[0]?.dataset.serviceCodes?.split(',') || [];
-        const hasIdentity = codes.some(code => ['university-degree', 'exequatur', 'identity-verification'].includes(code));
+        const hasIdentity = codes.some(code => ['university-degree', 'exequatur', 'identity-verification', 'bailiff-credentials'].includes(code));
         const allowed = ['supporting'];
         if (hasIdentity) allowed.push('identity_front', 'identity_back');
         if (codes.includes('university-degree')) allowed.push('degree_document');
         if (codes.includes('exequatur')) allowed.push('exequatur_document');
+        if (codes.includes('bailiff-credentials')) allowed.push('bailiff_credential');
         if (codes.includes('identity-verification')) allowed.push('selfie', 'selfie_extra');
         Array.from(purpose.options).forEach(option => { option.disabled = !allowed.includes(option.value); });
         if (!allowed.includes(purpose.value)) purpose.value = 'supporting';

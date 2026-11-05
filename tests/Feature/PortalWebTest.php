@@ -71,7 +71,7 @@ class PortalWebTest extends TestCase
         $this->post('/portal/orders', ['subject' => 'Verificación', 'details' => 'Detalle suficiente para revisión', 'service_codes' => ['polygraph', 'profile-verification'], 'people' => [['first_name' => 'Persona', 'last_name' => 'Ficticia', 'authorization_confirmed' => true, 'service_codes' => ['polygraph', 'profile-verification']]], 'consent' => true, 'idempotency_key' => 'web-order-1'])->assertSessionHasNoErrors()->assertRedirect();
         $order = Order::first();
         $this->assertSame(2, $order->items()->count());
-        $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Evaluaciones con Polígrafo');
+        $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Servicios poligráficos');
         $this->post('/portal/orders/'.$order->public_id.'/attachments', ['file' => UploadedFile::fake()->create('evidencia.pdf', 10, 'application/pdf')])->assertRedirect();
         $attachment = $order->attachments()->first();
         Storage::disk('local')->assertExists($attachment->file_path);

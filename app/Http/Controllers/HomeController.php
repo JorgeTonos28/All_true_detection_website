@@ -74,7 +74,7 @@ class HomeController extends Controller
             $services = ServiceCatalog::all();
         }
 
-        return array_map(fn (array $service) => ['code' => $service['code'], 'title' => $service['name'], 'text' => $service['code'] === 'identity-verification' ? IdentitySettings::description() : $service['description'], 'icon' => 'file'], $services);
+        return array_map(fn (array $service) => ['code' => $service['code'], 'title' => $service['name'], 'category' => $service['category'] ?? 'additional', 'options' => $service['options'] ?? [], 'text' => $service['code'] === 'identity-verification' ? IdentitySettings::description() : $service['description'], 'icon' => 'file'], $services);
     }
 
     private function sectors(): array
