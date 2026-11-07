@@ -8,7 +8,7 @@ Base de producción: `https://SU_DOMINIO/api/v1`. Base local predeterminada: `ht
 
 La versión de protocolo está en `/v1`; el contrato OpenAPI 3.0.3 describe rutas, parámetros y esquemas. Los identificadores de negocio son ULID opacos, nunca credenciales. Fechas de API en ISO 8601 UTC y vencimientos como `YYYY-MM-DD`. Dinero en unidades menores enteras: `1050` equivale a `10.50` de la moneda indicada. No use flotantes para conciliar importes.
 
-Contrato **1.8.0**: desglosa las modalidades por persona en las partidas de factura y conserva sus importes y nombres al emitir. Los cuerpos de creación conservan `service_code` y `people[].service_options`. La versión 1.7.0 añadió categorías/modalidades del catálogo, credenciales de alguaciles, identificación de la cuenta cliente, filtros de solicitudes e instrucciones bancarias por factura. Conserva las garantías de 1.6.2: el enlace de captura requiere `identity:read` incluso al repetir POST y una consulta vinculada confirmada al proveedor. Una actualización de identidad pendiente de confirmar retiene el resultado anterior (409), también en las verificaciones recurrentes dependientes. No cambian rutas ni cuerpos de solicitud.
+Contrato **1.9.0** incorpora la entrevista remota con IA y su conclusión de revisión humana. La versión 1.8.0 desglosa las modalidades por persona en las partidas de factura y conserva sus importes y nombres al emitir. Los cuerpos de creación conservan `service_code` y `people[].service_options`. La versión 1.7.0 añadió categorías/modalidades del catálogo, credenciales de alguaciles, identificación de la cuenta cliente, filtros de solicitudes e instrucciones bancarias por factura. Conserva las garantías de 1.6.2: el enlace de captura requiere `identity:read` incluso al repetir POST y una consulta vinculada confirmada al proveedor. Una actualización de identidad pendiente de confirmar retiene el resultado anterior (409), también en las verificaciones recurrentes dependientes. No cambian rutas ni cuerpos de solicitud.
 
 El límite general es de 60 peticiones/minuto por usuario y 600/minuto por IP antes de autenticar. Además, las cargas de documentos admiten 10 intentos/minuto y las operaciones costosas de identidad (iniciar sesión, registrar referencia o crear reverificación) comparten otra cuota de 10 intentos/minuto por usuario. Estos dos contadores son independientes; usan el mismo usuario aunque se rote el token. Los intentos con validación fallida también cuentan. Los cupos diarios de sesiones Didit por cuenta/global siguen aplicándose aparte. Ante 429 respete `Retry-After`; no cree otra clave idempotente para evadir el bloqueo.
 
@@ -45,11 +45,11 @@ Guardar el token en un gestor de secretos del backend. No colocarlo en JavaScrip
 
 | Familia | Servicios activos (`code`) |
 | --- | --- |
-| Evaluaciones a personas | Servicios poligráficos (`polygraph`), evaluaciones de perfiles (`profile-verification`), antidoping (`drug-screening`), psicometría (`psychometric`). |
+| Evaluaciones a personas | Servicios poligráficos (`polygraph`), evaluaciones de perfiles (`profile-verification`), antidoping (`drug-screening`), psicometría (`psychometric`) y entrevista remota con IA (`remote-interview-rppg`). |
 | Verificación de personas | Visitas domiciliarias (`home-visits`), exequátur de abogados y notarios (`exequatur`), credenciales de alguaciles (`bailiff-credentials`), identidad (`identity-verification`), título universitario (`university-degree`). |
 | Capacitación y equipos | `training-equipment`, único servicio sin ficha por persona. |
 
-`GET /services` devuelve los diez servicios activos. Las modalidades de poligrafía y perfiles se indican en `people[].service_options`; cada modalidad puede tener su tarifa administrada por ATD. `items[].service_code` mantiene el código de la familia y su cantidad total. Las sustancias del antidoping se coordinan según requerimiento. `deception-detection`, `applied-ai` e `investigations` ya no se ofrecen de forma independiente ni se aceptan en solicitudes nuevas; sus órdenes, documentos, facturas y entregas históricas siguen accesibles con sus permisos habituales. Consulte el catálogo en vez de fijar una lista de códigos en su integración.
+`GET /services` devuelve los servicios activos. Las modalidades de poligrafía y perfiles se indican en `people[].service_options`; cada modalidad puede tener su tarifa administrada por ATD. `items[].service_code` mantiene el código de la familia y su cantidad total. Las sustancias del antidoping se coordinan según requerimiento. `deception-detection`, `applied-ai` e `investigations` ya no se ofrecen de forma independiente ni se aceptan en solicitudes nuevas; sus órdenes, documentos, facturas y entregas históricas siguen accesibles con sus permisos habituales. Consulte el catálogo en vez de fijar una lista de códigos en su integración.
 
 ## Crear una solicitud
 
@@ -75,7 +75,7 @@ Todos los servicios son por persona salvo `training-equipment` (Capacitación y 
 
 No existe un registro global de personas ni búsqueda de cédulas entre cuentas. ATD genera un identificador público por ficha al crear la orden; no acepte ni envíe identificadores internos de base de datos. Dos fichas con la misma cédula normalizada se rechazan: combine sus servicios en una sola ficha. Si un servicio no necesita cédula, no aporte este dato; el servidor lo rechaza.
 
-Compatibilidad: `person` sigue disponible para una sola persona con título, exequátur o identidad, cantidad 1; no se combina con `people`. La creación API anterior sin ficha para los otros servicios se conserva para integraciones existentes. Las integraciones nuevas deben usar `people` para servicios personales. Las solicitudes históricas conservan sus datos y requisitos de evidencia; no se inventan personas para órdenes antiguas.
+Compatibilidad: `person` sigue disponible para una sola persona con título, exequátur o identidad, cantidad 1; no se combina con `people`. La creación API anterior sin ficha se conserva para los servicios existentes que ya la admitían. `remote-interview-rppg` requiere `people` desde su incorporación. Las integraciones nuevas deben usar `people` para servicios personales. Las solicitudes históricas conservan sus datos y requisitos de evidencia; no se inventan personas para órdenes antiguas.
 
 | Campo de cada entrada de `people` | Requisito |
 | --- | --- |
@@ -92,6 +92,24 @@ Compatibilidad: `person` sigue disponible para una sola persona con título, exe
 | `exequatur.number`, `exequatur.issuing_authority`, `exequatur.issued_on` | Opcionales; fecha no futura. |
 | `bailiff.credential_number`, `bailiff.issuing_authority`, `bailiff.jurisdiction` | Opcionales, solo para `bailiff-credentials`; no sustituyen la credencial escaneada obligatoria. |
 | `service_options` | Modalidad opcional por persona: `polygraph` admite `pre_employment`, `routine`, `specific`; `profile-verification` admite `basic`, `routine`, `management`, `investigative`. Solo claves de servicios elegidos. Omitir significa definirla con ATD. |
+
+### Entrevista remota con IA
+
+Incluya `remote-interview-rppg` en `items` y en los `service_codes` de cada participante. Para este servicio bastan nombre, apellidos y confirmación de autorización en cada ficha. El catálogo devuelve `per_person=true`, `requires_identity_number=false`, `required_evidence=[]` e `identity_mode=null`. ATD coordina la sesión y el consentimiento informado de cada participante por separado. Las grabaciones y lecturas de pulso pertenecen a esa sesión. Use los endpoints ordinarios de solicitudes, facturas y entregas; los endpoints Didit se reservan para `identity-verification`.
+
+```json
+{
+  "subject": "Entrevistas remotas de ejemplo",
+  "consent": true,
+  "items": [{"service_code": "remote-interview-rppg", "quantity": 2}],
+  "people": [
+    {"first_name": "Primera", "last_name": "Persona", "authorization_confirmed": true, "service_codes": ["remote-interview-rppg"]},
+    {"first_name": "Segunda", "last_name": "Persona", "authorization_confirmed": true, "service_codes": ["remote-interview-rppg"]}
+  ]
+}
+```
+
+### Ejemplo de verificación documental
 
 Ejemplo completamente ficticio (la cédula es solo un marcador de pruebas):
 
@@ -158,7 +176,7 @@ La clave idempotente protege el orden de las personas, sus datos y las asignacio
 
 El portal permite adjuntar evidencia al crear la orden, de forma atómica, con el límite conjunto de 20 archivos/20 MB entre todas las personas, incluidos documentos de apoyo. Si no caben los documentos obligatorios, divida las personas en solicitudes más pequeñas. La API conserva el flujo JSON + cargas individuales. Los límites, antivirus, almacenamiento privado, scopes y aislamiento existentes se aplican a todos los documentos. Una única copia PDF con ambas caras de la cédula puede aportarse como `identity_front`; no vuelva a cargar el mismo PDF como reverso.
 
-ATD registra una conclusión por persona y servicio: `verified`, `not_verified` o `inconclusive`, con notas. Los servicios manuales requieren criterio profesional; identidad Didit incorpora la comprobación del proveedor. No es una decisión automática de contratación ni una validación por acceso a registros oficiales. Después de pago total, finalización y publicación, `/deliveries` devuelve `verification_findings` con `method=manual`, `didit` o `mixed`, `reviewed_at` y `checks[]` (`person_id`, `service_code`, `outcome`, `notes`). Las comprobaciones Didit incluyen su referencia ATD y `environment`; sandbox no es una verificación real y no se publica en producción. Las entregas antiguas pueden no incluir `person_id`. No se filtra esa conclusión por estado, notificaciones, listados ni webhooks antes de la entrega ATD.
+ATD registra una conclusión por persona y servicio con notas. Para la entrevista remota, `reviewed` identifica una evaluación revisada por un analista e `inconclusive` un resultado sin conclusión suficiente. Los demás servicios conservan `verified`, `not_verified` o `inconclusive`. Los servicios manuales requieren criterio profesional; identidad Didit incorpora la comprobación del proveedor. No es una decisión automática de contratación ni una validación por acceso a registros oficiales. Después de pago total, finalización y publicación, `/deliveries` devuelve `verification_findings` con `method=manual`, `didit` o `mixed`, `reviewed_at` y `checks[]` (`person_id`, `service_code`, `outcome`, `notes`). Las comprobaciones Didit incluyen su referencia ATD y `environment`; sandbox no es una verificación real y no se publica en producción. Las entregas antiguas pueden no incluir `person_id`. No se filtra esa conclusión por estado, notificaciones, listados ni webhooks antes de la entrega ATD.
 
 Las fichas y conclusiones se cifran en la base de datos. La huella de idempotencia de solicitudes con persona usa HMAC con una clave del servidor, no un hash simple de los datos personales. No use nombres/cédulas en asunto, referencia externa, nombres de archivos, claves de idempotencia, URLs o logs. Use referencias opacas. No envíe fotos en base64 dentro del JSON ni por correo. Aplique en su sistema acceso mínimo, cifrado y retención definida para estos datos sensibles. Las órdenes anteriores sin ficha siguen operando; no se inventan ni migran datos de personas.
 

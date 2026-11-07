@@ -20,7 +20,7 @@ class ApiDocumentationExamplesTest extends TestCase
         $headers = ['Authorization' => 'Bearer '.$client->createToken('Ejemplos', ['orders:read', 'orders:write'])->plainTextToken];
         $source = file_get_contents(base_path('docs/api.md'));
         preg_match_all('/```json\s*\n(.*?)\n```/s', $source, $blocks);
-        $this->assertCount(2, $blocks[1]);
+        $this->assertCount(3, $blocks[1]);
         foreach ($blocks[1] as $index => $body) {
             $data = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
             $this->postJson('/api/v1/orders', $data, $headers + ['Idempotency-Key' => 'documentation-example-'.$index])->assertCreated();
@@ -29,6 +29,6 @@ class ApiDocumentationExamplesTest extends TestCase
         $this->assertNotEmpty($curl);
         $data = json_decode(str_replace('\\"', '"', $curl[1]), true, 512, JSON_THROW_ON_ERROR);
         $this->postJson('/api/v1/orders', $data, $headers + ['Idempotency-Key' => 'documentation-cmd-example'])->assertCreated();
-        $this->get('/desarrolladores/api')->assertOk()->assertSee('people')->assertSee('degree_document')->assertSee('preview_url');
+        $this->get('/desarrolladores/api')->assertOk()->assertSee('people')->assertSee('degree_document')->assertSee('preview_url')->assertSee('remote-interview-rppg');
     }
 }

@@ -170,3 +170,10 @@ Aplicar `2026_11_05_000001_add_service_option_prices_and_invoice_lines` antes de
 En **Mi negocio → Precios y pagos**, configurar Nuevo ingreso, Rutina o control y Prueba específica por separado; perfiles distingue Básica, Rutina, Gerencial e Investigativa. El importe anterior de una familia no se copia a sus modalidades. Cada modalidad vacía, y cada solicitud que no la especifica, requiere cotización manual. Apagar el switch conserva las tarifas. Para facturar, confirmar cada partida con su cantidad; varios solicitantes de una misma modalidad comparten su precio unitario y modalidades diferentes tienen partidas distintas.
 
 Las facturas emitidas conservan nombres, cantidades e importes de sus partidas. Las anteriores usan sus datos originales. La API 1.8.0 desglosa las nuevas partidas bajo `invoices:read`; revise consumidores que esperen un solo precio unitario por familia. [Contrato y guía](api.md#facturas-pagos-y-saldos).
+
+### Entrevista remota con IA — 6 de noviembre de 2026
+
+- Aplicar `2026_11_06_000001_add_remote_interview_service` con el respaldo habitual. Agrega un servicio al catálogo; su reversión lo desactiva y conserva su ID, precio y expedientes. En la SQLite habitual se puede usar el helper comercial con `--apply`.
+- En **Mi negocio → Precios y pagos**, configure la tarifa por participante si utiliza precios sugeridos. Una tarifa vacía se cotiza manualmente.
+- Revise el alcance, coordine la sesión por el canal operativo acordado y verifique el consentimiento informado de cada participante antes de la captura. Defina con quien realice la sesión sus condiciones de tratamiento, acceso y retención antes de iniciarla. El portal y la API de ATD gestionan el expediente comercial y el informe final revisado. La captura se coordina fuera de este flujo.
+- Registre la revisión y sus límites por participante. Entregue el informe privado después de finalizar, confirmar el pago y publicar. El contrato 1.9.0 documenta el código y el resultado `reviewed`. [Guía API](api.md#entrevista-remota-con-ia).

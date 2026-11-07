@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "All True Detection API",
-    "version": "1.8.0",
+    "version": "1.9.0",
     "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API. Límite general 60/min por usuario y 600/min por IP; cargas 10/min e identidad costosa 10/min en contadores independientes por usuario. Los fallos de validación cuentan. Respetar Retry-After en 429; cuotas diarias Didit adicionales."
   },
   "servers": [
@@ -134,7 +134,7 @@
     "/services": {
       "get": {
         "operationId": "listServices",
-        "description": "Requiere orders:read",
+        "description": "Requiere orders:read. Incluye remote-interview-rppg, entrevista remota por persona con pulso por cámara y revisión humana. Consulte los códigos y requisitos activos en cada instalación.",
         "responses": {
           "200": {
             "description": "Respuesta",
@@ -471,7 +471,7 @@
       },
       "post": {
         "operationId": "createOrder",
-        "description": "Requiere orders:write. Misma clave y payload reproduce la orden; cambios o reordenar people producen 409. Hasta 10 personas por orden, cada una con service_codes; quantity coincide con las personas asignadas. Todos los servicios son personales salvo training-equipment. person se conserva por compatibilidad para una sola persona. details es opcional. Cree con JSON y cargue evidencia por attachments con person_id; el detalle informa verification.people[].missing.",
+        "description": "Requiere orders:write. Misma clave y payload reproduce la orden; cambios o reordenar people producen 409. Hasta 10 personas por orden, cada una con service_codes; quantity coincide con las personas asignadas. Todos los servicios son personales salvo training-equipment. remote-interview-rppg exige people con autorización por participante. La sesión se coordina por separado y la entrega sigue el flujo ordinario de pago y publicación. person se conserva por compatibilidad para una sola persona. details es opcional. Cree con JSON y cargue evidencia por attachments con person_id; el detalle informa verification.people[].missing.",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -2923,7 +2923,7 @@
             "type": "array",
             "minItems": 1,
             "maxItems": 10,
-            "description": "Una o varias personas, cada una con sus servicios. No se combina con person. Todos los servicios son por persona salvo training-equipment. Se conserva la creación anterior sin ficha para otros servicios por compatibilidad; para integraciones nuevas use people.",
+            "description": "Una o varias personas, cada una con sus servicios. No se combina con person. Todos los servicios son por persona salvo training-equipment. remote-interview-rppg exige people. Se conserva la creación anterior sin ficha para los servicios que ya la admitían; para integraciones nuevas use people.",
             "items": { "$ref": "#/components/schemas/OrderPerson" }
           }
         }
@@ -3841,8 +3841,10 @@
                   "enum": [
                     "verified",
                     "not_verified",
-                    "inconclusive"
-                  ]
+                    "inconclusive",
+                    "reviewed"
+                  ],
+                  "description": "Para remote-interview-rppg se devuelve reviewed (evaluación revisada por un analista) o inconclusive. Los demás servicios conservan sus valores anteriores."
                 },
                 "notes": {
                   "type": "string",
