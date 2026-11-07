@@ -25,6 +25,7 @@ use App\Services\ProcessIdentitySession;
 use App\Services\QuoteLines;
 use App\Support\IdentityNumber;
 use App\Support\IntegrationScopes;
+use App\Support\ServiceCatalog;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Client\ConnectionException;
@@ -222,7 +223,8 @@ class Lab
                         if ($service->code === 'identity-verification' && $person->identity_mode === 'didit') {
                             continue;
                         }
-                        $findings[$person->public_id][$service->code] = ['outcome' => 'inconclusive', 'notes' => 'RESULTADO SINTÉTICO RESERVADO — sin revisión profesional real.'];
+                        $outcome = $service->code === ServiceCatalog::REMOTE_INTERVIEW ? 'reviewed' : 'inconclusive';
+                        $findings[$person->public_id][$service->code] = ['outcome' => $outcome, 'notes' => 'RESULTADO SINTÉTICO RESERVADO — sin revisión profesional real.'];
                     }
                 }
                 $file = ! empty($data['file']) ? new UploadedFile(self::$root.'/fixtures/result.pdf', 'result.pdf', 'application/pdf', null, true) : null;
@@ -339,7 +341,7 @@ class Lab
         // boot() already binds this connection to a marked, private laboratory directory.
         abort_unless(DB::connection()->getDatabaseName() === self::$root.'/lab.sqlite', 403);
         $pending = array_diff(array_keys(app('migrator')->getMigrationFiles(database_path('migrations'))), app('migration.repository')->getRan());
-        $allowed = ['2026_11_04_000001_add_account_types_catalog_and_bank_accounts', '2026_11_04_000002_index_order_creation_dates', '2026_11_04_000003_refresh_customer_service_catalog', '2026_11_04_000004_align_default_catalog_copy', '2026_11_05_000001_add_service_option_prices_and_invoice_lines'];
+        $allowed = ['2026_11_04_000001_add_account_types_catalog_and_bank_accounts', '2026_11_04_000002_index_order_creation_dates', '2026_11_04_000003_refresh_customer_service_catalog', '2026_11_04_000004_align_default_catalog_copy', '2026_11_05_000001_add_service_option_prices_and_invoice_lines', '2026_11_06_000001_add_remote_interview_service'];
         if (array_diff($pending, $allowed)) {
             throw new RuntimeException('El piloto necesita una actualización adicional revisada.');
         }

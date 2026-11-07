@@ -15,7 +15,7 @@ if (PHP_SAPI !== 'cli' || ! $app->environment('local') || $connection->getDriver
     || ! $expected || realpath($connection->getDatabaseName()) !== $expected) {
     throw new RuntimeException('Este helper solo actualiza la SQLite local habitual del proyecto.');
 }
-$allowed = ['2026_11_04_000001_add_account_types_catalog_and_bank_accounts', '2026_11_04_000002_index_order_creation_dates', '2026_11_04_000003_refresh_customer_service_catalog', '2026_11_04_000004_align_default_catalog_copy', '2026_11_05_000001_add_service_option_prices_and_invoice_lines'];
+$allowed = ['2026_11_04_000001_add_account_types_catalog_and_bank_accounts', '2026_11_04_000002_index_order_creation_dates', '2026_11_04_000003_refresh_customer_service_catalog', '2026_11_04_000004_align_default_catalog_copy', '2026_11_05_000001_add_service_option_prices_and_invoice_lines', '2026_11_06_000001_add_remote_interview_service'];
 $ran = $app->make('migration.repository')->getRan();
 $pending = array_values(array_diff(array_keys($app->make('migrator')->getMigrationFiles(database_path('migrations'))), $ran));
 if (! $pending) {

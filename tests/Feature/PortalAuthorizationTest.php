@@ -7,6 +7,7 @@ use App\Models\CustomerAccount;
 use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
+use App\Support\ServiceCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
@@ -37,7 +38,7 @@ class PortalAuthorizationTest extends TestCase
     public function test_seeders_do_not_create_predictable_admin_credentials_or_overwrite_settings(): void
     {
         $this->seed();
-        $this->assertDatabaseCount('services', 10);
+        $this->assertDatabaseCount('services', count(ServiceCatalog::all()));
         $this->assertDatabaseCount('users', 0);
         Setting::put('company_name', 'Marca del cliente');
         $this->seed();

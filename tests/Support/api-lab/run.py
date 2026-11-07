@@ -205,7 +205,7 @@ class LabRun:
 
     def catalog_and_services(self):
         _, catalog, _, _ = self.request("catalog", "GET", "/api/v1/services")
-        self.check("all 10 active services advertised", len(catalog.get("data", [])) == 10)
+        self.check("all 11 active services advertised", len(catalog.get("data", [])) == 11)
         self.check("retired services absent", not {"deception-detection", "applied-ai", "investigations"} & {s["code"] for s in catalog.get("data", [])})
         self.control("mode", mode="manual")
         for index, service in enumerate(catalog["data"]):
@@ -215,6 +215,13 @@ class LabRun:
             if code == "polygraph":
                 people = [dict(profile([code]), service_options={code: option}) for option in ("pre_employment", "routine", "pre_employment")]
                 payload = order_payload([code], people)
+            elif code == "remote-interview-rppg":
+                self.check("interview catalog requires a person but no capture", service["per_person"]
+                           and not service["requires_identity_number"] and service["required_evidence"] == []
+                           and service["identity_mode"] is None)
+                payload = order_payload([code], [profile([code]), profile([code])])
+                without_people = {k: v for k, v in payload.items() if k != "people"}
+                self.create([code], payload=without_people, expect=422, name="interview requires authorized participants")
             else:
                 payload = order_payload([code])
             created, key = self.create([code], payload=payload)
@@ -276,7 +283,12 @@ class LabRun:
             if index == 0:
                 self.request("results manifest alias", "GET", root + "/results")
                 self.request("overdue invoice filter", "GET", "/api/v1/invoices?status=overdue", token="invoices:read")
-            self.request("published metadata " + code, "GET", root + f"/results/{rid}")
+            _, published, _, _ = self.request("published metadata " + code, "GET", root + f"/results/{rid}")
+            if code == "remote-interview-rppg":
+                findings = published.get("data", {}).get("verification_findings") or {}
+                self.check("interview publishes human review per participant after payment", findings.get("method") == "manual"
+                           and [(check["service_code"], check["outcome"]) for check in findings.get("checks", [])]
+                           == [(code, "reviewed"), (code, "reviewed")])
             _, _, binary, headers = self.request("published download " + code, "GET", root + f"/results/{rid}/download")
             self.check("delivery checksum " + code, hashlib.sha256(binary).hexdigest() == headers.get("X-Content-SHA256"))
             self.request("published preview PDF blocked " + code, "GET", root + f"/results/{rid}/preview", expect=415)
