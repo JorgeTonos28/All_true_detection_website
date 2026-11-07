@@ -42,9 +42,24 @@ class ServiceCatalogRevisionTest extends TestCase
         $this->assertSame($legacy->id, $order->items()->sole()->service_id);
         $this->assertSame('Investigación anterior', $order->items()->sole()->service_name);
         $this->assertSame(123450, $priced->fresh()->default_price);
-        $this->assertSame(10, Service::where('is_active', true)->count());
+        $this->assertSame(11, Service::where('is_active', true)->count());
         $this->assertTrue(Service::where('code', 'bailiff-credentials')->sole()->is_active);
         $this->assertTrue(Service::where('code', 'university-degree')->sole()->is_active);
         $this->assertTrue(Service::where('code', 'training-equipment')->sole()->is_active);
+    }
+
+    public function test_remote_interview_rollback_preserves_service_identity_and_pricing(): void
+    {
+        $service = Service::where('code', 'remote-interview-rppg')->sole();
+        $service->update(['default_price' => 52500]);
+        $migration = require database_path('migrations/2026_11_06_000001_add_remote_interview_service.php');
+
+        $migration->down();
+        $this->assertFalse($service->fresh()->is_active);
+
+        $migration->up();
+        $this->assertTrue($service->fresh()->is_active);
+        $this->assertSame(52500, $service->fresh()->default_price);
+        $this->assertSame('assessments', $service->fresh()->category);
     }
 }
