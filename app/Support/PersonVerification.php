@@ -13,7 +13,7 @@ class PersonVerification
 {
     public const SERVICES = ['university-degree', 'exequatur', 'identity-verification', 'bailiff-credentials'];
 
-    public const PERSON_SERVICES = ['polygraph', 'deception-detection', 'profile-verification', 'applied-ai', 'home-visits', 'investigations', 'drug-screening', 'psychometric', 'university-degree', 'exequatur', 'identity-verification', 'bailiff-credentials'];
+    public const PERSON_SERVICES = ['polygraph', 'deception-detection', 'profile-verification', 'applied-ai', 'home-visits', 'investigations', 'drug-screening', 'psychometric', 'university-degree', 'exequatur', 'identity-verification', 'bailiff-credentials', ServiceCatalog::REMOTE_INTERVIEW];
 
     public const PURPOSES = ['supporting', 'identity_front', 'identity_back', 'selfie', 'selfie_extra', 'degree_document', 'exequatur_document', 'bailiff_credential'];
 
@@ -99,6 +99,10 @@ class PersonVerification
     public static function people(array $data): array
     {
         if (! array_key_exists('people', $data)) {
+            if (in_array(ServiceCatalog::REMOTE_INTERVIEW, array_column($data['items'], 'service_code'), true)) {
+                throw ValidationException::withMessages(['people' => 'Agregue una ficha autorizada por cada participante en la entrevista remota.']);
+            }
+
             return [];
         }
         $input = is_array($data['people']) ? $data['people'] : [];
@@ -232,6 +236,13 @@ class PersonVerification
         }
     }
 
+    public static function outcomesFor(string $serviceCode): array
+    {
+        return $serviceCode === ServiceCatalog::REMOTE_INTERVIEW
+            ? ['reviewed' => 'Evaluación revisada', 'inconclusive' => self::OUTCOMES['inconclusive']]
+            : self::OUTCOMES;
+    }
+
     public static function findings(Order $order, array $findings): ?array
     {
         if (! $order->person()->exists()) {
@@ -269,7 +280,7 @@ class PersonVerification
                 $rules[$prefix] = $codes ? ['required', 'array:'.implode(',', $codes)] : ['prohibited'];
                 foreach ($codes as $code) {
                     $rules[$prefix.'.'.$code] = ['required', 'array:outcome,notes'];
-                    $rules[$prefix.'.'.$code.'.outcome'] = ['required', Rule::in(array_keys(self::OUTCOMES))];
+                    $rules[$prefix.'.'.$code.'.outcome'] = ['required', Rule::in(array_keys(self::outcomesFor($code)))];
                     $rules[$prefix.'.'.$code.'.notes'] = ['required', 'string', 'min:5', 'max:5000'];
                 }
             }
@@ -287,7 +298,7 @@ class PersonVerification
         $rules = ['findings' => ['required', 'array:'.implode(',', $codes)]];
         foreach ($codes as $code) {
             $rules['findings.'.$code] = ['required', 'array:outcome,notes'];
-            $rules['findings.'.$code.'.outcome'] = ['required', Rule::in(array_keys(self::OUTCOMES))];
+            $rules['findings.'.$code.'.outcome'] = ['required', Rule::in(array_keys(self::outcomesFor($code)))];
             $rules['findings.'.$code.'.notes'] = ['required', 'string', 'min:5', 'max:5000'];
         }
         $validated = Validator::make(['findings' => $findings], $rules)->validate()['findings'];

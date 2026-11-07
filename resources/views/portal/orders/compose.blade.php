@@ -13,6 +13,7 @@
             <div><h2>¿Qué necesita solicitar?</h2><p class="muted">Elija los servicios; después podrá asignarlos a una o varias personas.</p></div>
             <button type="button" class="service-picker-trigger secondary" data-open-services aria-haspopup="dialog" aria-controls="service-picker-dialog"><span data-service-label>Seleccionar servicios</span><span aria-hidden="true">+</span></button>
             <div class="selected-services" data-selected-services aria-live="polite"></div>
+            <p class="info-strip" data-service-guidance="{{ \App\Support\ServiceCatalog::REMOTE_INTERVIEW }}" @unless(in_array(\App\Support\ServiceCatalog::REMOTE_INTERVIEW, $selectedCodes, true)) hidden @endunless>ATD coordinará la entrevista remota y el consentimiento informado después de revisar la solicitud. Para este servicio basta con la ficha autorizada de cada participante. Las grabaciones y las lecturas de pulso se obtienen durante la entrevista.</p>
             <div class="form-grid"><label>Título de la solicitud<input name="subject" value="{{ old('subject') }}" maxlength="200" required placeholder="Ej. Evaluaciones de nuevo ingreso"></label><label>Referencia de su empresa (opcional)<input name="external_reference" value="{{ old('external_reference') }}" maxlength="100" placeholder="Ej. RRHH-2026-014"></label></div>
         </section>
         <section class="panel stack" data-people-section>

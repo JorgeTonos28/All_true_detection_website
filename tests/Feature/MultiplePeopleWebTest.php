@@ -6,10 +6,12 @@ use App\Actions\Auth\CreateNewUser;
 use App\Enums\Role;
 use App\Models\Order;
 use App\Models\User;
+use App\Support\PersonVerification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class MultiplePeopleWebTest extends TestCase
@@ -47,6 +49,27 @@ class MultiplePeopleWebTest extends TestCase
         $this->assertSame(2, $order->people()->count());
         $this->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('Primera Ficticia')->assertSee('Segunda Ficticia')->assertSee('Sin instrucciones adicionales.');
         $this->actingAs(User::factory()->create(['role' => Role::Admin]))->get('/portal/orders/'.$order->public_id)->assertOk()->assertSee('findings['.$order->people[1]->public_id.'][psychometric][outcome]', false);
+    }
+
+    public function test_remote_interview_is_selected_and_staff_records_a_review_without_a_verdict(): void
+    {
+        $code = 'remote-interview-rppg';
+        $this->get(route('services.request', ['service' => $code]))->assertRedirect(route('portal.orders.create', ['service' => $code]));
+        $this->get(route('portal.orders.create', ['service' => $code]))->assertOk()->assertSee('ATD coordinará la entrevista remota');
+        $person = ['first_name' => 'Nombre', 'last_name' => 'Ficticio', 'service_codes' => [$code], 'authorization_confirmed' => true];
+        $this->post('/portal/orders', ['subject' => 'Entrevista sintética', 'service_codes' => [$code], 'consent' => true, 'people' => [$person]])
+            ->assertSessionHasNoErrors()->assertRedirect();
+
+        $order = Order::sole();
+        $participant = $order->people()->sole();
+        $this->actingAs(User::factory()->create(['role' => Role::Admin]))->get('/portal/orders/'.$order->public_id)
+            ->assertOk()->assertSee('Evaluación revisada');
+        $notes = 'Resumen y límites de la revisión humana.';
+        $checks = PersonVerification::findings($order, [$participant->public_id => [$code => ['outcome' => 'reviewed', 'notes' => $notes]]]);
+        $this->assertSame('manual', $checks['method']);
+        $this->assertSame('reviewed', $checks['checks'][0]['outcome']);
+        $this->expectException(ValidationException::class);
+        PersonVerification::findings($order, [$participant->public_id => [$code => ['outcome' => 'verified', 'notes' => $notes]]]);
     }
 
     public function test_portal_requires_each_persons_title_separately_and_preview_links_are_private(): void

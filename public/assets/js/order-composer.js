@@ -89,6 +89,9 @@
             chip.addEventListener('click', () => { input.checked = false; updateServices(); });
             selected.append(chip);
         });
+        form.querySelectorAll('[data-service-guidance]').forEach(notice => {
+            notice.hidden = !checked.some(input => input.value === notice.dataset.serviceGuidance);
+        });
         updatePeople();
         void validateFiles();
     }

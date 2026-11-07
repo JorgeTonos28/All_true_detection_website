@@ -77,6 +77,33 @@ class MultiplePeopleApiTest extends TestCase
         $this->assertCount(2, Storage::disk('local')->allFiles());
     }
 
+    public function test_remote_interview_requires_authorized_participants_and_no_identity_evidence(): void
+    {
+        $code = 'remote-interview-rppg';
+        $headers = $this->token() + ['Idempotency-Key' => 'remote-interview-api'];
+        $services = collect($this->getJson('/api/v1/services', $headers)->assertOk()->json('data'))->keyBy('code');
+        $this->assertTrue($services[$code]['per_person']);
+        $this->assertFalse($services[$code]['requires_identity_number']);
+        $this->assertSame([], $services[$code]['required_evidence']);
+        $this->assertNull($services[$code]['identity_mode']);
+
+        $data = ['subject' => 'Entrevista sintética', 'consent' => true, 'items' => [['service_code' => $code, 'quantity' => 2]]];
+        $this->postJson('/api/v1/orders', $data, $headers)->assertUnprocessable()->assertJsonValidationErrors('people', 'error.fields');
+        $person = ['first_name' => 'Nombre', 'last_name' => 'Ficticio', 'service_codes' => [$code]];
+        $data['people'] = [$person + ['authorization_confirmed' => false]];
+        $this->postJson('/api/v1/orders', $data, $headers)->assertUnprocessable()->assertJsonValidationErrors('people.0.authorization_confirmed', 'error.fields');
+        $data['people'][0]['authorization_confirmed'] = true;
+        $this->postJson('/api/v1/orders', $data, $headers)->assertUnprocessable()->assertJsonValidationErrors('items.0.quantity', 'error.fields');
+        $data['people'][] = array_replace($person, ['first_name' => 'Segundo', 'authorization_confirmed' => true, 'identity_number' => '00000000000']);
+        $this->postJson('/api/v1/orders', $data, $headers)->assertUnprocessable()->assertJsonValidationErrors('people.1.identity_number', 'error.fields');
+        unset($data['people'][1]['identity_number']);
+
+        $id = $this->postJson('/api/v1/orders', $data, $headers)->assertCreated()->assertJsonCount(2, 'data.people')->json('data.id');
+        $this->postJson('/api/v1/orders', $data, $headers)->assertCreated()->assertJsonPath('data.id', $id);
+        $this->assertDatabaseCount('identity_sessions', 0);
+        $this->assertDatabaseCount('order_attachments', 0);
+    }
+
     public function test_catalog_exposes_service_requirements_and_details_accept_short_or_null_values(): void
     {
         $headers = $this->token();
