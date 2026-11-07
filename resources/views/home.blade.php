@@ -14,6 +14,7 @@
     <script src="{{ asset('assets/js/site.js') }}?v={{ filemtime(public_path('assets/js/site.js')) }}" defer></script>
 </head>
 <body class="home-v2">
+    @php($remoteInterview = collect($services)->firstWhere('code', \App\Support\ServiceCatalog::REMOTE_INTERVIEW))
     <a class="skip-link" href="#inicio">Saltar al contenido</a>
     <div class="header-sentinel" data-header-sentinel aria-hidden="true"></div>
     <header class="site-header" data-site-header>
@@ -28,6 +29,7 @@
 
         <nav class="site-nav" id="primary-navigation" data-site-nav aria-label="Navegación principal">
             <a href="#servicios">Servicios</a>
+            @if($remoteInterview)<a class="nav-remote-interview" href="#entrevista-remota">Entrevista remota</a>@endif
             <a href="#proceso">Proceso</a>
             <a href="#sectores">Sectores</a>
             <a href="#confidencialidad">Confidencialidad</a>
@@ -113,6 +115,10 @@
                 </div>
             </div>
         </section>
+
+        @if($remoteInterview)
+            @include('shared.remote-interview')
+        @endif
 
         <section class="risk-lab section-dark" id="riesgos" data-art-section>
             <img class="risk-art" src="{{ asset('assets/images/art/risk-topography-v1.webp') }}" width="1536" height="1024" alt="" aria-hidden="true" loading="lazy" decoding="async">

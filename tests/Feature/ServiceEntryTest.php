@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Auth\CreateNewUser;
 use App\Actions\Messages\CreateConversation;
 use App\Enums\Role;
+use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -13,6 +14,23 @@ use Tests\TestCase;
 class ServiceEntryTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_remote_interview_promotion_follows_catalog_and_uses_portal_entry(): void
+    {
+        $code = 'remote-interview-rppg';
+        $path = route('services.request', ['service' => $code]);
+        $this->get('/')->assertOk()
+            ->assertSeeInOrder(['id="servicios"', 'id="entrevista-remota"', 'id="riesgos"'], false)
+            ->assertSee('href="#entrevista-remota"', false)
+            ->assertSee('href="'.$path.'"', false)
+            ->assertSee('Solicitar entrevista remota')
+            ->assertDontSee('novvai.systems', false);
+        $this->get($path)->assertRedirect('/login')
+            ->assertSessionHas('url.intended', route('portal.orders.create', ['service' => $code]));
+
+        Service::where('code', $code)->sole()->update(['is_active' => false]);
+        $this->get('/')->assertOk()->assertDontSee('href="#entrevista-remota"', false)->assertDontSee('id="entrevista-remota"', false);
+    }
 
     public function test_service_selection_survives_registration_and_verification(): void
     {

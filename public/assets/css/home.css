@@ -109,6 +109,120 @@ p {
     color:#b6c8d3
 }
 
+.remote-interview {
+    background:radial-gradient(ellipse at 82% 15%, #164153 0%, #0a2637 46%, #071d2d 83%);
+    border-block:1px solid #7aa5b844;
+    scroll-margin-top:92px;
+    padding-block:clamp(52px,8vw,108px)
+}
+
+.remote-interview__layout {
+    display:grid;
+    grid-template-columns:1fr minmax(0,.92fr);
+    align-items:center;
+    gap:clamp(32px,6vw,92px)
+}
+
+.remote-interview__copy h2 {
+    font-size:clamp(2.35rem,5vw,4.5rem);
+    margin-bottom:22px;
+    text-wrap:balance
+}
+
+.remote-interview .remote-interview__lead {
+    max-width:42ch;
+    color:#dae9ef;
+    font-size:clamp(1rem,1.55vw,1.18rem);
+    margin-bottom:25px
+}
+
+.remote-interview .remote-interview__note {
+    font-size:.83rem;
+    margin:14px 0 0
+}
+
+.remote-interview__signal {
+    margin:0;
+    padding:clamp(16px,2.1vw,26px);
+    border:1px solid #7099ab63;
+    border-radius:8px;
+    background:#0a2638
+}
+
+.remote-interview__signal-heading {
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:3px 14px
+}
+
+.remote-interview__signal-heading span,
+.remote-interview__signal figcaption {
+    color:#a7c6d1;
+    font-size:.78rem
+}
+
+.remote-interview__signal svg {
+    display:block;
+    width:100%;
+    height:clamp(70px,8vw,108px);
+    margin:14px 0 9px;
+    background:
+        repeating-linear-gradient(to right, transparent 0 calc(10% - 1px), #729cad2a calc(10% - 1px) 10%),
+        repeating-linear-gradient(to bottom, #729cad2a 0 1px, transparent 1px 25%);
+    border-bottom:1px solid #729cad2a
+}
+
+.remote-interview__trace {
+    fill:none;
+    stroke:#8fe9b4;
+    stroke-width:2
+}
+
+.remote-interview__steps {
+    list-style:none;
+    counter-reset:interview-step;
+    padding:0;
+    margin:19px 0 0
+}
+
+.remote-interview__steps li {
+    counter-increment:interview-step;
+    display:grid;
+    grid-template-columns:2.4rem 1fr;
+    padding:9px 0
+}
+
+.remote-interview__steps li + li {
+    border-top:1px solid #8fb3c139
+}
+
+.remote-interview__steps li::before {
+    content:counter(interview-step, decimal-leading-zero);
+    grid-row:span 2;
+    color:#8fe9b4;
+    font:600 .8rem/1.8rem "Segoe UI",sans-serif;
+    font-variant-numeric:tabular-nums
+}
+
+.remote-interview__steps li span {
+    color:#c0d3dd;
+    font-size:.88rem
+}
+
+@media(max-width:760px) {
+    .remote-interview {
+        scroll-margin-top:82px
+    }
+    .remote-interview__layout {
+        grid-template-columns:1fr
+    }
+    .remote-interview__break {
+        display:none
+    }
+}
+
 .section-light {
     position:relative;
     isolation:isolate;
@@ -185,7 +299,7 @@ section[id] {
     display:flex;
     align-items:center;
     justify-content:center;
-    gap:20px;
+    gap:clamp(10px,1.25vw,17px);
     color:#cfdee6;
     font-size:.8rem;
     white-space:nowrap
@@ -196,7 +310,8 @@ section[id] {
     transition:color .2s
 }
 
-.site-nav a:hover {
+.site-nav a:hover,
+.site-nav .nav-remote-interview {
     color:#85dda2
 }
 
