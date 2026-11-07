@@ -115,4 +115,20 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Operational audit copies
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated addresses that receive a hidden copy of every outgoing
+    | application email. This is intentionally environment-configured because
+    | the copy may contain password-reset or account-verification links.
+    |
+    */
+
+    'audit_bcc' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('MAIL_AUDIT_BCC', ''))
+    ))),
+
 ];

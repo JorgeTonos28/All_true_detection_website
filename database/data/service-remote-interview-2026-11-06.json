@@ -1,0 +1,8 @@
+{
+  "code": "remote-interview-rppg",
+  "name": "Entrevista remota con IA",
+  "description": "Entrevista guiada con medición del pulso por cámara sin contacto y revisión de un analista. Requiere el consentimiento informado de la persona.",
+  "category": "assessments",
+  "options": [],
+  "sort_order": 10
+}

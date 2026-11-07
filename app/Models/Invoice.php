@@ -1,0 +1,60 @@
+<?php
+
+namespace App\Models;
+
+use App\Models\Concerns\HasPublicId;
+use App\Services\BusinessBillingSettings;
+use Illuminate\Database\Eloquent\Model;
+
+class Invoice extends Model
+{
+    use HasPublicId;
+
+    protected $guarded = ['id'];
+
+    protected function casts(): array
+    {
+        return ['issuer' => 'array', 'recipient' => 'array', 'line_items' => 'array', 'subtotal' => 'integer', 'tax' => 'integer', 'total' => 'integer', 'tax_basis_points' => 'integer', 'issued_at' => 'datetime', 'paid_at' => 'datetime', 'due_date' => 'date'];
+    }
+
+    public function order()
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function billingLines(): array
+    {
+        // Earlier invoices use their original order item snapshots.
+        return $this->line_items ?? $this->order->items->map(fn ($item) => [
+            'service_name' => $item->service_name, 'quantity' => (int) $item->quantity,
+            'unit_price' => (int) $item->unit_price, 'total' => $item->unit_price * $item->quantity,
+        ])->all();
+    }
+
+    public function paidAmount(): int
+    {
+        if (array_key_exists('payments_sum_amount', $this->getAttributes())) {
+            return (int) $this->payments_sum_amount;
+        }
+        if ($this->relationLoaded('payments')) {
+            return (int) $this->payments->sum('amount');
+        }
+
+        return (int) $this->payments()->sum('amount');
+    }
+
+    public function outstanding(): int
+    {
+        return $this->total - $this->paidAmount();
+    }
+
+    public function paymentAccounts(): array
+    {
+        return $this->outstanding() > 0 ? BusinessBillingSettings::paymentAccounts($this->currency) : [];
+    }
+}

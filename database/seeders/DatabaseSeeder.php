@@ -3,10 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Setting;
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -17,20 +15,14 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::query()->updateOrCreate(
-            ['email' => 'admin@alltruedetection.com'],
-            [
-                'name' => 'Administrador ATD',
-                'password' => Hash::make('Admin123!'),
-            ],
-        );
+        $this->call(ServiceSeeder::class);
 
         $settings = [
             ['key' => 'company_name', 'label' => 'Nombre de la empresa', 'value' => 'All True Detection', 'group' => 'Marca'],
             ['key' => 'slogan', 'label' => 'Eslogan', 'value' => 'Evaluamos. Detectamos. Prevenimos.', 'group' => 'Marca'],
             ['key' => 'hero_title', 'label' => 'Título principal', 'value' => 'Confianza verificable para decisiones', 'group' => 'Home'],
             ['key' => 'hero_accent', 'label' => 'Texto destacado del título', 'value' => 'más seguras', 'group' => 'Home'],
-            ['key' => 'hero_subtitle', 'label' => 'Subtítulo principal', 'value' => 'Servicios de evaluación de perfiles, detección de engaño, verificación, investigación preventiva, capacitación especializada y análisis asistido por IA para empresas, instituciones y casos particulares.', 'group' => 'Home', 'type' => 'textarea'],
+            ['key' => 'hero_subtitle', 'label' => 'Subtítulo principal', 'value' => 'Evaluaciones de personas, verificación de identidad y credenciales, capacitación y equipos para empresas, instituciones y clientes individuales.', 'group' => 'Home', 'type' => 'textarea'],
             ['key' => 'primary_cta_label', 'label' => 'Texto del botón principal', 'value' => 'Solicitar evaluación', 'group' => 'Home'],
             ['key' => 'phone', 'label' => 'Teléfono', 'value' => '+1 (829) 534 5678', 'group' => 'Contacto'],
             ['key' => 'whatsapp', 'label' => 'WhatsApp', 'value' => '18295345678', 'group' => 'Contacto'],
@@ -42,15 +34,17 @@ class DatabaseSeeder extends Seeder
             ['key' => 'facebook_url', 'label' => 'Facebook', 'value' => '', 'group' => 'Redes'],
             ['key' => 'youtube_url', 'label' => 'YouTube', 'value' => '', 'group' => 'Redes'],
             ['key' => 'x_url', 'label' => 'X', 'value' => '', 'group' => 'Redes'],
-            ['key' => 'meta_description', 'label' => 'Descripción SEO', 'value' => 'All True Detection ofrece evaluación de perfiles, polígrafo, verificación, antidoping, investigación, capacitación y análisis asistido por IA para decisiones corporativas más seguras.', 'group' => 'SEO', 'type' => 'textarea'],
+            ['key' => 'meta_description', 'label' => 'Descripción SEO', 'value' => 'All True Detection ofrece polígrafo, evaluación de perfiles, antidoping, psicometría, verificación de identidad y credenciales, visitas domiciliarias, capacitación y equipos.', 'group' => 'SEO', 'type' => 'textarea'],
             ['key' => 'logo_path', 'label' => 'Logo cargado', 'value' => null, 'group' => 'Marca', 'type' => 'file'],
         ];
 
         foreach ($settings as $setting) {
-            Setting::query()->updateOrCreate(
+            Setting::query()->firstOrCreate(
                 ['key' => $setting['key']],
                 $setting,
             );
         }
+
+        Setting::query()->firstOrCreate(['key' => 'favicon_path'], ['label' => 'Favicon', 'group' => 'Marca', 'type' => 'file']);
     }
 }

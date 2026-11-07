@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Actions\Orders;
+
+use App\Models\Order;
+use App\Models\OrderResult;
+use App\Models\User;
+use App\Services\Audit;
+use App\Services\IdentityChecks;
+use App\Services\OrderEvents;
+use App\Support\PersonVerification;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+
+class PublishResult
+{
+    public function handle(User $actor, OrderResult $result): OrderResult
+    {
+        return DB::transaction(function () use ($actor, $result) {
+            $order = Order::whereKey($result->order_id)->lockForUpdate()->firstOrFail();
+            Gate::forUser($actor)->authorize('administer', $order);
+            $result = OrderResult::whereKey($result->id)->lockForUpdate()->firstOrFail();
+            abort_unless($order->canReleaseResults(), 409, 'Complete la orden y confirme el pago total antes de publicar.');
+            if ($order->person()->exists()) {
+                PersonVerification::requireEvidence($order);
+                abort_unless($result->verification_findings, 409, 'La entrega necesita conclusiones de verificación.');
+                foreach ($order->people()->where('identity_mode', 'didit')->get() as $person) {
+                    abort_if(app()->isProduction() && $person->identitySession?->environment !== 'live', 409, 'No se puede publicar una simulación Didit como entrega de producción.');
+                    $expected = IdentityChecks::check($person);
+                    $actual = collect($result->verification_findings['checks'] ?? [])->first(fn ($check) => ($check['person_id'] ?? null) === $person->public_id && ($check['service_code'] ?? null) === 'identity-verification');
+                    abort_unless($expected && $actual === $expected, 409, 'La conclusión de identidad está pendiente o cambió. Prepare una entrega actualizada.');
+                }
+            }
+            if (! $result->published_at) {
+                $result->update(['published_at' => now(), 'published_by' => $actor->id]);
+                Audit::record($actor, 'result.published', $result);
+                OrderEvents::record($order, 'result.published', $result->public_id);
+            }
+
+            return $result;
+        }, 3);
+    }
+}

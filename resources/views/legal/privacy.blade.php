@@ -3,17 +3,14 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Aviso de privacidad | All True Detection</title>
-    <link rel="icon" href="{{ asset('favicon.ico') }}?v={{ filemtime(public_path('favicon.ico')) }}" sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/images/favicon-32.png') }}?v={{ filemtime(public_path('assets/images/favicon-32.png')) }}">
-    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('assets/images/favicon-192.png') }}?v={{ filemtime(public_path('assets/images/favicon-192.png')) }}">
-    <link rel="apple-touch-icon" href="{{ asset('assets/images/favicon-180.png') }}?v={{ filemtime(public_path('assets/images/favicon-180.png')) }}">
+    <title>Aviso de privacidad | {{ $business['company_name'] ?? 'All True Detection' }}</title>
+    @include('shared.favicon',['settings'=>$business])
     <link rel="stylesheet" href="{{ asset('assets/css/site.css') }}?v={{ filemtime(public_path('assets/css/site.css')) }}">
 </head>
 <body class="legal-body">
     <header class="legal-header">
         <a href="{{ route('home') }}" aria-label="Volver al inicio">
-            <img src="{{ asset('assets/images/brand-lockup-light.png') }}" alt="All True Detection">
+            <img src="{{ filled($business['logo_path'] ?? null) ? \Illuminate\Support\Facades\Storage::disk('public')->url($business['logo_path']) : asset('assets/images/brand-lockup-light.png') }}" alt="{{ $business['company_name'] ?? 'All True Detection' }}">
         </a>
         <nav>
             <a href="{{ route('home') }}">Inicio</a>
@@ -34,15 +31,29 @@
 
             <h2>Datos que pueden recopilarse</h2>
             <p>Podemos solicitar nombre, empresa, cargo, teléfono, correo electrónico, ubicación, tipo de servicio requerido, cantidad de personas a evaluar, descripción general del caso y datos necesarios para responder una solicitud comercial, técnica, analítica o administrativa.</p>
+            <p>Para validaciones de título universitario, exequátur e identidad, el expediente puede incluir nombre y apellidos de la persona, número de cédula, dirección, finalidad autorizada, datos académicos o profesionales y, de forma opcional, fecha de nacimiento, teléfono y correo. Se reciben copias o fotografías de la cédula, documentos de apoyo y selfies cuando el servicio las requiere. El solicitante debe contar con autorización de la persona y aportar únicamente datos pertinentes.</p>
 
             <h2>Finalidades</h2>
             <p>La información se usa para responder consultas, preparar cotizaciones, coordinar servicios, realizar análisis técnico o asistido por IA cuando corresponda, dar seguimiento a solicitudes, mejorar la atención, cumplir obligaciones administrativas y mantener comunicación relacionada con los servicios solicitados.</p>
+            <p>La verificación de identidad puede realizarse mediante revisión humana o, cuando ATD habilite expresamente el modo automático, mediante Didit. El modo manual no incluye prueba de vida ni cotejo biométrico automático. En el modo Didit, la persona participa en una captura guiada que puede procesar imágenes de su documento, rostro, vídeo o señales de prueba de vida, comparación facial y datos técnicos de dispositivo/red para comprobar identidad y detectar suplantación. La modalidad se identifica en la solicitud y antes de iniciar la captura.</p>
+            <p>Antes de iniciar Didit, el solicitante debe informar a la persona y obtener su autorización para este tratamiento conforme a la finalidad indicada; ATD registra la confirmación, versión del aviso y fecha, y el integrador conserva la evidencia que corresponda. Los archivos aportados para revisión manual no se envían automáticamente a Didit. Un resultado automatizado puede requerir revisión y no constituye por sí solo una decisión de contratación, acceso o elegibilidad. Puede consultar con ATD alternativas y solicitar revisión de una conclusión.</p>
+
+            <h3>Entrevista remota con IA</h3>
+            <p>Al solicitar la entrevista, ATD utiliza la ficha autorizada de cada participante para coordinar el servicio. Antes de la sesión, la persona recibe información sobre la entrevista, el uso de la cámara para medir el pulso, las finalidades, los destinatarios y la conservación de los datos, y puede decidir si presta su consentimiento informado. La autorización para abrir una solicitud no sustituye ese consentimiento. Un analista revisa el resultado orientativo y su contexto antes de emitir el informe.</p>
 
             <h2>Confidencialidad y resguardo</h2>
             <p>La información sensible se maneja con acceso restringido, discreción operativa y medidas razonables de seguridad. Los resultados, documentos, datos relacionados con evaluaciones y hallazgos derivados de análisis asistido se tratan bajo criterios de confidencialidad y uso limitado.</p>
+            <p>Los expedientes de personas se mantienen dentro de la cuenta del cliente, con acceso para sus usuarios autorizados y el personal de ATD habilitado para el caso. Las fichas y conclusiones se cifran en la base de datos; las imágenes y documentos se guardan en almacenamiento privado. Los correos y webhooks de seguimiento no incluyen cédulas, selfies ni conclusiones. La conservación y las solicitudes de supresión se gestionan con ATD; no existe borrado automático desde el portal.</p>
 
             <h2>Transferencias</h2>
             <p>Los datos no se venden ni se comparten con terceros para fines comerciales ajenos. Cuando un servicio requiera apoyo técnico, proveedores o cumplimiento legal, la información se compartirá solo en la medida necesaria y bajo criterios de protección.</p>
+            <p>Cuando se utiliza el modo automático, Didit actúa como proveedor técnico de verificación y procesa los datos de captura y sus comprobaciones bajo las condiciones aplicables al servicio. ATD le comunica los datos esperados mínimos y una referencia de sesión; conserva una conclusión resumida y no descarga automáticamente las imágenes, vídeos o informes completos del proveedor. Consulte la <a href="https://didit.me/terms/privacy-policy/" rel="noopener noreferrer" target="_blank">política de privacidad de Didit</a>. La ubicación del tratamiento, subencargados, conservación, supresión y posibles transferencias internacionales deben quedar definidos con el proveedor y ser revisados por ATD antes de activar producción. No se afirma una residencia, plazo o garantía contractual que no haya sido confirmado.</p>
+            <p>Versión del aviso para el flujo Didit: didit-2026-10-v1. ATD debe atender con el proveedor las solicitudes aplicables a sus datos de captura; el borrado de una cuenta ATD no implica por sí solo la eliminación de una sesión Didit. Escriba al contacto indicado en este sitio para ejercer sus derechos o plantear dudas antes de participar.</p>
+            <h3>Reverificación facial con una referencia anterior</h3>
+            <p>Con autorización expresa adicional, una verificación documental aprobada puede vincularse a una identidad reutilizable de la misma cuenta cliente. Didit conserva la referencia facial bajo las condiciones y retención aplicables a su servicio y la compara con capturas activas posteriores. ATD guarda el vínculo, datos básicos cifrados —incluido el número de cédula—, consentimiento y conclusiones técnicas; no descarga automáticamente el retrato ni la cédula de Didit para esta función. Los adjuntos que usted haya aportado directamente a ATD conservan su tratamiento independiente.</p>
+            <p>ATD limita la reutilización a 90 días desde la verificación original; cada nueva selfie no extiende este período ni vuelve a comprobar la vigencia del documento. Cada captura requiere informar y obtener autorización de la persona para su finalidad. Una revisión manual, una conclusión no aprobada o una identidad de otra cuenta no habilitan este flujo. Cuando venza o no esté disponible la referencia será necesaria una nueva verificación completa.</p>
+            <p>Puede revocar la referencia en ATD para impedir nuevas capturas. Esto no elimina por sí solo los datos de Didit, no cancela enlaces ya entregados ni borra el historial de comprobaciones efectuadas. La vigencia de 90 días es un control de uso de ATD, no una promesa de supresión automática del proveedor. Para retirar autorizaciones o solicitar supresión del dato biométrico y sus copias, contacte con ATD para coordinar el procedimiento aplicable con Didit. ATD no activa la conservación de plantillas tras borrar sesiones sin una instrucción y condiciones específicas.</p>
+            <p>Versión del consentimiento de reutilización: didit-reuse-2026-10-v1.</p>
 
             <h2>Derechos del titular</h2>
             <p>El titular puede solicitar acceso, rectificación, cancelación u oposición al tratamiento de sus datos, así como aclarar dudas sobre el manejo de información, escribiendo al correo indicado en el sitio web.</p>

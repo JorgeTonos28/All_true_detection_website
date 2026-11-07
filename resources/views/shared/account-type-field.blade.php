@@ -1,0 +1,1 @@
+<label>Tipo de cuenta<select name="account_type" data-account-type required><option value="">Seleccione el tipo de cliente</option>@foreach(\App\Enums\AccountType::cases() as $type)<option value="{{ $type->value }}" @selected(old('account_type',$accountTypeValue ?? '')===$type->value)>{{ $type->label() }}</option>@endforeach</select></label>

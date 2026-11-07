@@ -1,0 +1,12 @@
+[
+  {"code":"polygraph","name":"Servicios poligráficos","description":"Pruebas de nuevo ingreso, de rutina o control y pruebas específicas, con protocolos documentados.","category":"assessments","options":[{"code":"pre_employment","name":"Nuevo ingreso"},{"code":"routine","name":"Rutina o control"},{"code":"specific","name":"Prueba específica"}]},
+  {"code":"profile-verification","name":"Evaluaciones de perfiles","description":"Evaluaciones básicas, de rutina, gerenciales e investigativas, según el alcance de cada caso.","category":"assessments","options":[{"code":"basic","name":"Básica"},{"code":"routine","name":"Rutina"},{"code":"management","name":"Gerencial"},{"code":"investigative","name":"Investigativa"}]},
+  {"code":"drug-screening","name":"Pruebas antidoping","description":"Evaluación de sustancias según requerimiento, con manejo confidencial de la información.","category":"assessments","options":[]},
+  {"code":"psychometric","name":"Pruebas psicométricas","description":"Perfil laboral, competencias, personalidad y variables de riesgo humano.","category":"assessments","options":[]},
+  {"code":"home-visits","name":"Visitas domiciliarias","description":"Verificación de residencia, entorno y coherencia de los datos declarados.","category":"verifications","options":[]},
+  {"code":"exequatur","name":"Validación de exequátur de abogados y notarios","description":"Revisión documental del exequátur y de la habilitación profesional declarada por abogados y notarios.","category":"verifications","options":[]},
+  {"code":"bailiff-credentials","name":"Validación de credenciales de alguaciles","description":"Revisión de credenciales, entidad emisora y habilitación declarada del alguacil.","category":"verifications","options":[]},
+  {"code":"identity-verification","name":"Verificación de identidad","description":"Revisión documental de identidad con datos autorizados y captura facial, según el modo de verificación habilitado.","category":"verifications","options":[]},
+  {"code":"university-degree","name":"Validación de título universitario","description":"Verificación documental del título y contraste con la institución correspondiente.","category":"verifications","options":[]},
+  {"code":"training-equipment","name":"Capacitación y equipos","description":"Formación especializada, equipos y asesoría técnica para procesos de evaluación.","category":"additional","options":[]}
+]

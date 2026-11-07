@@ -2746,3 +2746,4 @@ textarea {
         min-height: 156px;
     }
 }
+.public-contact-form{display:grid;gap:13px;margin:25px 0}.public-contact-form label{display:grid;gap:5px;font-size:.85rem}.public-contact-form input,.public-contact-form textarea{width:100%;min-height:42px;border:1px solid #6f8b9d;border-radius:4px;padding:10px;background:#fff;color:#0f2a43;font:inherit}.public-contact-form .contact-consent{display:flex;align-items:baseline;flex-wrap:wrap;gap:7px}.public-contact-form .contact-consent input{width:auto;min-height:0}.contact-feedback{padding:12px;border:1px solid #7af59c;background:#133c33}.public-contact-form .contact-honeypot{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}.public-contact-form button{cursor:pointer}

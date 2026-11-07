@@ -1,0 +1,3860 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "All True Detection API",
+    "version": "1.9.0",
+    "description": "API privada por cuenta para solicitudes, documentos escritos, entregas y facturación comercial. Importes enteros en unidades menores. HTTPS en producción; Bearer con scopes; sin confirmación de pagos por API. Límite general 60/min por usuario y 600/min por IP; cargas 10/min e identidad costosa 10/min en contadores independientes por usuario. Los fallos de validación cuentan. Respetar Retry-After en 429; cuotas diarias Didit adicionales."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/identities": {
+      "get": {
+        "operationId": "listReusableIdentities",
+        "description": "Partner autorizado, identity:read. Referencias de la misma cuenta, 20 por página. Nunca devuelve retratos, número completo de cédula ni referencias internas Didit. q filtra por ULID exacto; estado available, expired, revoked o unavailable. No busca identidades de otras cuentas.",
+        "x-required-scopes": ["identity:read"],
+        "parameters": [{ "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1 } }, { "name": "q", "in": "query", "schema": { "type": "string", "maxLength": 26 } }],
+        "responses": {
+          "200": { "description": "Referencias paginadas", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/ReusableIdentity" } }, "meta": { "type": "object" } } } } } },
+          "default": { "description": "401, 403, 422 o 429", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/orders/{order}/people/{person}/reusable-identity": {
+      "post": {
+        "operationId": "enrollReusableIdentity",
+        "x-required-scopes": ["identity:verify", "identity:read"],
+        "description": "Registra una referencia después de una verificación documental Didit initial y verified, confirmada de nuevo por API. Consentimiento adicional obligatorio; no sirve revisión manual, solo presencia o una reautenticación. Fuente web requiere pago/completado/publicación; fuente api_credit requiere aprobación vigente. Una referencia por sesión inicial; repetir no extiende caducidad ni reactiva revocaciones. Vigencia máxima 90 días desde la captura original. No envía fotos ni cambia retención de Didit.",
+        "parameters": [{ "name": "order", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "person", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IdentityReuseConsent" } } } },
+        "responses": {
+          "201": { "description": "Referencia creada o ya existente", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/ReusableIdentity" } } } } } },
+          "default": { "description": "401 sin token; 403 cuenta/scope/rol; 404 inexistente; 409 fuente no apta/no publicada/vencida/revocada; 422 consentimiento; 429 límite; 503 configuración o confirmación remota indisponible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/identities/{identity}/verifications": {
+      "post": {
+        "operationId": "createRecurringIdentityVerification",
+        "x-required-scopes": ["identity:verify", "orders:write"],
+        "description": "Partner aprobado. Crea una orden exclusiva de identidad y sesión recurrente a crédito, sin pedir cédula ni imágenes. ATD usa el perfil cifrado y referencia Didit de su propia cuenta. Requiere Idempotency-Key: repetir mismo cuerpo/clave devuelve la misma orden; conflicto 409. Solo una captura pendiente por identidad; no reintentar con otra clave tras incertidumbre. Devuelve referencias, no perfil. Consultar identity_session_url con identity:read. Exige ACTIVE_3D y FACE_MATCH; no renueva la validación del documento ni los 90 días de referencia.",
+        "parameters": [{ "name": "identity", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/IdentityReuseConsent" }, { "type": "object", "properties": { "subject": { "type": "string", "maxLength": 200 }, "purpose": { "type": "string", "minLength": 5, "maxLength": 1000, "description": "Si se omite se conserva la finalidad original; confirmar que sigue autorizada." }, "details": { "type": "string", "nullable": true, "maxLength": 10000 }, "external_reference": { "type": "string", "nullable": true, "maxLength": 100 } } }] } } } },
+        "responses": {
+          "202": { "description": "Solicitud aceptada/existente", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "type": "object", "properties": { "order_id": { "type": "string" }, "person_id": { "type": "string" }, "identity_id": { "type": "string" }, "verification_kind": { "type": "string", "enum": ["recurring"] }, "identity_session_url": { "type": "string", "format": "uri" } } } } } } } },
+          "default": { "description": "401 sin token; 403 cuenta/permiso; 404 referencia inexistente; 409 referencia no apta/captura pendiente/clave en conflicto; 422 consentimiento/campos prohibidos; 429 cuota; 503 configuración/confirmación remota.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/identities/{identity}/revoke": {
+      "post": {
+        "operationId": "revokeReusableIdentity",
+        "x-required-scopes": ["identity:verify"],
+        "description": "Revoca el uso futuro en ATD, de forma idempotente y auditada. No elimina datos Didit, no cancela enlaces remotos ya entregados ni borra comprobaciones históricas. Una referencia revocada no se reactiva: requiere nueva verificación documental y consentimiento. Para supresión, coordinar el procedimiento de privacidad con ATD.",
+        "parameters": [{ "name": "identity", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "204": { "description": "Referencia revocada" }, "default": { "description": "401, 403, 404 o 429", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } } }
+      }
+    },
+    "/orders/{order}/people/{person}/identity-session": {
+      "parameters": [
+        { "name": "order", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "person", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "post": {
+        "operationId": "requestIdentitySession",
+        "description": "Solo partners autorizados a crédito y scope identity:verify. Cuenta activa/verificada y aprobación vigente comprobada en servidor. Requiere solicitud exclusiva de identity-verification, sin factura ni sesiones web, y persona identity_mode=didit. Consentimiento versionado obligatorio. No exige prepago. Una sesión por persona; repetir devuelve la existente sin nueva creación. Asíncrono. No acepta portrait_image, reference_image, workflow_id ni decision. No convierte casos manuales. Cuotas globales y por partner; preflight ACTIVE_3D obligatorio.",
+        "x-required-scopes": ["identity:verify"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["consent", "notice_version"], "properties": { "consent": { "type": "boolean", "enum": [true] }, "notice_version": { "type": "string", "enum": ["didit-2026-10-v1", "didit-reuse-2026-10-v1"], "description": "La versión debe corresponder al tipo de verificación fijado en la persona: initial o recurring." } } } } } },
+        "responses": {
+          "202": { "description": "Sesión aceptada/existente. Enlace nulo sin identity:read o sin lectura vinculada y confirmada del proveedor; consultar GET.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentitySession" } } } } } },
+          "default": { "description": "401 sin token; 403 cuenta no autorizada/otro tenant/scope/rol; 404 persona ajena/manual; 409 cancelada, mezcla de servicios/canales o factura individual; 422 consentimiento/versión/campos prohibidos; 429 cuota; 503 configuración no disponible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "get": {
+        "operationId": "getIdentitySession",
+        "description": "Partner con aprobación vigente y identity:read. Solo sesiones api_credit de su cuenta. No devuelve decisión ni media. El enlace privado habilita la captura; no debe registrarse ni compartirse fuera de la persona. Poll moderado; received no significa verified. Consulte links.result para la conclusión técnica automática.",
+        "x-required-scopes": ["identity:read"],
+        "responses": {
+          "200": { "description": "Estado operativo y enlace privado cuando se requiere participación.", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentitySession" } } } } } },
+          "default": { "description": "401, 403, 404, 409 cancelada o 429.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/orders/{order}/people/{person}/identity-session/result": {
+      "parameters": [
+        { "name": "order", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "person", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "get": {
+        "operationId": "getIdentityTechnicalResult",
+        "x-required-scopes": ["identity:read"],
+        "description": "Excepción de crédito exclusiva para partner autorizado actualmente, misma cuenta y sesión api_credit. Resultado Didit confirmado automáticamente en servidor, sin prepago ni publicación manual. Nunca entrega documentos, fotos, biometría o informe bruto. No es una decisión de elegibilidad ni garantía de ausencia de fraude. No válido como identidad real si environment=sandbox. Revocar autorización bloquea incluso tokens existentes. Conserve la revisión mayor; una corrección puede cambiar o retirar una conclusión previa.",
+        "responses": {
+          "200": { "description": "Conclusión técnica privada", "content": { "application/json": { "schema": { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/IdentityTechnicalResult" } } } } } },
+          "default": { "description": "401 sin token; 403 sin aprobación/scope/tenant o sesión web; 404 inexistente; 409 pendiente, actualización del proveedor sin confirmar (también de la fuente recurrente) o sandbox en producción; 429 cuota.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/orders/{order}/attachments/{attachment}/preview": {
+      "get": {
+        "operationId": "previewAttachment",
+        "description": "Requiere orders:read y acceso a la cuenta de la orden. Solo JPG/PNG/WebP, inline y sin caché. PDF/Word devuelven 415; no es una URL pública.",
+        "parameters": [
+          { "name": "order", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "attachment", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Imagen privada", "content": { "image/jpeg": { "schema": { "type": "string", "format": "binary" } }, "image/png": { "schema": { "type": "string", "format": "binary" } }, "image/webp": { "schema": { "type": "string", "format": "binary" } } } },
+          "default": { "description": "401 sin token; 403 sin permiso; 404 inexistente; 415 formato no visualizable; 429 límite de uso.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/orders/{order}/results/{result}/preview": {
+      "get": {
+        "operationId": "previewResult",
+        "description": "Requiere results:read, acceso a la cuenta, orden completada, factura totalmente pagada y entrega publicada. Mismas restricciones que la descarga; nunca anticipa resultados.",
+        "parameters": [
+          { "name": "order", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "result", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Imagen privada publicada", "content": { "image/jpeg": { "schema": { "type": "string", "format": "binary" } }, "image/png": { "schema": { "type": "string", "format": "binary" } }, "image/webp": { "schema": { "type": "string", "format": "binary" } } } },
+          "default": { "description": "401 sin token; 403 sin permiso; 404 inexistente/no publicado; 409 no completado/pagado; 415 formato no visualizable; 429 límite de uso.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/services": {
+      "get": {
+        "operationId": "listServices",
+        "description": "Requiere orders:read. Incluye remote-interview-rppg, entrevista remota por persona con pulso por cámara y revisión humana. Consulte los códigos y requisitos activos en cada instalación.",
+        "responses": {
+          "200": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Service"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "orders:read"
+        ]
+      }
+    },
+    "/orders": {
+      "get": {
+        "operationId": "listOrders",
+        "description": "Requiere orders:read",
+        "parameters": [
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/OrderStatus"
+            }
+          },
+          {
+            "name": "external_reference",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Texto en asunto, referencia externa o nombre de cuenta; ULID exacto. Siempre limitado a su cuenta.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "billing",
+            "in": "query",
+            "description": "Situación de facturación. credit identifica órdenes con sesiones api_credit.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "paid",
+                "unquoted",
+                "credit"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Primer día local de creación inclusive en PORTAL_TIMEZONE (predeterminado America/Santo_Domingo).",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Último día local de creación inclusive; debe ser >= from.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "description": "Reservado a personal web; no restringe adicionalmente al cliente API.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Order"
+                      }
+                    },
+                    "links": {
+                      "type": "object"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "orders:read"
+        ]
+      },
+      "post": {
+        "operationId": "createOrder",
+        "description": "Requiere orders:write. Misma clave y payload reproduce la orden; cambios o reordenar people producen 409. Hasta 10 personas por orden, cada una con service_codes; quantity coincide con las personas asignadas. Todos los servicios son personales salvo training-equipment. remote-interview-rppg exige people con autorización por participante. La sesión se coordina por separado y la entrega sigue el flujo ordinario de pago y publicación. person se conserva por compatibilidad para una sola persona. details es opcional. Cree con JSON y cargue evidencia por attachments con person_id; el detalle informa verification.people[].missing.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Order"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Formato de contenido o JSON no válido / límite de tamaño",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Formato de contenido o JSON no válido / límite de tamaño",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Formato de contenido o JSON no válido / límite de tamaño",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "orders:write"
+        ]
+      }
+    },
+    "/orders/{order}": {
+      "parameters": [
+        {
+          "name": "order",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getOrder",
+        "description": "Requiere orders:read",
+        "responses": {
+          "200": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Order"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "orders:read"
+        ]
+      }
+    },
+    "/orders/{order}/results": {
+      "parameters": [
+        {
+          "name": "order",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listResults",
+        "description": "Requiere results:read. Solo orden completada, factura pagada y entregas publicadas.",
+        "responses": {
+          "200": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Result"
+                      }
+                    },
+                    "links": {
+                      "type": "object"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "results:read"
+        ]
+      }
+    },
+    "/orders/{order}/results/{result}/download": {
+      "parameters": [
+        {
+          "name": "order",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          }
+        },
+        {
+          "name": "result",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "downloadResult",
+        "description": "Requiere results:read; comprueba autorización y pago en cada descarga.",
+        "responses": {
+          "200": {
+            "description": "Archivo privado",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "X-Content-SHA256": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Huella esperada del archivo privado."
+              }
+            }
+          },
+          "401": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "results:read"
+        ]
+      }
+    },
+    "/orders/{order}/messages": {
+      "parameters": [
+        {
+          "name": "order",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listMessages",
+        "description": "Requiere messages:read",
+        "responses": {
+          "200": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Message"
+                      }
+                    },
+                    "links": {
+                      "type": "object"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "messages:read"
+        ]
+      },
+      "post": {
+        "operationId": "sendMessage",
+        "description": "Requiere messages:write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "body"
+                ],
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 10000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Message"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Formato de contenido o JSON no válido / límite de tamaño",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Formato de contenido o JSON no válido / límite de tamaño",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Formato de contenido o JSON no válido / límite de tamaño",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "messages:write"
+        ]
+      }
+    },
+    "/orders/{order}/attachments": {
+      "parameters": [
+        {
+          "name": "order",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listAttachments",
+        "description": "Requiere orders:read. Documentos de entrada de la cuenta.",
+        "responses": {
+          "200": {
+            "description": "Documentos privados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Attachment"
+                      }
+                    },
+                    "links": {
+                      "type": "object"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "orders:read"
+        ]
+      },
+      "post": {
+        "operationId": "uploadAttachment",
+        "description": "Requiere orders:write. PDF/DOCX sin macros/JPG/PNG/WebP hasta 10 MB. 30 documentos y 100 MB por solicitud, 1 GB por cuenta. Solo órdenes abiertas; análisis antivirus obligatorio en producción. Audio, video, SVG y Word antiguo se rechazan.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "supporting",
+                      "identity_front",
+                      "identity_back",
+                      "selfie",
+                      "selfie_extra",
+                      "degree_document",
+                      "exequatur_document"
+                    , "bailiff_credential"],
+                    "default": "supporting",
+                    "description": "identity_front obligatorio para título/exequátur; degree_document para título; exequatur_document para exequátur; bailiff_credential para credenciales de alguacil; selfie para identidad. Selfies solo JPG/PNG/WebP; documentos clasificados PDF o imágenes, no DOCX. El mismo archivo no puede repetirse."
+                  },
+                  "person_id": {
+                    "type": "string",
+                    "minLength": 26,
+                    "maxLength": 26,
+                    "description": "Identificador público de people[].id, siempre perteneciente a esta orden. Obligatorio para evidencia clasificada si hay varias personas; con una se infiere."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Documento privado agregado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Attachment"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "description": "Recomendado para reintentos: misma clave y contenido devuelve el mismo documento; otro contenido produce 409.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+            }
+          }
+        ],
+        "x-required-scopes": [
+          "orders:write"
+        ]
+      }
+    },
+    "/orders/{order}/attachments/{attachment}/download": {
+      "parameters": [
+        {
+          "name": "order",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "attachment",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "downloadAttachment",
+        "description": "Requiere orders:read. Revalida autorización de cuenta.",
+        "responses": {
+          "200": {
+            "description": "Documento privado",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "X-Content-SHA256": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Huella esperada del archivo privado."
+              }
+            }
+          },
+          "401": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "orders:read"
+        ]
+      }
+    },
+    "/invoices": {
+      "get": {
+        "operationId": "listInvoices",
+        "tags": [
+          "Facturación"
+        ],
+        "description": "Requiere invoices:read. Facturas de la cuenta del token, con saldos en unidades menores.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unpaid",
+                "paid",
+                "overdue"
+              ]
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Invoice"
+                      }
+                    },
+                    "links": {
+                      "type": "object"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "invoices:read"
+        ]
+      }
+    },
+    "/invoices/{invoice}": {
+      "parameters": [
+        {
+          "name": "invoice",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getInvoice",
+        "tags": [
+          "Facturación"
+        ],
+        "description": "Requiere invoices:read. Incluye partidas, snapshots de facturación, pagos y saldo. No permite confirmar pagos.",
+        "responses": {
+          "200": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Invoice"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "invoices:read"
+        ]
+      }
+    },
+    "/invoices/{invoice}/document": {
+      "parameters": [
+        {
+          "name": "invoice",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "downloadInvoiceDocument",
+        "tags": [
+          "Facturación"
+        ],
+        "description": "Requiere invoices:read. Documento comercial HTML imprimible, entregado como attachment, sin NCF.",
+        "responses": {
+          "200": {
+            "description": "Factura HTML imprimible",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "invoices:read"
+        ]
+      }
+    },
+    "/orders/{order}/deliveries": {
+      "parameters": [
+        {
+          "name": "order",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listPublishedDeliveries",
+        "description": "Manifiesto paginado de entregas publicadas; requiere results:read, orden completada y factura pagada. Descargue cada archivo con Bearer y compare SHA-256.",
+        "responses": {
+          "200": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Result"
+                      }
+                    },
+                    "links": {
+                      "type": "object"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error de autenticación, autorización, conflicto, validación o servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio temporalmente no disponible (incluido escáner de documentos)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Entregas"
+        ],
+        "x-required-scopes": [
+          "results:read"
+        ]
+      }
+    },
+    "/orders/{order}/results/{result}": {
+      "parameters": [
+        {
+          "name": "order",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          }
+        },
+        {
+          "name": "result",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getPublishedResult",
+        "tags": [
+          "Entregas"
+        ],
+        "description": "Requiere results:read y acceso a la cuenta. Solo resultados publicados con pago confirmado.",
+        "responses": {
+          "200": {
+            "description": "Respuesta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Result"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "HTTPS requerido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Consulte error.code, error.message y meta.request_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "results:read"
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Token Sanctum de cliente verificado, activo y con scopes limitados."
+      }
+    },
+    "schemas": {
+      "IdentityReuseConsent": { "type": "object", "required": ["consent", "notice_version"], "properties": { "consent": { "type": "boolean", "enum": [true] }, "notice_version": { "type": "string", "enum": ["didit-reuse-2026-10-v1"] } } },
+      "ReusableIdentity": { "type": "object", "properties": {
+        "id": { "type": "string" }, "display_name": { "type": "string" }, "identity_number_hint": { "type": "string", "description": "Solo últimos cuatro dígitos." },
+        "environment": { "type": "string", "enum": ["sandbox", "live"] }, "state": { "type": "string", "enum": ["available", "expired", "revoked", "unavailable"] },
+        "expires_at": { "type": "string", "format": "date-time" }, "consented_at": { "type": "string", "format": "date-time" }, "notice_version": { "type": "string" }
+      } },
+      "IdentitySession": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "order_id": { "type": "string" }, "person_id": { "type": "string" },
+          "provider": { "type": "string", "enum": ["didit"] },
+          "verification_kind": { "type": "string", "enum": ["initial", "recurring"] }, "identity_id": { "type": "string", "nullable": true },
+          "state": { "type": "string", "enum": ["preparing", "awaiting_person", "processing", "received", "attention_required"] },
+          "environment": { "type": "string", "enum": ["sandbox", "live"] },
+          "billing_mode": { "type": "string", "enum": ["partner_credit"] }, "revision": { "type": "integer", "minimum": 0 },
+          "verification_url": { "type": "string", "format": "uri", "nullable": true, "description": "Enlace secreto Didit, solo awaiting_person con identity:read y lectura vinculada confirmada, sin actualización pendiente. También exige identity:read al repetir POST. Puede permanecer nulo tras crear. No enviarlo por logs, correo ni webhooks; no exponer Bearer ATD al navegador." },
+          "consented_at": { "type": "string", "format": "date-time" }, "notice_version": { "type": "string" },
+          "links": { "type": "object", "properties": { "self": { "type": "string" }, "result": { "type": "string" } } }
+        }
+      },
+      "IdentityTechnicalResult": {
+        "type": "object",
+        "properties": {
+          "verification_kind": { "type": "string", "enum": ["initial", "recurring"] }, "identity_id": { "type": "string", "nullable": true },
+          "document_reverified": { "type": "boolean", "description": "Indica el alcance del flujo, no éxito documental: true en flujo inicial con comprobación de documento; false en autenticación recurrente sin nueva cédula. Consultar outcome/reason para saber la conclusión." },
+          "id": { "type": "string" }, "order_id": { "type": "string" }, "person_id": { "type": "string" },
+          "provider": { "type": "string", "enum": ["didit"] }, "environment": { "type": "string", "enum": ["sandbox", "live"] },
+          "billing_mode": { "type": "string", "enum": ["partner_credit"] }, "revision": { "type": "integer", "minimum": 1 },
+          "outcome": { "type": "string", "enum": ["verified", "not_verified", "inconclusive"] },
+          "reason": { "type": "string", "description": "Referencia técnica; no contiene datos personales." },
+          "reviewed_at": { "type": "string", "format": "date-time" }, "requires_review": { "type": "boolean" }
+        }
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": [
+          "submitted",
+          "reviewing",
+          "quoted",
+          "in_progress",
+          "completed",
+          "cancelled"
+        ]
+      },
+      "Service": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "description"
+        ],
+        "properties": {
+          "identity_mode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "manual",
+              "didit",
+              null
+            ]
+          },
+          "per_person": {
+            "type": "boolean",
+            "description": "Todos salvo training-equipment."
+          },
+          "requires_identity_number": {
+            "type": "boolean"
+          },
+          "required_evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "assessments",
+              "verifications",
+              "additional",
+              null
+            ]
+          },
+          "category_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "name"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "CreateOrder": {
+        "type": "object",
+        "required": [
+          "subject",
+          "consent",
+          "items"
+        ],
+        "properties": {
+          "subject": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "details": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 10000
+          },
+          "external_reference": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "consent": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "service_code",
+                "quantity"
+              ],
+              "properties": {
+                "service_code": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "description": "Con people, debe coincidir con el número de personas asignadas a este servicio. Con el campo anterior person, se acepta 1."
+                }
+              }
+            }
+          },
+          "person": {
+            "$ref": "#/components/schemas/VerificationPerson"
+          },
+          "people": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "description": "Una o varias personas, cada una con sus servicios. No se combina con person. Todos los servicios son por persona salvo training-equipment. remote-interview-rppg exige people. Se conserva la creación anterior sin ficha para los servicios que ya la admitían; para integraciones nuevas use people.",
+            "items": { "$ref": "#/components/schemas/OrderPerson" }
+          }
+        }
+      },
+      "PaymentAccount": {
+        "type": "object",
+        "required": [
+          "bank_name",
+          "account_type",
+          "account_holder",
+          "account_number",
+          "currency"
+        ],
+        "properties": {
+          "bank_name": {
+            "type": "string"
+          },
+          "account_type": {
+            "type": "string",
+            "enum": [
+              "checking",
+              "savings"
+            ]
+          },
+          "account_holder": {
+            "type": "string"
+          },
+          "account_number": {
+            "type": "string",
+            "description": "Conservar como texto, incluidos ceros iniciales."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        }
+      },
+      "Invoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "subtotal": {
+            "type": "integer"
+          },
+          "tax_basis_points": {
+            "type": "integer"
+          },
+          "tax": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "outstanding": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unpaid",
+              "paid"
+            ]
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "paid_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "paid_amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "is_overdue": {
+            "type": "boolean"
+          },
+          "issuer": {
+            "type": "object"
+          },
+          "recipient": {
+            "type": "object",
+            "properties": {
+              "account_type": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "individual",
+                  "business",
+                  null
+                ],
+                "description": "Instantánea al emitir; puede faltar en facturas históricas."
+              }
+            }
+          },
+          "lines": {
+            "type": "array",
+            "description": "Partidas confirmadas al emitir. Una familia puede aparecer varias veces con modalidades, cantidades y tarifas diferentes. Las facturas históricas conservan sus partidas originales.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "service_name": {
+                  "type": "string"
+                },
+                "service_code": { "type": "string", "description": "Código del servicio agrupador; puede faltar en facturas anteriores." },
+                "option_code": { "type": "string", "nullable": true, "description": "Modalidad de esta partida, si fue especificada. Puede faltar en facturas anteriores." },
+                "option_name": { "type": "string", "nullable": true, "description": "Nombre de modalidad fijado al emitir. Úselo para mostrar la partida cuando esté presente." },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unit_price": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "payments": {
+            "type": "array",
+            "description": "Solo en la ficha individual.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "method": {
+                  "type": "string"
+                },
+                "reference": {
+                  "type": "string"
+                },
+                "received_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "document_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "payment_accounts": {
+            "type": "array",
+            "description": "Cuentas ATD activas, de la misma moneda, para facturas con saldo pendiente. Lista vacía si pagada o sin cuentas configuradas. Son instrucciones vigentes, no una instantánea histórica. No equivale a pago registrado.",
+            "items": {
+              "$ref": "#/components/schemas/PaymentAccount"
+            }
+          }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "details": {
+            "type": "string",
+            "nullable": true
+          },
+          "external_reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "service_code": {
+                  "type": "string"
+                },
+                "service_name": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer"
+                },
+                "unit_price": {
+                  "type": "integer",
+                  "nullable": true,
+                  "description": "Precio unitario común de la partida agrupada. null si aún no se factura o si sus modalidades tienen precios diferentes; concilie con invoice.lines mediante invoices:read."
+                }
+              }
+            }
+          },
+          "invoice": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Invoice"
+              }
+            ],
+            "nullable": true,
+            "description": "Solo se incluye información de factura si el token tiene invoices:read; en otro caso es null."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "links": {
+            "type": "object"
+          },
+          "person": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VerificationPerson"
+              }
+            ],
+            "nullable": true,
+            "description": "Compatibilidad: solo creación/detalle, perfil si hay una persona; null si hay varias o no hay ficha. Ausente del listado."
+          },
+          "people": {
+            "type": "array",
+            "description": "Solo creación y detalle autorizado; ausente del listado, notificaciones y webhooks.",
+            "items": {
+              "$ref": "#/components/schemas/OrderPerson"
+            }
+          },
+          "verification": {
+            "$ref": "#/components/schemas/VerificationEvidence"
+          },
+          "customer_account": {
+            "type": "object",
+            "nullable": true,
+            "readOnly": true,
+            "description": "Cuenta determinada por el servidor a partir del usuario autenticado; nunca permite seleccionar otra cuenta desde el cuerpo.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "ULID público de la cuenta."
+              },
+              "name": {
+                "type": "string"
+              },
+              "account_type": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "individual",
+                  "business",
+                  null
+                ],
+                "description": "null solo en cuentas anteriores pendientes de clasificación."
+              }
+            }
+          }
+        }
+      },
+      "Result": {
+        "type": "object",
+        "properties": {
+          "preview_url": { "type": "string", "nullable": true, "description": "Solo imágenes; requiere results:read y las mismas condiciones de pago/publicación que la descarga." },
+          "id": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "file_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "download_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "file_size": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "sha256": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "SHA-256 del archivo para verificar su integridad."
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string",
+            "nullable": true
+          },
+          "verification_findings": {
+            "$ref": "#/components/schemas/VerificationFindings"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "body": {
+            "type": "string"
+          },
+          "sender": {
+            "type": "string",
+            "enum": [
+              "ATD",
+              "client"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "fields"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "object"
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        }
+      },
+      "Attachment": {
+        "type": "object",
+        "required": [
+          "id",
+          "file_name",
+          "mime_type",
+          "created_at",
+          "download_url"
+        ],
+        "properties": {
+          "person_id": { "type": "string", "nullable": true, "description": "Identificador público de la persona, nunca el ID interno." },
+          "preview_url": { "type": "string", "nullable": true, "description": "Solo imágenes; requiere Bearer orders:read, no es un enlace público." },
+          "id": {
+            "type": "string"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "mime_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "download_url": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "sha256": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "SHA-256 del archivo para verificar su integridad."
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "supporting",
+              "identity_front",
+              "identity_back",
+              "selfie",
+              "selfie_extra",
+              "degree_document",
+              "exequatur_document"
+            , "bailiff_credential"],
+            "default": "supporting"
+          }
+        }
+      },
+      "WebhookEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "created_at",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "order.created",
+              "order.updated",
+              "invoice.issued",
+              "payment.recorded",
+              "invoice.paid",
+              "result.published",
+              "endpoint.test"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string",
+                "nullable": true
+              },
+              "status": {
+                "$ref": "#/components/schemas/OrderStatus"
+              },
+              "invoice_id": {
+                "type": "string",
+                "nullable": true
+              },
+              "result_id": {
+                "type": "string",
+                "nullable": true
+              },
+              "endpoint_id": {
+                "type": "string"
+              },
+              "links": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "OrderPerson": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "first_name",
+          "last_name",
+          "authorization_confirmed",
+          "service_codes"
+        ],
+        "description": "Ficha cifrada por solicitud. Cédula y finalidad obligatorias para título, exequátur, identidad y credenciales de alguacil. No aportar cédula para otros servicios. Dirección obligatoria para título, exequátur, identidad y visitas domiciliarias. Los códigos retirados se conservan en respuestas históricas, pero no se aceptan en solicitudes nuevas. No acepta decisiones ni identificadores del cliente.",
+        "properties": {
+          "identity_mode": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "didit"
+            ],
+            "readOnly": true
+          },
+          "identity_session_url": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "readOnly": true
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true,
+            "description": "ULID público generado por ATD; úselo en person_id al cargar evidencia."
+          },
+          "service_codes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "polygraph",
+                "deception-detection",
+                "profile-verification",
+                "applied-ai",
+                "home-visits",
+                "investigations",
+                "drug-screening",
+                "psychometric",
+                "university-degree",
+                "exequatur",
+                "identity-verification",
+                "bailiff-credentials"
+              ]
+            }
+          },
+          "first_name": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/first_name"
+          },
+          "last_name": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/last_name"
+          },
+          "identity_number": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/identity_number"
+          },
+          "address": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/address"
+          },
+          "birth_date": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/birth_date"
+          },
+          "phone": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/phone"
+          },
+          "email": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/email"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/purpose"
+          },
+          "authorization_confirmed": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/authorization_confirmed"
+          },
+          "degree": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/degree"
+          },
+          "exequatur": {
+            "$ref": "#/components/schemas/VerificationPerson/properties/exequatur"
+          },
+          "bailiff": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Solo con bailiff-credentials. Los campos son opcionales; la credencial escaneada se aporta aparte.",
+            "properties": {
+              "credential_number": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "issuing_authority": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              },
+              "jurisdiction": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              }
+            }
+          },
+          "service_options": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Modalidades opcionales por persona. Cada clave debe corresponder a un servicio seleccionado; consulte options del catálogo. Omitir equivale a definirlo con ATD.",
+            "properties": {
+              "polygraph": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "pre_employment",
+                  "routine",
+                  "specific",
+                  null
+                ]
+              },
+              "profile-verification": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "basic",
+                  "routine",
+                  "management",
+                  "investigative",
+                  null
+                ]
+              }
+            }
+          }
+        }
+      },
+      "VerificationPerson": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Campo anterior compatible para una sola persona, cantidad=1. No combinar con people; se recomienda people para nuevas integraciones. Solo creación/detalle autorizado, nunca listados ni webhooks. También compatible con bailiff-credentials; para ese servicio address es opcional.",
+        "required": [
+          "first_name",
+          "last_name",
+          "identity_number",
+          "address",
+          "purpose",
+          "authorization_confirmed"
+        ],
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "last_name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "identity_number": {
+            "type": "string",
+            "pattern": "^[0-9]{3}-?[0-9]{7}-?[0-9]$",
+            "description": "Cédula dominicana de 11 dígitos. Se normaliza sin guiones; validar formato no demuestra autenticidad."
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Opcional, no futura."
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 40,
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254,
+            "nullable": true
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 5
+          },
+          "authorization_confirmed": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "degree": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Obligatorio solo con university-degree.",
+            "required": [
+              "institution",
+              "degree_name"
+            ],
+            "properties": {
+              "institution": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "degree_name": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "graduation_year": {
+                "type": "integer",
+                "minimum": 1900,
+                "nullable": true,
+                "description": "No posterior al año actual."
+              },
+              "registration_number": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              }
+            }
+          },
+          "exequatur": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Obligatorio solo con exequatur.",
+            "required": [
+              "profession"
+            ],
+            "properties": {
+              "profession": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "number": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "issuing_authority": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              },
+              "issued_on": {
+                "type": "string",
+                "format": "date",
+                "nullable": true,
+                "description": "No futura."
+              }
+            }
+          },
+          "bailiff": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Solo con bailiff-credentials. Los campos son opcionales; la credencial escaneada se aporta aparte.",
+            "properties": {
+              "credential_number": {
+                "type": "string",
+                "maxLength": 100,
+                "nullable": true
+              },
+              "issuing_authority": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              },
+              "jurisdiction": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true
+              }
+            }
+          },
+          "service_options": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Modalidades opcionales por persona. Cada clave debe corresponder a un servicio seleccionado; consulte options del catálogo. Omitir equivale a definirlo con ATD.",
+            "properties": {
+              "polygraph": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "pre_employment",
+                  "routine",
+                  "specific",
+                  null
+                ]
+              },
+              "profile-verification": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "basic",
+                  "routine",
+                  "management",
+                  "investigative",
+                  null
+                ]
+              }
+            }
+          }
+        }
+      },
+      "VerificationEvidence": {
+        "type": "object",
+        "nullable": true,
+        "required": [
+          "method",
+          "ready_for_review",
+          "required",
+          "missing"
+        ],
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["person_id", "ready_for_review", "required", "missing"],
+              "properties": {
+                "person_id": { "type": "string" },
+                "method": { "type": "string", "enum": ["manual", "didit"] },
+                "identity_pending": { "type": "boolean", "description": "Estado operativo, nunca aprobación/rechazo." },
+                "ready_for_review": { "type": "boolean" },
+                "required": { "type": "array", "items": { "type": "string" } },
+                "missing": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "manual", "mixed_or_didit"
+            ]
+          },
+          "ready_for_review": {
+            "type": "boolean",
+            "description": "Solo completitud de evidencias, NO decisión sobre identidad."
+          },
+          "required": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "identity_front",
+                "selfie",
+                "degree_document",
+                "exequatur_document"
+              , "bailiff_credential"]
+            }
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "identity_front",
+                "selfie",
+                "degree_document",
+                "exequatur_document"
+              , "bailiff_credential"]
+            }
+          }
+        }
+      },
+      "VerificationFindings": {
+        "type": "object",
+        "nullable": true,
+        "description": "Solo entregas publicadas tras pago total y finalización. Conclusiones manuales, Didit o mixtas. No es una decisión de elegibilidad. Una corrección del proveedor invalida la publicación anterior.",
+        "required": [
+          "method",
+          "reviewed_at",
+          "checks"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "manual", "didit", "mixed"
+            ]
+          },
+          "reviewed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "service_code",
+                "outcome",
+                "notes"
+              ],
+              "properties": {
+                "person_id": { "type": "string", "description": "Persona de la comprobación. Siempre incluido en conclusiones nuevas agrupadas por persona; puede faltar en entregas anteriores." },
+                "method": { "type": "string", "enum": ["didit"], "description": "Incluido en comprobaciones automáticas." },
+                "session_id": { "type": "string", "description": "Referencia ATD, no token ni identificador secreto del proveedor." },
+                "environment": { "type": "string", "enum": ["sandbox", "live"], "description": "Sandbox no es una verificación real ni puede publicarse en producción." },
+                "service_code": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "verified",
+                    "not_verified",
+                    "inconclusive",
+                    "reviewed"
+                  ],
+                  "description": "Para remote-interview-rppg se devuelve reviewed (evaluación revisada por un analista) o inconclusive. Los demás servicios conservan sus valores anteriores."
+                },
+                "notes": {
+                  "type": "string",
+                  "maxLength": 5000
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
